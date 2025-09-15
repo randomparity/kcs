@@ -162,19 +162,110 @@ class GitHubActionsAdapter:
         """
         url = f"{self.github_context.api_url}/repos/{self.github_context.repository}/pulls/{pr_number}"
 
-        try:
-            # Get the diff using the correct GitHub API format
-            headers = {
+        # Try multiple approaches to get the diff
+        approaches = [
+            # Standard GitHub API with diff media type
+            {
                 "Accept": "application/vnd.github.diff",
                 "X-GitHub-Api-Version": "2022-11-28",
-            }
-            response = self.github_session.get(url, headers=headers)
-            response.raise_for_status()
-            return response.text
+            },
+            # Try with v3 media type
+            {
+                "Accept": "application/vnd.github.v3.diff",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            # Try with patch media type
+            {
+                "Accept": "application/vnd.github.patch",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            # Try standard JSON to see if that works
+            {
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        ]
 
-        except requests.RequestException as e:
-            logger.error(f"Failed to get PR diff: {e}")
-            raise
+        for i, accept_headers in enumerate(approaches):
+            try:
+                # Merge with session headers to preserve Authorization
+                headers = dict(self.github_session.headers)
+                headers.update(accept_headers)
+
+                logger.info(
+                    f"Attempt {i + 1}: Trying Accept header: {accept_headers['Accept']}"
+                )
+                response = self.github_session.get(url, headers=headers)
+                response.raise_for_status()
+
+                # For JSON response, we need to extract the diff differently
+                if "json" in accept_headers["Accept"]:
+                    logger.info("Got JSON response, this approach won't work for diff")
+                    continue
+
+                logger.info(f"Success with Accept header: {accept_headers['Accept']}")
+                return response.text
+
+            except requests.RequestException as e:
+                logger.error(f"Attempt {i + 1} failed: {e}")
+                if hasattr(e, "response") and e.response is not None:
+                    logger.error(f"Response status: {e.response.status_code}")
+                    logger.error(f"Response headers: {dict(e.response.headers)}")
+                    logger.error(f"Response body: {e.response.text}")
+
+                    # Check if it's the "diff too large" error
+                    if e.response.status_code == 406:
+                        try:
+                            error_body = e.response.json()
+                            if error_body.get("errors") and any(
+                                err.get("code") == "too_large"
+                                for err in error_body["errors"]
+                            ):
+                                logger.info(
+                                    "Diff exceeds 20k line limit, falling back to file-by-file approach"
+                                )
+                                return self._get_pr_diff_from_files(pr_number)
+                        except (ValueError, KeyError):
+                            pass
+                # Continue to next approach
+
+        # If all approaches failed
+        raise Exception(f"All attempts to get PR diff failed for PR #{pr_number}")
+
+    def _get_pr_diff_from_files(self, pr_number: int) -> str:
+        """Get PR diff by reconstructing from individual file changes.
+
+        This is a fallback when the full diff exceeds GitHub's 20k line limit.
+
+        Args:
+            pr_number: Pull request number
+
+        Returns:
+            Reconstructed diff content
+        """
+        logger.info(f"Reconstructing diff from files for PR #{pr_number}")
+
+        # Get list of changed files
+        changes = self.get_pr_changes(pr_number)
+
+        # Reconstruct diff from individual file patches
+        diff_parts = []
+        for change in changes:
+            if change.patch:  # Some files might not have patches (binary files, etc.)
+                diff_parts.append(change.patch)
+
+        if not diff_parts:
+            logger.warning(
+                "No file patches found - PR might only contain binary changes"
+            )
+            return ""
+
+        full_diff = "\n".join(diff_parts)
+        logger.info(
+            f"Reconstructed diff with {len(diff_parts)} files, {len(full_diff)} characters"
+        )
+
+        return full_diff
 
     def call_kcs_api(self, endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
         """Call KCS MCP API endpoint.
