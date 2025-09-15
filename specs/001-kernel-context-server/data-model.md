@@ -111,9 +111,11 @@ erDiagram
 ## Core Entities
 
 ### File
+
 Represents a source file in the kernel repository.
 
 **Fields**:
+
 - `id`: Unique identifier
 - `path`: Relative path from repository root
 - `sha`: Git SHA for version tracking
@@ -121,14 +123,17 @@ Represents a source file in the kernel repository.
 - `indexed_at`: Timestamp of last indexing
 
 **Constraints**:
+
 - Unique on (path, config)
 - Path must be relative, not absolute
 - SHA must be valid git object hash
 
 ### Symbol
+
 Represents a function, struct, variable, or other code element.
 
 **Fields**:
+
 - `id`: Unique identifier
 - `name`: Symbol name (e.g., "sys_read", "task_struct")
 - `kind`: Type of symbol (function, struct, variable, macro, typedef)
@@ -140,14 +145,17 @@ Represents a function, struct, variable, or other code element.
 - `signature`: Function signature or struct definition
 
 **Constraints**:
+
 - Unique on (name, file_id, config)
 - Line numbers must be positive
 - Kind must be from defined enum
 
 ### EntryPoint
+
 Kernel boundary where external requests enter.
 
 **Fields**:
+
 - `id`: Unique identifier
 - `kind`: Type (syscall, ioctl, netlink, file_ops, sysfs, proc, debugfs, driver, notifier, bpf)
 - `key`: Unique identifier within kind (e.g., "__NR_read", "TCGETS")
@@ -157,10 +165,12 @@ Kernel boundary where external requests enter.
 - `config`: Configuration context
 
 **Constraints**:
+
 - Unique on (kind, key, config)
 - Details schema varies by kind
 
 **Details Schema Examples**:
+
 ```json
 // Syscall
 {
@@ -186,9 +196,11 @@ Kernel boundary where external requests enter.
 ## Relationship Entities
 
 ### CallEdge
+
 Represents a function call relationship.
 
 **Fields**:
+
 - `caller_id`: Calling function
 - `callee_id`: Called function
 - `config`: Configuration context
@@ -197,45 +209,55 @@ Represents a function call relationship.
 - `is_indirect`: True for function pointers
 
 **Constraints**:
+
 - No self-loops unless recursive
 - Config must match symbol configs
 
 ### DependsOnKconfig
+
 Links symbols to Kconfig options.
 
 **Fields**:
+
 - `symbol_id`: Symbol reference
 - `kconfig_name`: CONFIG_* option name
 - `condition_type`: ifdef, if_enabled, depends_on, select
 
 **Constraints**:
+
 - Kconfig_name must start with CONFIG_
 - Must reference existing KconfigOption
 
 ### ModuleSymbol
+
 Tracks symbol exports and module membership.
 
 **Fields**:
+
 - `module_name`: Kernel module name
 - `symbol_id`: Exported symbol
 - `export_type`: EXPORT_SYMBOL, EXPORT_SYMBOL_GPL, etc.
 
 **Constraints**:
+
 - Module_name must be valid kernel module
 - Export_type from defined enum
 
 ## Aggregate Entities
 
 ### Summary
+
 AI-generated or rule-based symbol documentation.
 
 **Fields**:
+
 - `symbol_id`: Associated symbol
 - `content`: JSON structured summary
 - `generated_at`: Creation timestamp
 - `model_version`: Generator version
 
 **Content Schema**:
+
 ```json
 {
   "purpose": "High-level description",
@@ -258,9 +280,11 @@ AI-generated or rule-based symbol documentation.
 ```
 
 ### DriftReport
+
 Tracks mismatches between spec and implementation.
 
 **Fields**:
+
 - `id`: Unique identifier
 - `feature_id`: Feature being checked
 - `mismatches`: JSON array of issues
@@ -268,6 +292,7 @@ Tracks mismatches between spec and implementation.
 - `severity`: blocker, warning, info
 
 **Mismatches Schema**:
+
 ```json
 [
   {
@@ -288,6 +313,7 @@ Tracks mismatches between spec and implementation.
 ## Indexes and Performance
 
 ### Primary Indexes
+
 ```sql
 -- Symbol lookups
 CREATE INDEX idx_symbol_name ON symbol(name);
@@ -308,6 +334,7 @@ CREATE INDEX idx_file_config ON file(config);
 ```
 
 ### Specialized Indexes
+
 ```sql
 -- Full text search on summaries
 CREATE INDEX idx_summary_content ON summary USING gin(content);
@@ -322,21 +349,25 @@ CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
 ## Validation Rules
 
 ### Symbol Validation
+
 - Names must be valid C identifiers (except macros)
 - Line spans must not overlap within same file
 - Signature must parse as valid C declaration
 
 ### Entry Point Validation
+
 - Syscall numbers must be unique per architecture
 - Ioctl commands must decode to valid _IO* macros
 - File operations must reference actual function pointers
 
 ### Graph Validation
+
 - No orphaned symbols (unreachable from entry points)
 - Call edges must connect existing symbols
 - Config bitmaps must be consistent across related entities
 
 ### Citation Validation
+
 - All citations must reference valid file:line locations
 - Line numbers must be within file bounds
 - SHA must match indexed version
@@ -344,6 +375,7 @@ CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
 ## Migration Strategy
 
 ### Initial Load
+
 1. Create schema with all tables
 2. Index one configuration at a time
 3. Build call graph incrementally
@@ -351,6 +383,7 @@ CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
 5. Validate against known patterns
 
 ### Incremental Updates
+
 1. Detect changed files via git diff
 2. Re-index affected symbols
 3. Update call edges for changes
@@ -358,6 +391,7 @@ CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
 5. Run drift detection
 
 ### Schema Evolution
+
 - Use numbered migration files
 - Never modify existing migrations
 - Add columns as nullable initially
@@ -367,6 +401,7 @@ CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
 ## Storage Estimates
 
 ### Size Projections (per configuration)
+
 - Files: ~50K files × 200 bytes = 10 MB
 - Symbols: ~500K symbols × 500 bytes = 250 MB
 - Call edges: ~2M edges × 50 bytes = 100 MB
@@ -377,6 +412,7 @@ CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
 - **With overhead and growth**: <20 GB target
 
 ### Optimization Opportunities
+
 - Compress summaries with TOAST
 - Deduplicate common signatures
 - Archive old configurations

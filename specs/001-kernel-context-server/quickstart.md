@@ -26,12 +26,14 @@ kcs-mcp --serve --port 8080 --auth-token dev-token
 ## Verification Steps
 
 ### 1. Check Service Health
+
 ```bash
 curl http://localhost:8080/health
 # Expected: {"status": "healthy", "version": "1.0.0", ...}
 ```
 
 ### 2. Test Symbol Query
+
 ```bash
 curl -H "Authorization: Bearer dev-token" \
   -H "Content-Type: application/json" \
@@ -42,6 +44,7 @@ curl -H "Authorization: Bearer dev-token" \
 ```
 
 ### 3. Test Impact Analysis
+
 ```bash
 # Create a sample diff
 cat > test.diff << 'EOF'
@@ -65,6 +68,7 @@ curl -H "Authorization: Bearer dev-token" \
 ```
 
 ### 4. Test Entry Point Flow
+
 ```bash
 curl -H "Authorization: Bearer dev-token" \
   -H "Content-Type: application/json" \
@@ -77,6 +81,7 @@ curl -H "Authorization: Bearer dev-token" \
 ## Common Use Cases
 
 ### Find Who Calls a Function
+
 ```bash
 # Who calls vfs_read?
 curl -H "Authorization: Bearer dev-token" \
@@ -86,6 +91,7 @@ curl -H "Authorization: Bearer dev-token" \
 ```
 
 ### Search for Code Patterns
+
 ```bash
 # Find memory barrier usage
 curl -H "Authorization: Bearer dev-token" \
@@ -95,6 +101,7 @@ curl -H "Authorization: Bearer dev-token" \
 ```
 
 ### Check for Drift
+
 ```bash
 # Check if implementation matches spec
 curl -H "Authorization: Bearer dev-token" \
@@ -104,6 +111,7 @@ curl -H "Authorization: Bearer dev-token" \
 ```
 
 ### Find Maintainers
+
 ```bash
 # Who maintains VFS code?
 curl -H "Authorization: Bearer dev-token" \
@@ -115,6 +123,7 @@ curl -H "Authorization: Bearer dev-token" \
 ## CI Integration
 
 ### GitHub Actions
+
 ```yaml
 name: KCS Impact Analysis
 on: [pull_request]
@@ -163,8 +172,10 @@ jobs:
 ## IDE Integration
 
 ### VS Code with Claude
+
 1. Install Claude Code extension
 2. Add to settings.json:
+
 ```json
 {
   "claude.mcp.servers": {
@@ -177,6 +188,7 @@ jobs:
 ```
 
 3. Use in chat:
+
 ```
 @kcs What functions call vfs_read in the kernel?
 @kcs What's the impact if I change copy_page_to_iter?
@@ -185,6 +197,7 @@ jobs:
 ## Performance Tuning
 
 ### Indexing Optimization
+
 ```bash
 # Parallel indexing with 8 workers
 kcs-parser --parse ~/linux --config x86_64:defconfig --workers 8
@@ -194,6 +207,7 @@ kcs-parser --parse ~/linux --incremental --since yesterday
 ```
 
 ### Query Optimization
+
 ```bash
 # Warm cache for common queries
 kcs-graph --warmup --top-symbols 1000
@@ -205,6 +219,7 @@ kcs-mcp --serve --slow-query-log /var/log/kcs/slow.log
 ## Troubleshooting
 
 ### Service Won't Start
+
 ```bash
 # Check logs
 docker-compose logs kcs-mcp
@@ -215,6 +230,7 @@ psql postgresql://localhost/kcs -c "SELECT COUNT(*) FROM symbol;"
 ```
 
 ### Slow Queries
+
 ```bash
 # Check index health
 kcs-graph --analyze --db postgresql://localhost/kcs
@@ -224,6 +240,7 @@ kcs-graph --reindex --db postgresql://localhost/kcs
 ```
 
 ### Missing Symbols
+
 ```bash
 # Verify configuration was indexed
 kcs-parser --list-configs --db postgresql://localhost/kcs
@@ -258,13 +275,13 @@ kcs-parser --parse ~/linux --config x86_64:allmodconfig --force
 1. **Index your kernel**: Full indexing takes ~20 minutes
 2. **Configure authentication**: Replace dev-token with JWT
 3. **Set up monitoring**: Enable Prometheus metrics
-4. **Join community**: https://github.com/your-org/kcs/discussions
+4. **Join community**: <https://github.com/your-org/kcs/discussions>
 
 ## Support
 
-- Documentation: https://docs.kcs.dev
-- Issues: https://github.com/your-org/kcs/issues
-- Discord: https://discord.gg/kcs
+- Documentation: <https://docs.kcs.dev>
+- Issues: <https://github.com/your-org/kcs/issues>
+- Discord: <https://discord.gg/kcs>
 
 ---
 
