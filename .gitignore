@@ -274,7 +274,7 @@ docs/generated/
 docker-data/
 postgres-data/
 redis-data/
-data/
+appdata/
 backups/
 
 # Profiling output
