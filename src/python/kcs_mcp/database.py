@@ -5,6 +5,7 @@ Provides PostgreSQL connection management and query builders
 for kernel analysis data access.
 """
 
+import typing
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -58,7 +59,7 @@ class Database:
             logger.info("Database connection pool closed")
 
     @asynccontextmanager
-    async def acquire(self):
+    async def acquire(self) -> typing.AsyncGenerator[asyncpg.Connection, None]:
         """Acquire database connection from pool."""
         if not self.pool:
             raise HTTPException(
@@ -272,11 +273,11 @@ async def get_database() -> Database:
     global _database
     if not _database:
         # Return a mock database for testing
-        return MockDatabase()
+        return MockDatabase("")  # Empty database URL for mock
     return _database
 
 
-class MockDatabase:
+class MockDatabase(Database):
     """Mock database for testing without PostgreSQL."""
 
     async def search_code_semantic(

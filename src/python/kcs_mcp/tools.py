@@ -52,12 +52,12 @@ async def search_code(
     - Returns hits array with span and snippet
     - Supports both semantic and lexical search
     """
-    logger.info("search_code", query=request.query, topK=request.topK)
+    logger.info("search_code", query=request.query, top_k=request.top_k)
 
     try:
         # First try semantic search from database
         search_results = await db.search_code_semantic(
-            request.query, request.topK or 10
+            request.query, request.top_k or 10
         )
 
         if request.query.lower() == "nonexistent_function_12345_abcde":
@@ -94,7 +94,7 @@ async def search_code(
                     score=0.95,
                 )
             ]
-            hits = mock_hits[: request.topK or 10]
+            hits = mock_hits[: request.top_k or 10]
 
         return SearchCodeResponse(hits=hits)
 
@@ -106,7 +106,6 @@ async def search_code(
                 error="search_failed", message=f"Search failed: {e!s}"
             ).dict(),
         ) from e
-        )
 
 
 @router.post("/get_symbol", response_model=SymbolInfo)
@@ -132,7 +131,6 @@ async def get_symbol(
                     error="symbol_not_found",
                     message=f"Symbol '{request.symbol}' not found",
                 ).dict(),
-        ) from e
             )
 
         # Try to get symbol info from database first
@@ -202,7 +200,6 @@ async def get_symbol(
                 error="symbol_lookup_failed", message=f"Symbol lookup failed: {e!s}"
             ).dict(),
         ) from e
-        )
 
 
 @router.post("/who_calls", response_model=WhoCallsResponse)
@@ -254,7 +251,6 @@ async def who_calls(
                 message=f"Caller analysis failed: {e!s}",
             ).dict(),
         ) from e
-        )
 
 
 @router.post("/list_dependencies", response_model=ListDependenciesResponse)
@@ -303,7 +299,6 @@ async def list_dependencies(
                 message=f"Dependency analysis failed: {e!s}",
             ).dict(),
         ) from e
-        )
 
 
 @router.post("/entrypoint_flow", response_model=EntrypointFlowResponse)
@@ -330,8 +325,8 @@ async def entrypoint_flow(
             mock_steps = [
                 FlowStep(
                     edge="syscall",
-                    from_symbol="syscall_entry",
-                    to_symbol="sys_read" if "read" in request.entry else "sys_openat",
+                    **{"from": "syscall_entry"},
+                    to="sys_read" if "read" in request.entry else "sys_openat",
                     span=Span(
                         path="arch/x86/entry/syscalls/syscall_64.tbl",
                         sha="a1b2c3d4e5f6789012345678901234567890abcd",
@@ -341,10 +336,8 @@ async def entrypoint_flow(
                 ),
                 FlowStep(
                     edge="function_call",
-                    from_symbol="sys_read" if "read" in request.entry else "sys_openat",
-                    to_symbol=(
-                        "vfs_read" if "read" in request.entry else "do_sys_openat2"
-                    ),
+                    **{"from": "sys_read" if "read" in request.entry else "sys_openat"},
+                    to=("vfs_read" if "read" in request.entry else "do_sys_openat2"),
                     span=Span(
                         path=(
                             "fs/read_write.c"
@@ -368,7 +361,6 @@ async def entrypoint_flow(
                 error="flow_analysis_failed", message=f"Flow analysis failed: {e!s}"
             ).dict(),
         ) from e
-        )
 
 
 @router.post("/impact_of", response_model=ImpactResult)
@@ -400,7 +392,7 @@ async def impact_of(
         mock_modules = []
         mock_tests = []
         mock_owners = []
-        mock_risks = []
+        mock_risks: list[str] = []
         mock_cites = []
 
         # Analyze based on input type
@@ -448,7 +440,6 @@ async def impact_of(
                 message=f"Impact analysis failed: {e!s}",
             ).dict(),
         ) from e
-        )
 
 
 @router.post("/search_docs", response_model=SearchDocsResponse)
@@ -513,4 +504,3 @@ async def owners_for(
                 error="owner_lookup_failed", message=f"Owner lookup failed: {e!s}"
             ).dict(),
         ) from e
-        )
