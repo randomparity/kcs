@@ -187,7 +187,8 @@ class GitHubActionsAdapter:
         try:
             response = self.kcs_session.post(url, json=data)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            return dict(result) if result is not None else {}
 
         except requests.RequestException as e:
             logger.error(f"KCS API call failed: {e}")
@@ -355,7 +356,7 @@ class GitHubActionsAdapter:
 
         return comment
 
-    def run_action(self, action: str, **kwargs) -> dict[str, Any]:
+    def run_action(self, action: str, **kwargs: Any) -> dict[str, Any]:
         """Run a specific CI action.
 
         Args:
@@ -556,7 +557,7 @@ class GitHubActionsAdapter:
         return summary
 
 
-def main():
+def main() -> None:
     """CLI entry point for GitHub Actions."""
     import argparse
 
