@@ -20,7 +20,7 @@ be properly configured and coordinated.
                         │   kcs-graph,    │
                         │   kcs-impact)   │
                         └─────────────────┘
-```text
+```
 
 ## Prerequisites
 
@@ -75,7 +75,7 @@ sudo apt install -y \\
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
-```text
+```
 
 #### 2. Database Setup
 
@@ -104,7 +104,7 @@ work_mem = 64MB
 EOF
 
 sudo systemctl restart postgresql
-```text
+```
 
 #### 3. Application Setup
 
@@ -129,7 +129,7 @@ sudo -u kcs ./tools/setup/migrate.sh
 # Generate configuration
 sudo -u kcs cp config/kcs.example.yaml config/kcs.yaml
 sudo -u kcs editor config/kcs.yaml  # Edit configuration
-```text
+```
 
 #### 4. Service Configuration
 
@@ -167,7 +167,7 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable kcs
 sudo systemctl start kcs
-```text
+```
 
 #### 5. Reverse Proxy Setup
 
@@ -243,7 +243,7 @@ EOF
 sudo ln -s /etc/nginx/sites-available/kcs /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
-```text
+```
 
 ### Method 2: Docker Deployment
 
@@ -309,7 +309,7 @@ services:
 volumes:
   postgres_data:
   kernel_data:
-```text
+```
 
 #### 2. Dockerfile
 
@@ -361,7 +361,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
     CMD curl -f http://localhost:8080/health || exit 1
 
 CMD ["python", "-m", "kcs_mcp.app"]
-```text
+```
 
 #### 3. Environment Configuration
 
@@ -372,7 +372,7 @@ KCS_AUTH_TOKEN=secure_jwt_token
 KCS_LOG_LEVEL=info
 KCS_PORT=8080
 KCS_WORKERS=4
-```text
+```
 
 #### 4. Deploy with Docker Compose
 
@@ -388,7 +388,7 @@ docker-compose logs -f kcs
 
 # Scale if needed
 docker-compose up -d --scale kcs=3
-```text
+```
 
 ### Method 3: Kubernetes Deployment
 
@@ -511,7 +511,7 @@ spec:
     requests:
       storage: 100Gi
   storageClassName: fast-ssd
-```text
+```
 
 #### 3. KCS Application Deployment
 
@@ -608,7 +608,7 @@ spec:
     requests:
       storage: 50Gi
   storageClassName: shared-storage
-```text
+```
 
 #### 4. Ingress Configuration
 
@@ -640,7 +640,7 @@ spec:
             name: kcs
             port:
               number: 80
-```text
+```
 
 #### 5. Deploy to Kubernetes
 
@@ -660,7 +660,7 @@ kubectl apply -f k8s/
 kubectl get pods -n kcs
 kubectl get services -n kcs
 kubectl logs -f deployment/kcs -n kcs
-```text
+```
 
 ## Configuration
 
@@ -712,7 +712,7 @@ security:
   rate_limit:
     requests_per_minute: 100
     burst_size: 20
-```text
+```
 
 ### Environment Variables
 
@@ -736,7 +736,7 @@ export KCS_MAX_CONNECTIONS="100"
 # Features
 export KCS_ENABLE_METRICS="true"
 export KCS_ENABLE_CACHING="true"
-```text
+```
 
 ## Performance Optimization
 
@@ -758,7 +758,7 @@ CREATE INDEX CONCURRENTLY idx_call_edges_callee ON call_edges(callee_id);
 
 -- Vacuum and analyze regularly
 VACUUM ANALYZE;
-```text
+```
 
 ### Application Optimization
 
@@ -776,7 +776,7 @@ keepalive = 5
 # Memory optimization
 preload_app = True
 worker_tmp_dir = "/dev/shm"
-```text
+```
 
 ### Caching Strategy
 
@@ -796,7 +796,7 @@ cache:
       ttl: 3600
     - pattern: "who_calls:*"
       ttl: 7200
-```text
+```
 
 ## Monitoring and Observability
 
@@ -813,7 +813,7 @@ scrape_configs:
       - targets: ['localhost:8080']
     metrics_path: '/metrics'
     scrape_interval: 30s
-```text
+```
 
 ### Health Checks
 
@@ -830,7 +830,7 @@ curl -f -H "Authorization: Bearer $KCS_TOKEN" \\
 
 # Performance check (should respond within 1 second)
 timeout 1 curl -f http://localhost:8080/health || exit 1
-```text
+```
 
 ### Logging Configuration
 
@@ -859,7 +859,7 @@ logging:
   root:
     level: INFO
     handlers: [console, file]
-```text
+```
 
 ## Security Hardening
 
@@ -876,7 +876,7 @@ sudo ufw enable
 
 # PostgreSQL access (only from KCS servers)
 sudo ufw allow from 10.0.1.0/24 to any port 5432
-```text
+```
 
 ### SSL/TLS Configuration
 
@@ -896,7 +896,7 @@ add_header X-Frame-Options DENY;
 add_header X-Content-Type-Options nosniff;
 add_header X-XSS-Protection "1; mode=block";
 add_header Referrer-Policy "strict-origin-when-cross-origin";
-```text
+```
 
 ### Application Security
 
@@ -916,7 +916,7 @@ RATE_LIMITS = {
     'search_code': '50/minute',
     'who_calls': '30/minute'
 }
-```text
+```
 
 ## Backup and Disaster Recovery
 
@@ -944,7 +944,7 @@ find "$BACKUP_DIR" -name "*.gz" -mtime +30 -delete
 
 # Upload to cloud storage (optional)
 aws s3 cp "$BACKUP_DIR/kcs_backup_$DATE.dump.gz" s3://your-backup-bucket/kcs/
-```text
+```
 
 ### Application Backup
 
@@ -967,7 +967,7 @@ tar -czf "$BACKUP_DIR/kcs_app_$DATE.tar.gz" \\
 
 # Upload to cloud storage
 aws s3 cp "$BACKUP_DIR/kcs_app_$DATE.tar.gz" s3://your-backup-bucket/kcs-app/
-```text
+```
 
 ### Disaster Recovery Plan
 
@@ -997,7 +997,7 @@ kcs --check-config
 
 # Test database connection
 psql -h localhost -U kcs -d kcs -c "SELECT 1;"
-```text
+```
 
 #### Performance Issues
 
@@ -1012,7 +1012,7 @@ psql -h localhost -U kcs -d kcs -c "SELECT * FROM pg_stat_activity;"
 
 # Check application metrics
 curl http://localhost:8080/metrics
-```text
+```
 
 #### Memory Issues
 
@@ -1026,7 +1026,7 @@ valgrind --tool=memcheck --leak-check=full kcs-parser
 
 # Adjust memory limits
 ulimit -m 8388608  # 8GB limit
-```text
+```
 
 ### Log Analysis
 
@@ -1039,7 +1039,7 @@ grep "request_duration" /var/log/kcs/kcs.log | awk '{print $8}' | sort -n
 
 # Connection issues
 grep -i "connection" /var/log/kcs/kcs.log
-```text
+```
 
 ## Maintenance
 
@@ -1064,7 +1064,7 @@ apt update && apt upgrade -y
 # Restart services if needed
 systemctl restart kcs
 systemctl restart nginx
-```text
+```
 
 ### Monitoring Checklist
 
