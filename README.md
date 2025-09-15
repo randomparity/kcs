@@ -33,25 +33,37 @@ analysis with ground-truth accuracy.
 
 ### Option 1: Docker Compose (Recommended)
 
-1. **Clone and Start Services**
+1. **Clone and Start Infrastructure**
 
    ```bash
    git clone <repository-url>
    cd kcs
-   make docker-compose-up
+   make docker-compose-up  # Starts PostgreSQL and Redis
    ```
 
-2. **Verify Services**
+2. **Start the MCP Server**
+
+   ```bash
+   # Option A: Use convenient make targets
+   make docker-compose-up-app      # Start MCP server + infrastructure
+   make docker-compose-up-all      # Start everything including monitoring
+
+   # Option B: Use docker compose directly
+   docker compose --profile app up -d
+   docker compose --profile app --profile monitoring up -d
+   ```
+
+3. **Verify Services**
 
    ```bash
    # Check all services are running
    docker compose ps
 
-   # Test database connection
+   # Test MCP server health
    curl http://localhost:8080/health
    ```
 
-3. **Index Your Kernel**
+4. **Index Your Kernel**
 
    ```bash
    # Index a Linux kernel repository
@@ -61,7 +73,7 @@ analysis with ground-truth accuracy.
    tools/index_kernel.sh -c arm64:defconfig ~/src/linux
    ```
 
-4. **Test the API**
+5. **Test the API**
 
    ```bash
    # Search for memory management code

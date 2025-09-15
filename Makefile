@@ -261,10 +261,20 @@ docker-run: ## Run Docker container
 	@echo "$(BLUE)Running Docker container...$(NC)"
 	@docker run -p 8080:8080 --env-file .env kcs:latest
 
-docker-compose-up: ## Start services with docker compose
-	@echo "$(BLUE)Starting services with docker compose...$(NC)"
+docker-compose-up: ## Start infrastructure services (PostgreSQL, Redis)
+	@echo "$(BLUE)Starting infrastructure services with docker compose...$(NC)"
 	@docker compose up -d
-	@echo "$(GREEN)✅ Services started$(NC)"
+	@echo "$(GREEN)✅ Infrastructure services started$(NC)"
+
+docker-compose-up-app: ## Start all services including MCP server
+	@echo "$(BLUE)Starting all services including MCP server...$(NC)"
+	@docker compose --profile app up -d
+	@echo "$(GREEN)✅ All services started$(NC)"
+
+docker-compose-up-all: ## Start all services including monitoring
+	@echo "$(BLUE)Starting all services including monitoring...$(NC)"
+	@docker compose --profile app --profile monitoring up -d
+	@echo "$(GREEN)✅ All services including monitoring started$(NC)"
 
 docker-compose-down: ## Stop services with docker compose
 	@echo "$(BLUE)Stopping services with docker compose...$(NC)"
