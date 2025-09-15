@@ -261,14 +261,14 @@ docker-run: ## Run Docker container
 	@echo "$(BLUE)Running Docker container...$(NC)"
 	@docker run -p 8080:8080 --env-file .env kcs:latest
 
-docker-compose-up: ## Start services with docker-compose
-	@echo "$(BLUE)Starting services with docker-compose...$(NC)"
-	@docker-compose up -d
+docker-compose-up: ## Start services with docker compose
+	@echo "$(BLUE)Starting services with docker compose...$(NC)"
+	@docker compose up -d
 	@echo "$(GREEN)✅ Services started$(NC)"
 
-docker-compose-down: ## Stop services with docker-compose
-	@echo "$(BLUE)Stopping services with docker-compose...$(NC)"
-	@docker-compose down
+docker-compose-down: ## Stop services with docker compose
+	@echo "$(BLUE)Stopping services with docker compose...$(NC)"
+	@docker compose down
 	@echo "$(GREEN)✅ Services stopped$(NC)"
 
 # Database targets

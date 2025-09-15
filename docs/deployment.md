@@ -251,8 +251,6 @@ sudo systemctl restart nginx
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg15
@@ -315,7 +313,7 @@ volumes:
 
 ```dockerfile
 # Dockerfile
-FROM rust:1.75 as rust-builder
+FROM rust:1.89 AS rust-builder
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
@@ -378,16 +376,16 @@ KCS_WORKERS=4
 
 ```bash
 # Deploy
-docker-compose up -d
+docker compose up -d
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f kcs
+docker compose logs -f kcs
 
 # Scale if needed
-docker-compose up -d --scale kcs=3
+docker compose up -d --scale kcs=3
 ```
 
 ### Method 3: Kubernetes Deployment
