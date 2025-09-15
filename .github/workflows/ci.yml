@@ -187,7 +187,7 @@ jobs:
       run: cargo build --release
 
     - name: Run database migrations
-      run: ./tools/setup/migrate.sh
+      run: ./tools/setup/migrate.sh --verbose
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kcs_test
 

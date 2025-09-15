@@ -368,7 +368,9 @@ main() {
             fi
         fi
 
+        verbose "About to apply migration: $file"
         apply_migration "$file"
+        verbose "Migration applied successfully: $file"
         ((pending_count++))
     done
 
@@ -378,11 +380,14 @@ main() {
         success "Applied $pending_count migration(s) successfully"
     fi
 
-    # Show final status
-    if [[ "$VERBOSE" == "true" ]]; then
+    # Show final status (always in CI)
+    if [[ "$VERBOSE" == "true" ]] || [[ "${CI:-false}" == "true" ]]; then
         echo
+        verbose "Showing final migration status..."
         show_status
     fi
+
+    verbose "Migration script completed successfully"
 }
 
 # Run main function
