@@ -187,7 +187,8 @@ class RustParser:
         """
         if RUST_BRIDGE_AVAILABLE:
             try:
-                return kcs_python_bridge.analyze_kernel_patterns(content)
+                result = kcs_python_bridge.analyze_kernel_patterns(content)
+                return list(result) if result is not None else []
             except Exception as e:
                 logger.error("Rust pattern analysis failed", error=str(e))
 
@@ -362,7 +363,8 @@ def parse_c_file(file_path: str, content: str, arch: str = "x86_64") -> dict[str
     """
     if RUST_BRIDGE_AVAILABLE:
         try:
-            return kcs_python_bridge.parse_c_file(file_path, content, arch)
+            result = kcs_python_bridge.parse_c_file(file_path, content, arch)
+            return dict(result) if result is not None else {}
         except Exception as e:
             logger.error("Direct Rust parsing failed", error=str(e))
 

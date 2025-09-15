@@ -7,9 +7,10 @@ Provides Model Context Protocol endpoints for kernel analysis.
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -117,17 +118,18 @@ async def verify_token(
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
+async def global_exception_handler(request: Request, exc: Exception) -> dict[str, Any]:
     """Global exception handler."""
     logger.error("Unhandled exception", exc_info=exc, path=request.url.path)
 
-    return ErrorResponse(
+    error_response = ErrorResponse(
         error="internal_server_error", message="An internal server error occurred"
-    ).dict()
+    )
+    return {"error": error_response.error, "message": error_response.message}
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
     return {
         "status": "healthy",
@@ -137,7 +139,7 @@ async def health_check():
 
 
 @app.get("/metrics")
-async def metrics():
+async def metrics() -> str:
     """Prometheus metrics endpoint."""
     # TODO: Implement proper metrics
     return "# KCS metrics\nkcs_requests_total 0\n"

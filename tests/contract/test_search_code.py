@@ -189,9 +189,7 @@ class TestSearchCodeContract:
         if response.status_code == 200:
             lexical_data = response.json()
             # Should find exact matches
-            any(
-                "sys_read" in hit["snippet"] for hit in lexical_data["hits"]
-            )
+            any("sys_read" in hit["snippet"] for hit in lexical_data["hits"])
             # This assertion might not hold until implementation exists
             # assert found_exact_match, "Lexical search should find exact matches"
 

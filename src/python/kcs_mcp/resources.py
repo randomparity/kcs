@@ -5,6 +5,7 @@ These endpoints provide direct access to kernel data without
 requiring complex queries, supporting MCP resource protocol.
 """
 
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -44,7 +45,7 @@ async def list_resources(db: Database = Depends(get_database)) -> ResourceList:
 
 
 @router.get("/kernel/configs")
-async def get_kernel_configs(db: Database = Depends(get_database)):
+async def get_kernel_configs(db: Database = Depends(get_database)) -> dict[str, Any]:
     """
     Get available kernel configurations.
 
@@ -66,7 +67,7 @@ async def get_kernel_configs(db: Database = Depends(get_database)):
 
             rows = await conn.fetch(sql)
 
-            configs = {}
+            configs: dict[str, list[dict[str, str]]] = {}
             for row in rows:
                 arch = row["arch"]
                 if arch not in configs:
@@ -87,7 +88,7 @@ async def get_kernel_configs(db: Database = Depends(get_database)):
 
 
 @router.get("/kernel/architectures")
-async def get_architectures(db: Database = Depends(get_database)):
+async def get_architectures(db: Database = Depends(get_database)) -> dict[str, Any]:
     """
     Get supported architectures.
 
@@ -123,7 +124,7 @@ async def get_architectures(db: Database = Depends(get_database)):
 
 
 @router.get("/kernel/subsystems")
-async def get_subsystems(db: Database = Depends(get_database)):
+async def get_subsystems(db: Database = Depends(get_database)) -> dict[str, Any]:
     """
     Get kernel subsystems.
 
@@ -177,7 +178,9 @@ async def get_subsystems(db: Database = Depends(get_database)):
 
 
 @router.get("/kernel/syscalls")
-async def get_syscalls(arch: str | None = None, db: Database = Depends(get_database)):
+async def get_syscalls(
+    arch: str | None = None, db: Database = Depends(get_database)
+) -> dict[str, Any]:
     """
     Get system call definitions.
 
@@ -239,7 +242,7 @@ async def get_syscalls(arch: str | None = None, db: Database = Depends(get_datab
 @router.get("/kernel/exports")
 async def get_exported_symbols(
     module: str | None = None, db: Database = Depends(get_database)
-):
+) -> dict[str, Any]:
     """
     Get EXPORT_SYMBOL declarations.
 

@@ -19,7 +19,7 @@ class Span:
     start: int
     end: int
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate span data."""
         if self.start <= 0:
             raise ValueError(f"Start line must be positive, got {self.start}")
@@ -154,7 +154,7 @@ class CitationFormatter:
                 "end": span_or_citation.end,
             }
         elif isinstance(span_or_citation, Citation):
-            result = {"span": self.to_dict(span_or_citation.span)}
+            result: dict[str, Any] = {"span": self.to_dict(span_or_citation.span)}
             if span_or_citation.context:
                 result["context"] = span_or_citation.context
             return result
@@ -351,7 +351,17 @@ def ensure_citations(
                     formatter.from_dict(c) if isinstance(c, dict) else c
                     for c in citations_data
                 ]
-                errors = formatter.validate_citations(citations)
+                # Filter to only Citations for validation
+                citation_objects = [
+                    c
+                    if isinstance(c, Citation)
+                    else Citation(span=c)
+                    if isinstance(c, Span)
+                    else c
+                    for c in citations
+                    if isinstance(c, Citation | Span)
+                ]
+                errors = formatter.validate_citations(citation_objects)
                 if errors:
                     raise ValueError(
                         f"Invalid citations in {field}: {'; '.join(errors)}"
