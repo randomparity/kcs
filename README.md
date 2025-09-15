@@ -2,7 +2,7 @@
 
 > Ground-truth Linux kernel analysis via MCP protocol for AI coding assistants
 
-[![CI Status](https://github.com/your-org/kcs/workflows/CI/badge.svg)](https://github.com/your-org/kcs/actions)
+[![CI Status](https://github.com/randomparity/kcs/workflows/CI/badge.svg)](https://github.com/randomparity/kcs/actions)
 [![Docker Image](https://img.shields.io/docker/v/kcs/mcp-server?label=docker)](https://hub.docker.com/r/kcs/mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
