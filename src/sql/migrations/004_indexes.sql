@@ -15,18 +15,18 @@ CREATE INDEX idx_symbol_file_config ON symbol(file_id, config);
 CREATE INDEX idx_entrypoint_kind_config ON entrypoint(kind, config);
 CREATE INDEX idx_entrypoint_symbol_config ON entrypoint(symbol_id, config);
 
+-- Enable trigram extension for fuzzy text search (must come before gin_trgm_ops usage)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- Config bitmap operations (for multi-config queries)
 -- TODO: Fix GIN indexes for bytea columns - need specific operator class
 -- CREATE INDEX idx_symbol_config_bitmap_gin ON symbol USING gin(config_bitmap);
 -- CREATE INDEX idx_call_edge_config_bitmap_gin ON call_edge USING gin(config_bitmap);
 
--- Text search optimizations
+-- Text search optimizations (requires pg_trgm extension)
 CREATE INDEX idx_symbol_name_trgm ON symbol USING gin(name gin_trgm_ops);
 CREATE INDEX idx_file_path_trgm ON file USING gin(path gin_trgm_ops);
 CREATE INDEX idx_kconfig_name_trgm ON kconfig_option USING gin(name gin_trgm_ops);
-
--- Enable trigram extension for fuzzy text search
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Full-text search indexes
 CREATE INDEX idx_summary_content_fts ON summary USING gin(to_tsvector('english', content::text));
