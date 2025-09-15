@@ -1,0 +1,600 @@
+openapi: 3.0.0
+info:
+  title: Kernel Context Server MCP API
+  version: 1.0.0
+  description: Model Context Protocol API for Linux kernel analysis
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Span:
+      type: object
+      required:
+        - path
+        - sha
+        - start
+        - end
+      properties:
+        path:
+          type: string
+          description: File path relative to repository root
+          example: "fs/read_write.c"
+        sha:
+          type: string
+          description: Git SHA of file version
+          example: "a1b2c3d4e5f6"
+        start:
+          type: integer
+          description: Starting line number
+          example: 451
+        end:
+          type: integer
+          description: Ending line number
+          example: 465
+
+    Citation:
+      type: object
+      required:
+        - span
+      properties:
+        span:
+          $ref: '#/components/schemas/Span'
+        context:
+          type: string
+          description: Optional context around citation
+          example: "Function definition"
+
+    SymbolInfo:
+      type: object
+      required:
+        - name
+        - kind
+        - decl
+      properties:
+        name:
+          type: string
+          example: "sys_read"
+        kind:
+          type: string
+          enum: [function, struct, variable, macro, typedef]
+        decl:
+          $ref: '#/components/schemas/Span'
+        summary:
+          type: object
+          description: Optional AI-generated summary
+
+    SearchHit:
+      type: object
+      required:
+        - span
+        - snippet
+      properties:
+        span:
+          $ref: '#/components/schemas/Span'
+        snippet:
+          type: string
+          description: Code snippet with match highlighted
+        score:
+          type: number
+          format: float
+          description: Relevance score
+
+    CallerInfo:
+      type: object
+      required:
+        - symbol
+        - span
+      properties:
+        symbol:
+          type: string
+        span:
+          $ref: '#/components/schemas/Span'
+        call_type:
+          type: string
+          enum: [direct, indirect, macro, inline]
+
+    FlowStep:
+      type: object
+      required:
+        - edge
+        - from
+        - to
+        - span
+      properties:
+        edge:
+          type: string
+          description: Edge type
+        from:
+          type: string
+          description: Source symbol
+        to:
+          type: string
+          description: Target symbol
+        span:
+          $ref: '#/components/schemas/Span'
+
+    ImpactResult:
+      type: object
+      required:
+        - configs
+        - modules
+        - tests
+        - owners
+        - risks
+        - cites
+      properties:
+        configs:
+          type: array
+          items:
+            type: string
+          example: ["x86_64:defconfig", "x86_64:allmodconfig"]
+        modules:
+          type: array
+          items:
+            type: string
+          example: ["ext4", "btrfs"]
+        tests:
+          type: array
+          items:
+            type: string
+          example: ["fs/ext4/tests/test_read.c"]
+        owners:
+          type: array
+          items:
+            type: string
+          example: ["vfs@kernel.org", "ext4@kernel.org"]
+        risks:
+          type: array
+          items:
+            type: string
+          example: ["holds_spinlock", "in_irq_context"]
+        cites:
+          type: array
+          items:
+            $ref: '#/components/schemas/Span'
+
+    DriftMismatch:
+      type: object
+      required:
+        - kind
+        - detail
+      properties:
+        kind:
+          type: string
+          enum: [missing_abi_doc, kconfig_mismatch, test_missing, contract_violation]
+        detail:
+          type: string
+        span:
+          $ref: '#/components/schemas/Span'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+paths:
+  /mcp/resources:
+    get:
+      summary: List available MCP resources
+      tags: [Resources]
+      responses:
+        '200':
+          description: Available resources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resources:
+                    type: array
+                    items:
+                      type: string
+                    example: ["repo://files", "graph://symbols", "kb://summaries"]
+
+  /mcp/resources/{type}:
+    get:
+      summary: Access MCP resource
+      tags: [Resources]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "graph://symbols"
+      responses:
+        '200':
+          description: Resource content
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /mcp/tools/search_code:
+    post:
+      summary: Search code with semantic or lexical queries
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Search query
+                  example: "read from file descriptor"
+                topK:
+                  type: integer
+                  default: 10
+                  description: Maximum results to return
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hits:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchHit'
+
+  /mcp/tools/get_symbol:
+    post:
+      summary: Get symbol information
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - symbol
+              properties:
+                symbol:
+                  type: string
+                  example: "sys_read"
+      responses:
+        '200':
+          description: Symbol information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SymbolInfo'
+
+  /mcp/tools/who_calls:
+    post:
+      summary: Find callers of a symbol
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - symbol
+              properties:
+                symbol:
+                  type: string
+                  example: "vfs_read"
+                depth:
+                  type: integer
+                  default: 1
+                  description: Call graph depth
+      responses:
+        '200':
+          description: Caller information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  callers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CallerInfo'
+
+  /mcp/tools/list_dependencies:
+    post:
+      summary: Find functions called by a symbol
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - symbol
+              properties:
+                symbol:
+                  type: string
+                  example: "sys_read"
+                depth:
+                  type: integer
+                  default: 1
+      responses:
+        '200':
+          description: Dependencies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  callees:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CallerInfo'
+
+  /mcp/tools/entrypoint_flow:
+    post:
+      summary: Trace flow from entry point
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - entry
+              properties:
+                entry:
+                  type: string
+                  example: "__NR_read"
+      responses:
+        '200':
+          description: Flow trace
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  steps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FlowStep'
+
+  /mcp/tools/impact_of:
+    post:
+      summary: Analyze impact of changes
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                diff:
+                  type: string
+                  description: Git diff content
+                files:
+                  type: array
+                  items:
+                    type: string
+                  description: Files to analyze
+                symbols:
+                  type: array
+                  items:
+                    type: string
+                  description: Symbols to analyze
+                config:
+                  type: string
+                  description: Configuration context
+                  example: "x86_64:defconfig"
+      responses:
+        '200':
+          description: Impact analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImpactResult'
+
+  /mcp/tools/search_docs:
+    post:
+      summary: Search documentation
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  example: "memory barriers"
+                corpus:
+                  type: array
+                  items:
+                    type: string
+                  description: Document collections to search
+                  example: ["Documentation/", "Documentation/ABI/"]
+      responses:
+        '200':
+          description: Document search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hits:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        anchor:
+                          type: string
+                        span:
+                          $ref: '#/components/schemas/Span'
+
+  /mcp/tools/diff_spec_vs_code:
+    post:
+      summary: Check drift between spec and code
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - feature_id
+              properties:
+                feature_id:
+                  type: string
+                  example: "kcs-sysfs-interface"
+      responses:
+        '200':
+          description: Drift report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mismatches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DriftMismatch'
+
+  /mcp/tools/generate_reverse_prd:
+    post:
+      summary: Generate PRD from implementation
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entrypoint_id:
+                  type: string
+                  example: "__NR_read"
+                area:
+                  type: string
+                  example: "fs/vfs"
+      responses:
+        '200':
+          description: Generated PRD
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  doc:
+                    type: string
+                    description: Markdown PRD document
+                  cites:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Span'
+
+  /mcp/tools/owners_for:
+    post:
+      summary: Find maintainers
+      tags: [Tools]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items:
+                    type: string
+                  example: ["fs/ext4/", "fs/btrfs/"]
+                symbols:
+                  type: array
+                  items:
+                    type: string
+                  example: ["ext4_read", "btrfs_read"]
+      responses:
+        '200':
+          description: Maintainer information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  maintainers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        section:
+                          type: string
+                        emails:
+                          type: array
+                          items:
+                            type: string
+                        paths:
+                          type: array
+                          items:
+                            type: string
+
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                  version:
+                    type: string
+                  indexed_at:
+                    type: string
+                    format: date-time
+
+  /metrics:
+    get:
+      summary: Service metrics
+      tags: [System]
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
