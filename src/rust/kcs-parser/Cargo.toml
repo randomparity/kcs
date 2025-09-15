@@ -1,0 +1,48 @@
+[package]
+name = "kcs-parser"
+version = "1.0.0"
+edition = "2021"
+description = "Linux kernel source code parser using tree-sitter and clang"
+license = "Apache-2.0"
+
+[[bin]]
+name = "kcs-parser"
+path = "src/main.rs"
+
+[lib]
+name = "kcs_parser"
+path = "src/lib.rs"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Parser-specific dependencies
+tree-sitter = { workspace = true }
+tree-sitter-c = { workspace = true }
+clang-sys = { workspace = true, optional = true }
+
+# Additional dependencies
+walkdir = "2.4"
+regex = "1.10"
+rayon = "1.8"
+memmap2 = "0.9"
+
+[dev-dependencies]
+tempfile = "3.8"
+pretty_assertions = "1.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[features]
+default = []
+clang = ["clang-sys"]
+
+[[bench]]
+name = "parser_benchmarks"
+harness = false

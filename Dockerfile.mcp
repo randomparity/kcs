@@ -1,0 +1,62 @@
+# Multi-stage build for KCS MCP server
+FROM rust:1.89 AS rust-builder
+
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY src/rust/ src/rust/
+
+# Build Rust libraries
+RUN cargo build --release
+
+FROM python:3.11-slim AS python-builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Python dependencies
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir build
+
+# Copy Python source
+COPY src/python/ src/python/
+COPY --from=rust-builder /app/target/release/lib*.so src/python/
+
+# Build Python package
+RUN python -m build
+
+FROM python:3.11-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r kcs && useradd -r -g kcs kcs
+
+WORKDIR /app
+
+# Copy built packages
+COPY --from=python-builder /app/dist/*.whl ./
+
+# Install the application
+RUN pip install --no-cache-dir *.whl
+
+# Copy configuration
+COPY tools/docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Switch to non-root user
+USER kcs
+
+EXPOSE 8080
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["kcs-mcp", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,0 +1,386 @@
+# KCS Project .gitignore
+# Comprehensive exclusions for Rust, Python, and project-specific artifacts
+
+# =============================================================================
+# Rust / Cargo
+# =============================================================================
+
+# Build artifacts
+/target/
+**/target/
+Cargo.lock
+
+# Rust analyzer cache
+.rust-analyzer/
+
+# Benchmark results
+**/benches/target/
+criterion-reports/
+
+# Generated documentation
+**/target/doc/
+
+# =============================================================================
+# Python
+# =============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# =============================================================================
+# Node.js / JavaScript (for k6 and documentation tools)
+# =============================================================================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# =============================================================================
+# Database
+# =============================================================================
+
+# PostgreSQL data files
+*.dump
+*.sql.gz
+pgdata/
+postgres-data/
+
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# Database backups
+backups/
+*.backup
+
+# =============================================================================
+# Logs and Runtime Files
+# =============================================================================
+
+# Application logs
+logs/
+*.log
+log/
+*.log.*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# =============================================================================
+# IDEs and Editors
+# =============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# IntelliJ / PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# =============================================================================
+# OS Generated Files
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# KCS Project Specific
+# =============================================================================
+
+# Parsed kernel data
+data/
+parsed/
+index/
+*.index
+kernel-data/
+
+# Performance test results
+k6-results/
+benchmark-results/
+flamegraph*.svg
+perf.data*
+
+# Temporary test files
+test-output/
+test-kernel/
+sample-data/
+
+# Configuration files with secrets
+config/local.yaml
+config/production.yaml
+config/secrets.yaml
+.env.local
+.env.production
+
+# Generated documentation
+docs/api/
+docs/generated/
+
+# Docker volumes and data
+docker-data/
+postgres-data/
+redis-data/
+
+# Profiling output
+*.prof
+*.pprof
+callgrind.out.*
+
+# Memory dumps
+*.hprof
+core.*
+
+# =============================================================================
+# Security and Secrets
+# =============================================================================
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+ssl/
+certificates/
+
+# Authentication tokens
+*.token
+auth-tokens/
+
+# =============================================================================
+# Temporary and Cache Files
+# =============================================================================
+
+# General temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Cache directories
+cache/
+.cache/
+.pytest_cache/
+
+# Lock files (except package manager locks we want to keep)
+*.lock
+!Cargo.lock
+!package-lock.json
+!yarn.lock
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# =============================================================================
+# CI/CD and Deployment
+# =============================================================================
+
+# Deployment artifacts
+deploy/
+deployment/
+k8s-generated/
+
+# CI artifacts
+.github/workflows/generated/
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# =============================================================================
+# Documentation Build Artifacts
+# =============================================================================
+
+# Sphinx
+_build/
+.doctrees/
+
+# MkDocs
+site/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# =============================================================================
+# Package Manager Files to Keep
+# =============================================================================
+# Note: We want to keep these lock files for reproducible builds
+# !Cargo.lock         (commented out - Rust workspaces often exclude this)
+# !package-lock.json  (uncomment if using npm)
+# !yarn.lock          (uncomment if using yarn)
+# !poetry.lock        (uncomment if using poetry)
+
+# =============================================================================
+# Custom Exclusions
+# =============================================================================
+
+# Add any project-specific exclusions here
+# Example:
+# vendor/
+# third-party/

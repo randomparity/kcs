@@ -1,0 +1,67 @@
+name: KCS Impact Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'arch/**'
+      - 'block/**'
+      - 'crypto/**'
+      - 'drivers/**'
+      - 'fs/**'
+      - 'include/**'
+      - 'init/**'
+      - 'ipc/**'
+      - 'kernel/**'
+      - 'lib/**'
+      - 'mm/**'
+      - 'net/**'
+      - 'security/**'
+      - 'sound/**'
+      - 'virt/**'
+      - '**/*.c'
+      - '**/*.h'
+      - '**/*.S'
+
+jobs:
+  impact-analysis:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Run KCS Impact Analysis
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        KCS_SERVER_URL: ${{ secrets.KCS_SERVER_URL }}
+        KCS_AUTH_TOKEN: ${{ secrets.KCS_AUTH_TOKEN }}
+      run: |
+        python src/python/kcs_ci/adapter.py analyze_pr \
+          --pr-number ${{ github.event.pull_request.number }} \
+          --kcs-url "$KCS_SERVER_URL" \
+          --kcs-token "$KCS_AUTH_TOKEN" \
+          --post-comment
+
+    - name: Set job status
+      if: always()
+      run: |
+        if [ $? -eq 0 ]; then
+          echo "Impact analysis completed successfully"
+        else
+          echo "Impact analysis failed - check logs"
+          exit 1
+        fi
