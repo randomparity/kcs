@@ -1,5 +1,5 @@
 # Multi-stage build for KCS MCP server
-FROM rust:1.75 AS rust-builder
+FROM rust:1.89 AS rust-builder
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
