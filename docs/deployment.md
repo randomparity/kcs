@@ -60,16 +60,16 @@ be properly configured and coordinated.
 sudo apt update && sudo apt upgrade -y
 
 # Install system dependencies
-sudo apt install -y \\
-    build-essential \\
-    curl \\
-    git \\
-    python3 \\
-    python3-pip \\
-    python3-venv \\
-    postgresql-15 \\
-    postgresql-contrib \\
-    nginx \\
+sudo apt install -y \
+    build-essential \
+    curl \
+    git \
+    python3 \
+    python3-pip \
+    python3-venv \
+    postgresql-15 \
+    postgresql-contrib \
+    nginx \
     supervisor
 
 # Install Rust
@@ -646,11 +646,11 @@ spec:
 
 ```bash
 # Create secrets
-kubectl create secret generic kcs-secrets \\
-  --from-literal=db-password='secure_password' \\
-  --from-literal=database-url=\\
-    'postgresql://kcs:secure_password@postgres:5432/kcs' \\
-  --from-literal=auth-token='jwt_token_here' \\
+kubectl create secret generic kcs-secrets \
+  --from-literal=db-password='secure_password' \
+  --from-literal=database-url=\
+    'postgresql://kcs:secure_password@postgres:5432/kcs' \
+  --from-literal=auth-token='jwt_token_here' \
   -n kcs
 
 # Deploy
@@ -957,12 +957,12 @@ BACKUP_DIR="/backups/kcs-app"
 APP_DIR="/opt/kcs"
 
 # Create backup
-tar -czf "$BACKUP_DIR/kcs_app_$DATE.tar.gz" \\
-  -C "$APP_DIR" \\
-  --exclude=venv \\
-  --exclude=target \\
-  --exclude=logs \\
-  --exclude=.git \\
+tar -czf "$BACKUP_DIR/kcs_app_$DATE.tar.gz" \
+  -C "$APP_DIR" \
+  --exclude=venv \
+  --exclude=target \
+  --exclude=logs \
+  --exclude=.git \
   .
 
 # Upload to cloud storage
