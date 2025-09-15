@@ -8,7 +8,7 @@ with entry points, function calls, locks/RCU usage, and relevant test coverage
 with exact file/line citations."
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import httpx
 import pytest
@@ -202,7 +202,7 @@ class TestOnboardingFlow:
         ), f"Onboarding flow took {total_time_ms:.1f}ms, should be < 2000ms"
 
         # At least some requests should succeed (those implemented)
-        successful_responses = [
+        [
             r
             for r in responses
             if not isinstance(r, Exception) and getattr(r, "status_code", 0) == 200

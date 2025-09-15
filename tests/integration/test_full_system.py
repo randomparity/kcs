@@ -14,7 +14,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import pytest
 import requests
@@ -189,7 +189,7 @@ class TestKernelAnalysis:
                 content = file_path.read_text(encoding="utf-8", errors="ignore")
 
                 # Count common kernel patterns
-                patterns = {
+                {
                     "functions": content.count("(")
                     - content.count("if (")
                     - content.count("while ("),
@@ -615,7 +615,7 @@ class TestConstitutionalCompliance:
 
         # Simulate query response times
         query_times = []
-        for i in range(10):
+        for _i in range(10):
             start = time.time()
 
             # Simulate simple analysis operation
@@ -782,8 +782,8 @@ class TestRealWorldScenarios:
 
         security_checks = {
             "entry_points_found": len(entry_points) > 0,
-            "multiple_types": len(set(ep["type"] for ep in entry_points)) > 1,
-            "file_coverage": len(set(ep["file"] for ep in entry_points)) > 1,
+            "multiple_types": len({ep["type"] for ep in entry_points}) > 1,
+            "file_coverage": len({ep["file"] for ep in entry_points}) > 1,
             "pattern_diversity": True,  # Mock check
         }
 

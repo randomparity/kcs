@@ -7,7 +7,7 @@ with file:line references for all claims.
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 from kcs_mcp.citations import (
@@ -49,7 +49,7 @@ class TestSpan:
 
     def test_invalid_end_line(self):
         """Test span with end line before start line."""
-        with pytest.raises(ValueError, match="End line .* must be >= start line"):
+        with pytest.raises(ValueError, match=r"End line .* must be >= start line"):
             Span(path="test.c", sha="abc123", start=10, end=5)
 
     def test_empty_path(self):

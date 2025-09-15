@@ -83,7 +83,7 @@ async def get_kernel_configs(db: Database = Depends(get_database)):
                 error="config_lookup_failed",
                 message=f"Failed to retrieve kernel configs: {e!s}",
             ).dict(),
-        )
+        ) from e
 
 
 @router.get("/kernel/architectures")
@@ -132,7 +132,7 @@ async def get_subsystems(db: Database = Depends(get_database)):
     logger.info("get_subsystems")
 
     try:
-        async with db.acquire() as conn:
+        async with db.acquire():
             # TODO: Implement subsystem discovery from maintainers file
             # and directory structure analysis
 
@@ -173,7 +173,7 @@ async def get_subsystems(db: Database = Depends(get_database)):
                 error="subsystem_lookup_failed",
                 message=f"Failed to retrieve subsystems: {e!s}",
             ).dict(),
-        )
+        ) from e
 
 
 @router.get("/kernel/syscalls")
@@ -186,7 +186,7 @@ async def get_syscalls(arch: str | None = None, db: Database = Depends(get_datab
     logger.info("get_syscalls", arch=arch)
 
     try:
-        async with db.acquire() as conn:
+        async with db.acquire():
             # TODO: Implement syscall table query
             # This would parse arch/*/entry/syscalls/syscall_*.tbl
 
@@ -233,7 +233,7 @@ async def get_syscalls(arch: str | None = None, db: Database = Depends(get_datab
                 error="syscall_lookup_failed",
                 message=f"Failed to retrieve syscalls: {e!s}",
             ).dict(),
-        )
+        ) from e
 
 
 @router.get("/kernel/exports")
@@ -285,4 +285,4 @@ async def get_exported_symbols(
                 error="export_lookup_failed",
                 message=f"Failed to retrieve exported symbols: {e!s}",
             ).dict(),
-        )
+        ) from e

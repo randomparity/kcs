@@ -49,7 +49,7 @@ class Database:
                     error="database_connection_failed",
                     message=f"Failed to connect to database: {e!s}",
                 ).dict(),
-            )
+            ) from e
 
     async def disconnect(self) -> None:
         """Close database connection pool."""

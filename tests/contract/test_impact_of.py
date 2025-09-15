@@ -5,7 +5,7 @@ These tests verify the API contract defined in contracts/mcp-api.yaml.
 They MUST fail before implementation and pass after.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import httpx
 import pytest

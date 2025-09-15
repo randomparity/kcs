@@ -105,6 +105,7 @@ async def search_code(
             detail=ErrorResponse(
                 error="search_failed", message=f"Search failed: {e!s}"
             ).dict(),
+        ) from e
         )
 
 
@@ -131,6 +132,7 @@ async def get_symbol(
                     error="symbol_not_found",
                     message=f"Symbol '{request.symbol}' not found",
                 ).dict(),
+        ) from e
             )
 
         # Try to get symbol info from database first
@@ -199,6 +201,7 @@ async def get_symbol(
             detail=ErrorResponse(
                 error="symbol_lookup_failed", message=f"Symbol lookup failed: {e!s}"
             ).dict(),
+        ) from e
         )
 
 
@@ -250,6 +253,7 @@ async def who_calls(
                 error="caller_analysis_failed",
                 message=f"Caller analysis failed: {e!s}",
             ).dict(),
+        ) from e
         )
 
 
@@ -298,6 +302,7 @@ async def list_dependencies(
                 error="dependency_analysis_failed",
                 message=f"Dependency analysis failed: {e!s}",
             ).dict(),
+        ) from e
         )
 
 
@@ -362,6 +367,7 @@ async def entrypoint_flow(
             detail=ErrorResponse(
                 error="flow_analysis_failed", message=f"Flow analysis failed: {e!s}"
             ).dict(),
+        ) from e
         )
 
 
@@ -441,6 +447,7 @@ async def impact_of(
                 error="impact_analysis_failed",
                 message=f"Impact analysis failed: {e!s}",
             ).dict(),
+        ) from e
         )
 
 
@@ -505,4 +512,5 @@ async def owners_for(
             detail=ErrorResponse(
                 error="owner_lookup_failed", message=f"Owner lookup failed: {e!s}"
             ).dict(),
+        ) from e
         )

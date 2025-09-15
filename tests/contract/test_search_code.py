@@ -5,7 +5,7 @@ These tests verify the API contract defined in contracts/mcp-api.yaml.
 They MUST fail before implementation and pass after.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import httpx
 import pytest
@@ -177,7 +177,7 @@ class TestSearchCodeContract:
         )
 
         if response.status_code == 200:
-            semantic_data = response.json()
+            response.json()
 
         # Lexical query (exact text)
         lexical_payload = {"query": "sys_read", "topK": 5}
@@ -189,7 +189,7 @@ class TestSearchCodeContract:
         if response.status_code == 200:
             lexical_data = response.json()
             # Should find exact matches
-            found_exact_match = any(
+            any(
                 "sys_read" in hit["snippet"] for hit in lexical_data["hits"]
             )
             # This assertion might not hold until implementation exists
