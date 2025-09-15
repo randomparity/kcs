@@ -8,9 +8,9 @@ Auto-generated from all feature plans. Last updated: [DATE]
 
 ## Project Structure
 
-```
+```text
 [ACTUAL STRUCTURE FROM PLANS]
-```
+```text
 
 ## Commands
 

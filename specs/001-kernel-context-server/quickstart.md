@@ -21,7 +21,7 @@ kcs-parser --parse ~/linux --config x86_64:defconfig --format json | \
 
 # Start MCP server
 kcs-mcp --serve --port 8080 --auth-token dev-token
-```
+```text
 
 ## Verification Steps
 
@@ -30,7 +30,7 @@ kcs-mcp --serve --port 8080 --auth-token dev-token
 ```bash
 curl http://localhost:8080/health
 # Expected: {"status": "healthy", "version": "1.0.0", ...}
-```
+```text
 
 ### 2. Test Symbol Query
 
@@ -41,7 +41,7 @@ curl -H "Authorization: Bearer dev-token" \
   http://localhost:8080/mcp/tools/get_symbol
 
 # Expected: Symbol info with file/line citations
-```
+```text
 
 ### 3. Test Impact Analysis
 
@@ -65,7 +65,7 @@ curl -H "Authorization: Bearer dev-token" \
   http://localhost:8080/mcp/tools/impact_of
 
 # Expected: List of affected configs, modules, tests, owners
-```
+```text
 
 ### 4. Test Entry Point Flow
 
@@ -76,7 +76,7 @@ curl -H "Authorization: Bearer dev-token" \
   http://localhost:8080/mcp/tools/entrypoint_flow
 
 # Expected: Step-by-step flow from syscall to implementation
-```
+```text
 
 ## Common Use Cases
 
@@ -88,7 +88,7 @@ curl -H "Authorization: Bearer dev-token" \
   -H "Content-Type: application/json" \
   -d '{"symbol": "vfs_read", "depth": 2}' \
   http://localhost:8080/mcp/tools/who_calls
-```
+```text
 
 ### Search for Code Patterns
 
@@ -98,7 +98,7 @@ curl -H "Authorization: Bearer dev-token" \
   -H "Content-Type: application/json" \
   -d '{"query": "smp_mb memory barrier", "topK": 5}' \
   http://localhost:8080/mcp/tools/search_code
-```
+```text
 
 ### Check for Drift
 
@@ -108,7 +108,7 @@ curl -H "Authorization: Bearer dev-token" \
   -H "Content-Type: application/json" \
   -d '{"feature_id": "vfs-read-interface"}' \
   http://localhost:8080/mcp/tools/diff_spec_vs_code
-```
+```text
 
 ### Find Maintainers
 
@@ -118,7 +118,7 @@ curl -H "Authorization: Bearer dev-token" \
   -H "Content-Type: application/json" \
   -d '{"paths": ["fs/", "include/linux/fs.h"]}' \
   http://localhost:8080/mcp/tools/owners_for
-```
+```text
 
 ## CI Integration
 
@@ -167,7 +167,7 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
-```
+```text
 
 ## IDE Integration
 
@@ -185,14 +185,14 @@ jobs:
     }
   }
 }
-```
+```text
 
 3. Use in chat:
 
-```
+```text
 @kcs What functions call vfs_read in the kernel?
 @kcs What's the impact if I change copy_page_to_iter?
-```
+```text
 
 ## Performance Tuning
 
@@ -204,7 +204,7 @@ kcs-parser --parse ~/linux --config x86_64:defconfig --workers 8
 
 # Incremental update
 kcs-parser --parse ~/linux --incremental --since yesterday
-```
+```text
 
 ### Query Optimization
 
@@ -214,7 +214,7 @@ kcs-graph --warmup --top-symbols 1000
 
 # Monitor slow queries
 kcs-mcp --serve --slow-query-log /var/log/kcs/slow.log
-```
+```text
 
 ## Troubleshooting
 
@@ -227,7 +227,7 @@ docker-compose logs postgres
 
 # Verify database connection
 psql postgresql://localhost/kcs -c "SELECT COUNT(*) FROM symbol;"
-```
+```text
 
 ### Slow Queries
 
@@ -237,7 +237,7 @@ kcs-graph --analyze --db postgresql://localhost/kcs
 
 # Rebuild indexes if needed
 kcs-graph --reindex --db postgresql://localhost/kcs
-```
+```text
 
 ### Missing Symbols
 
@@ -247,11 +247,11 @@ kcs-parser --list-configs --db postgresql://localhost/kcs
 
 # Re-index specific configuration
 kcs-parser --parse ~/linux --config x86_64:allmodconfig --force
-```
+```text
 
 ## Architecture Overview
 
-```
+```text
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
 │  AI Agent   │────▶│  MCP Server  │────▶│  PostgreSQL  │
 │(Claude/etc) │     │   (Python)   │     │  + pgvector  │
@@ -268,7 +268,7 @@ kcs-parser --parse ~/linux --config x86_64:allmodconfig --force
                                          │ Linux Kernel │
                                          │  Repository  │
                                          └──────────────┘
-```
+```text
 
 ## Next Steps
 

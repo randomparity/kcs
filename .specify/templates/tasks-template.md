@@ -5,7 +5,7 @@
 
 ## Execution Flow (main)
 
-```
+```text
 1. Load plan.md from feature directory
    → If not found: ERROR "No implementation plan found"
    → Extract: tech stack, libraries, structure
@@ -31,7 +31,7 @@
    → All entities have models?
    → All endpoints implemented?
 9. Return: SUCCESS (tasks ready for execution)
-```
+```text
 
 ## Format: `[ID] [P?] Description`
 
@@ -94,13 +94,13 @@
 
 ## Parallel Example
 
-```
+```text
 # Launch T004-T007 together:
 Task: "Contract test POST /api/users in tests/contract/test_users_post.py"
 Task: "Contract test GET /api/users/{id} in tests/contract/test_users_get.py"
 Task: "Integration test registration in tests/integration/test_registration.py"
 Task: "Integration test auth in tests/integration/test_auth.py"
-```
+```text
 
 ## Notes
 

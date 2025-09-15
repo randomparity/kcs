@@ -5,7 +5,7 @@
 
 ## Execution Flow (/plan command scope)
 
-```
+```text
 1. Load feature spec from Input path
    → If not found: ERROR "No feature spec at {path}"
 2. Fill Technical Context (scan for NEEDS CLARIFICATION)
@@ -23,7 +23,7 @@
    → Update Progress Tracking: Post-Design Constitution Check
 7. Plan Phase 2 → Describe task generation approach (DO NOT create tasks.md)
 8. STOP - Ready for /tasks command
-```
+```text
 
 **IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
 
@@ -89,7 +89,7 @@
 
 ### Documentation (this feature)
 
-```
+```text
 specs/[###-feature]/
 ├── plan.md              # This file (/plan command output)
 ├── research.md          # Phase 0 output (/plan command)
@@ -97,11 +97,11 @@ specs/[###-feature]/
 ├── quickstart.md        # Phase 1 output (/plan command)
 ├── contracts/           # Phase 1 output (/plan command)
 └── tasks.md             # Phase 2 output (/tasks command - NOT created by /plan)
-```
+```text
 
 ### Source Code (repository root)
 
-```
+```text
 # Option 1: Single project (DEFAULT)
 src/
 ├── models/
@@ -135,7 +135,7 @@ api/
 
 ios/ or android/
 └── [platform-specific structure]
-```
+```text
 
 **Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates web/mobile app]
 
@@ -149,10 +149,12 @@ ios/ or android/
 2. **Generate and dispatch research agents**:
 
    ```
+
    For each unknown in Technical Context:
      Task: "Research {unknown} for {feature context}"
    For each technology choice:
      Task: "Find best practices for {tech} in {domain}"
+
    ```
 
 3. **Consolidate findings** in `research.md` using format:

@@ -5,7 +5,7 @@
 
 ## Execution Flow (/plan command scope)
 
-```
+```text
 1. Load feature spec from Input path
    → Feature spec loaded successfully
 2. Fill Technical Context (scan for NEEDS CLARIFICATION)
@@ -22,7 +22,7 @@
    → Update Progress Tracking: Post-Design Constitution Check
 7. Plan Phase 2 → Describe task generation approach (DO NOT create tasks.md)
 8. STOP - Ready for /tasks command
-```
+```text
 
 **IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
 
@@ -100,7 +100,7 @@ The Kernel Context Server (KCS) provides a ground-truth, queryable model of the 
 
 ### Documentation (this feature)
 
-```
+```text
 specs/001-kernel-context-server/
 ├── plan.md              # This file (/plan command output)
 ├── research.md          # Phase 0 output (/plan command)
@@ -108,11 +108,11 @@ specs/001-kernel-context-server/
 ├── quickstart.md        # Phase 1 output (/plan command)
 ├── contracts/           # Phase 1 output (/plan command)
 └── tasks.md             # Phase 2 output (/tasks command - NOT created by /plan)
-```
+```text
 
 ### Source Code (repository root)
 
-```
+```text
 # Option 1: Single project (SELECTED)
 src/
 ├── rust/
@@ -138,7 +138,7 @@ tests/
 tools/
 ├── setup/               # Installation scripts
 └── ci/                  # CI integration scripts
-```
+```text
 
 **Structure Decision**: Option 1 (single project with multi-language components)
 
@@ -155,12 +155,14 @@ tools/
 2. **Generate and dispatch research agents**:
 
    ```
+
    Task: "Research tree-sitter C grammar customization for kernel macros"
    Task: "Find best practices for clang compile_commands.json generation"
    Task: "Research pgvector performance for 50k+ node graphs"
    Task: "Analyze MCP protocol specification and reference implementations"
    Task: "Evaluate Aya vs libbpf-rs for kernel tracing"
    Task: "Research multi-config build matrix strategies"
+
    ```
 
 3. **Consolidate findings** in `research.md` using format:

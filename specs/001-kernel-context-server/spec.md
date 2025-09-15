@@ -7,7 +7,7 @@
 
 ## Execution Flow (main)
 
-```
+```text
 1. Parse user description from Input
    � PRD provides comprehensive feature requirements
 2. Extract key concepts from description
@@ -23,7 +23,7 @@
 7. Run Review Checklist
    � Spec ready for planning with noted clarifications
 8. Return: SUCCESS (spec ready for planning)
-```
+```text
 
 ---
 

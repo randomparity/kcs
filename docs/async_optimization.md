@@ -18,7 +18,7 @@ def search_code(request: SearchRequest):
 @app.post("/mcp/tools/search_code")
 async def search_code(request: SearchRequest):
     return await search_service.search(request.query)
-```
+```text
 
 ### 2. Async Database Operations
 
@@ -33,7 +33,7 @@ async def get_symbol(symbol_name: str):
             symbol_name
         )
         return result
-```
+```text
 
 ### 3. Async HTTP Client
 
@@ -45,7 +45,7 @@ async def fetch_external_data(url: str):
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             return await response.json()
-```
+```text
 
 ## Implementation Priority
 
@@ -60,7 +60,7 @@ Use pytest-asyncio for testing async endpoints:
 ```bash
 pip install pytest-asyncio
 pytest -v tests/test_async_api.py
-```
+```text
 
 ## Performance Benefits
 

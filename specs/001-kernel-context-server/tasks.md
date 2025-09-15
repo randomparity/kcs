@@ -5,7 +5,7 @@
 
 ## Execution Flow (main)
 
-```
+```text
 1. Load plan.md from feature directory
    → Tech stack: Rust 1.75, Python 3.11, PostgreSQL 15+
    → Libraries: kcs-parser, kcs-extractor, kcs-graph, kcs-mcp, kcs-impact, kcs-drift
@@ -25,7 +25,7 @@
    → Tests before implementation (TDD)
 5. Number tasks sequentially (T001-T040)
 6. Return: SUCCESS (tasks ready for execution)
-```
+```text
 
 ## Format: `[ID] [P?] Description`
 
@@ -129,7 +129,7 @@ Task agent="rust-dev" prompt="Scaffold kcs-extractor library"
 Task agent="rust-dev" prompt="Scaffold kcs-graph library"
 Task agent="rust-dev" prompt="Scaffold kcs-impact library"
 Task agent="rust-dev" prompt="Scaffold kcs-drift library"
-```
+```text
 
 ## Critical Path
 

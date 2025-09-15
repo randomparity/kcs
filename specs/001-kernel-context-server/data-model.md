@@ -106,7 +106,7 @@ erDiagram
         timestamp checked_at
         text severity
     }
-```
+```text
 
 ## Core Entities
 
@@ -191,7 +191,7 @@ Kernel boundary where external requests enter.
   "struct_name": "ext4_file_operations",
   "operation": "read"
 }
-```
+```text
 
 ## Relationship Entities
 
@@ -277,7 +277,7 @@ AI-generated or rule-based symbol documentation.
     {"file": "fs/read_write.c", "line": 451}
   ]
 }
-```
+```text
 
 ### DriftReport
 
@@ -308,7 +308,7 @@ Tracks mismatches between spec and implementation.
     "span": {"file": "init/Kconfig", "line": 456}
   }
 ]
-```
+```text
 
 ## Indexes and Performance
 
@@ -331,7 +331,7 @@ CREATE INDEX idx_entry_key ON entrypoint(kind, key);
 -- File operations
 CREATE INDEX idx_file_path ON file(path);
 CREATE INDEX idx_file_config ON file(config);
-```
+```text
 
 ### Specialized Indexes
 
@@ -344,7 +344,7 @@ CREATE INDEX idx_symbol_embedding ON symbol_embedding USING hnsw(embedding vecto
 
 -- Bitmap operations
 CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
-```
+```text
 
 ## Validation Rules
 

@@ -2,7 +2,8 @@
 
 ## Project Overview
 
-Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis via MCP protocol for AI coding assistants.
+Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis
+via MCP protocol for AI coding assistants.
 
 ## Tech Stack
 
@@ -15,7 +16,7 @@ Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis via MC
 
 ## Project Structure
 
-```
+```text
 src/
 ├── rust/           # Performance-critical components
 │   ├── kcs-parser/     # Tree-sitter + clang
@@ -32,7 +33,7 @@ tests/
 ├── contract/      # API contract tests
 ├── integration/   # Cross-component tests
 └── performance/   # Benchmarks
-```
+```text
 
 ## Key Concepts
 
@@ -88,7 +89,7 @@ kcs-impact --diff changes.patch --depth 2
 
 # Check drift
 kcs-drift --spec feature.yaml --code ~/linux
-```
+```text
 
 ## Database Schema
 

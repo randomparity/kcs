@@ -87,29 +87,29 @@
 
 ### Parser Pipeline
 
-```
+```text
 Kernel Repo → Tree-sitter (structure) → Clang (semantics) → Graph Builder → Postgres
                      ↓                         ↓                    ↓
               Custom Queries            Macro Resolution      Edge Detection
-```
+```text
 
 ### Query Flow
 
-```
+```text
 MCP Request → FastAPI → Query Planner → Postgres → Citation Formatter → MCP Response
                  ↓            ↓              ↓              ↓
             Auth Check    Cache Check    pgvector      Line Mapping
-```
+```text
 
 ### Impact Analysis Algorithm
 
-```
+```text
 1. Parse diff → extract changed symbols
 2. Graph traversal with config-aware edges
 3. Prune at module boundaries (unless exported)
 4. Collect affected: configs, tests, owners
 5. Risk scoring based on context (irq, locks, etc.)
-```
+```text
 
 ## Performance Optimizations
 
