@@ -155,7 +155,7 @@ ios/ or android/
    For each technology choice:
      Task: "Find best practices for {tech} in {domain}"
 
-   ```
+   ```text
 
 3. **Consolidate findings** in `research.md` using format:
    - Decision: [what was chosen]

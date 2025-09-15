@@ -2,7 +2,9 @@
 
 ## Overview
 
-This guide covers deploying Kernel Context Server (KCS) in various environments, from development to production. KCS consists of multiple components that need to be properly configured and coordinated.
+This guide covers deploying Kernel Context Server (KCS) in various environments,
+from development to production. KCS consists of multiple components that need to
+be properly configured and coordinated.
 
 ## Architecture Overview
 

@@ -31,19 +31,31 @@
 
 ## Summary
 
-The Kernel Context Server (KCS) provides a ground-truth, queryable model of the Linux kernel for AI coding tools and engineers. It parses kernel repositories into graphs, extracts entry points and dependencies, maintains summaries, and exposes everything via Model Context Protocol (MCP). Technical approach: Rust extractors for performance-critical parsing, Python MCP server for API flexibility, Postgres with pgvector for graph storage and semantic search, and optional eBPF tracing via Aya/libbpf-rs.
+The Kernel Context Server (KCS) provides a ground-truth, queryable model of the 
+Linux kernel for AI coding tools and engineers. It parses kernel repositories 
+into graphs, extracts entry points and dependencies, maintains summaries, and 
+exposes everything via Model Context Protocol (MCP). 
+
+Technical approach: Rust extractors for performance-critical parsing, Python 
+MCP server for API flexibility, Postgres with pgvector for graph storage and 
+semantic search, and optional eBPF tracing via Aya/libbpf-rs.
 
 ## Technical Context
 
 **Language/Version**: Rust 1.75 (extractors), Python 3.11 (MCP server)
-**Primary Dependencies**: tree-sitter, clang-sys, tokio, pyo3, fastapi, asyncpg, pgvector, aya/libbpf-rs
+**Primary Dependencies**: tree-sitter, clang-sys, tokio, pyo3, fastapi, asyncpg, 
+pgvector, aya/libbpf-rs
 **Storage**: PostgreSQL 15+ with pgvector extension
 **Testing**: cargo test (Rust), pytest (Python), k6 (performance)
-**Target Platform**: Linux x86_64 (primary), ppc64le, s390x (multi-arch support)
+**Target Platform**: Linux x86_64 (primary), ppc64le, s390x (multi-arch 
+support)
 **Project Type**: single - System service with multiple components
-**Performance Goals**: Full index ≤20min, incremental ≤3min, query p95 ≤600ms
-**Constraints**: Read-only operations, <20GB graph storage, token-based auth required
-**Scale/Scope**: ~50k symbols, ~10k entry points, 3 architectures × 2 configs each
+**Performance Goals**: Full index ≤20min, incremental ≤3min, query p95 
+≤600ms
+**Constraints**: Read-only operations, <20GB graph storage, token-based auth 
+required
+**Scale/Scope**: ~50k symbols, ~10k entry points, 3 architectures × 2 configs 
+each
 
 ## Constitution Check
 
@@ -163,7 +175,7 @@ tools/
    Task: "Evaluate Aya vs libbpf-rs for kernel tracing"
    Task: "Research multi-config build matrix strategies"
 
-   ```
+   ```text
 
 3. **Consolidate findings** in `research.md` using format:
    - Decision: [what was chosen]

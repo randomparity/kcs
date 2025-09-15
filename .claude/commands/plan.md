@@ -2,16 +2,21 @@
 description: Execute the implementation planning workflow using the plan template to generate design artifacts.
 ---
 
+# Plan Command
+
 Given the implementation details provided as an argument, do this:
 
-1. Run `.specify/scripts/bash/setup-plan.sh --json` from the repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. All future file paths must be absolute.
+1. Run `.specify/scripts/bash/setup-plan.sh --json` from the repo root and parse
+   JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. All future file paths
+   must be absolute.
 2. Read and analyze the feature specification to understand:
    - The feature requirements and user stories
    - Functional and non-functional requirements
    - Success criteria and acceptance criteria
    - Any technical constraints or dependencies mentioned
 
-3. Read the constitution at `.specify/memory/constitution.md` to understand constitutional requirements.
+3. Read the constitution at `.specify/memory/constitution.md` to understand
+   constitutional requirements.
 
 4. Execute the implementation plan template:
    - Load `.specify/templates/plan-template.md` (already copied to IMPL_PLAN path)
@@ -33,4 +38,5 @@ Given the implementation details provided as an argument, do this:
 
 6. Report results with branch name, file paths, and generated artifacts.
 
-Use absolute paths with the repository root for all file operations to avoid path issues.
+Use absolute paths with the repository root for all file operations to avoid 
+path issues.
