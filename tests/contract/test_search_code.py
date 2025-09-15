@@ -73,9 +73,9 @@ class TestSearchCodeContract:
         response = await http_client.post(
             "/mcp/tools/search_code", json={"topK": 5}, headers=auth_headers
         )
-        assert (
-            response.status_code == 422
-        ), "Should reject request without required 'query' field"
+        assert response.status_code == 422, (
+            "Should reject request without required 'query' field"
+        )
 
         # Invalid topK type
         response = await http_client.post(
@@ -250,9 +250,9 @@ class TestSearchCodeContract:
 
         if response.status_code == 200:
             # Performance requirement from constitution: p95 < 600ms
-            assert (
-                response_time_ms < 600
-            ), f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            assert response_time_ms < 600, (
+                f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            )
 
     @pytest.mark.integration
     async def test_search_code_with_sample_data(

@@ -114,9 +114,9 @@ class TestKernelAnalysis:
                 }
 
         # Should find major subsystems
-        assert (
-            len(found_subsystems) >= 6
-        ), f"Only found {len(found_subsystems)} major subsystems"
+        assert len(found_subsystems) >= 6, (
+            f"Only found {len(found_subsystems)} major subsystems"
+        )
 
         # Should find substantial amounts of code
         total_files = sum(info["total_files"] for info in found_subsystems.values())
@@ -148,9 +148,9 @@ class TestKernelAnalysis:
         # Limit total sample size
         sample_files = sample_files[:SAMPLE_SIZE]
 
-        assert (
-            len(sample_files) >= 50
-        ), f"Need at least 50 sample files, got {len(sample_files)}"
+        assert len(sample_files) >= 50, (
+            f"Need at least 50 sample files, got {len(sample_files)}"
+        )
 
         # Verify files are readable and non-empty
         valid_files = []
@@ -162,9 +162,9 @@ class TestKernelAnalysis:
             except Exception as e:
                 print(f"Warning: Could not read {file_path}: {e}")
 
-        assert (
-            len(valid_files) >= 40
-        ), f"Need at least 40 valid files, got {len(valid_files)}"
+        assert len(valid_files) >= 40, (
+            f"Need at least 40 valid files, got {len(valid_files)}"
+        )
 
         print(f"Selected {len(valid_files)} valid sample files")
         system_env.test_results["sample_files"] = valid_files
@@ -207,9 +207,9 @@ class TestKernelAnalysis:
         duration = end_time - start_time
 
         # Performance assertions
-        assert (
-            parsed_count >= 15
-        ), f"Should parse most files, got {parsed_count}/{len(sample_files)}"
+        assert parsed_count >= 15, (
+            f"Should parse most files, got {parsed_count}/{len(sample_files)}"
+        )
         assert duration < 60, f"Parsing took too long: {duration:.2f}s"
         assert len(errors) < 5, f"Too many parsing errors: {errors[:3]}"
 
@@ -320,18 +320,18 @@ class TestSymbolExtraction:
                         continue
 
         # Should find some syscalls
-        assert (
-            len(found_syscalls) > 10
-        ), f"Expected >10 syscalls, found {len(found_syscalls)}"
+        assert len(found_syscalls) > 10, (
+            f"Expected >10 syscalls, found {len(found_syscalls)}"
+        )
 
         # Common syscalls that should exist
         common_syscalls = ["read", "write", "open", "close", "mmap", "fork"]
         found_names = [s["name"] for s in found_syscalls]
 
         found_common = [name for name in common_syscalls if name in found_names]
-        assert (
-            len(found_common) >= 3
-        ), f"Should find common syscalls, found: {found_common}"
+        assert len(found_common) >= 3, (
+            f"Should find common syscalls, found: {found_common}"
+        )
 
         print(f"Syscall identification: {len(found_syscalls)} total syscalls")
         print(f"Common syscalls found: {found_common}")
@@ -381,9 +381,9 @@ class TestSymbolExtraction:
                     continue
 
         # Should find some entry points
-        assert (
-            len(entry_points) > 5
-        ), f"Expected >5 entry points, found {len(entry_points)}"
+        assert len(entry_points) > 5, (
+            f"Expected >5 entry points, found {len(entry_points)}"
+        )
 
         # Group by type
         by_type = {}
@@ -461,9 +461,9 @@ class TestCallGraphConstruction:
                 print(f"Warning: Error analyzing {file_path}: {e}")
 
         # Should find some call relationships
-        assert (
-            len(call_relationships) > 20
-        ), f"Expected >20 call relationships, found {len(call_relationships)}"
+        assert len(call_relationships) > 20, (
+            f"Expected >20 call relationships, found {len(call_relationships)}"
+        )
 
         # Count unique functions
         all_functions = set()
@@ -512,9 +512,9 @@ class TestCallGraphConstruction:
         found_common = [func for func in common_functions if func in called_functions]
 
         # Should find some common kernel functions
-        assert (
-            len(found_common) >= 2
-        ), f"Should find common kernel functions, found: {found_common}"
+        assert len(found_common) >= 2, (
+            f"Should find common kernel functions, found: {found_common}"
+        )
 
         print(f"Common kernel functions found: {found_common}")
 
@@ -609,9 +609,9 @@ class TestConstitutionalCompliance:
 
         # File parsing should be reasonably fast
         files_per_second = perf["files_per_second"]
-        assert (
-            files_per_second > 0.5
-        ), f"Parsing too slow: {files_per_second:.2f} files/second"
+        assert files_per_second > 0.5, (
+            f"Parsing too slow: {files_per_second:.2f} files/second"
+        )
 
         # Simulate query response times
         query_times = []
@@ -628,9 +628,9 @@ class TestConstitutionalCompliance:
         query_times.sort()
         p95_time = query_times[int(0.95 * len(query_times))]
 
-        assert (
-            p95_time < 600
-        ), f"p95 query time {p95_time:.1f}ms exceeds 600ms requirement"
+        assert p95_time < 600, (
+            f"p95 query time {p95_time:.1f}ms exceeds 600ms requirement"
+        )
 
         print(f"✓ Performance requirement verified: p95 = {p95_time:.1f}ms")
 
@@ -712,9 +712,9 @@ class TestSystemIntegration:
         estimated_parse_time = estimated_total_files / files_per_second / 60  # minutes
 
         # Constitutional requirement: indexing ≤ 20 minutes
-        assert (
-            estimated_parse_time <= 30
-        ), f"Estimated parse time {estimated_parse_time:.1f}min may exceed limits"
+        assert estimated_parse_time <= 30, (
+            f"Estimated parse time {estimated_parse_time:.1f}min may exceed limits"
+        )
 
         print(
             f"✓ Scalability: estimated full kernel parse time {estimated_parse_time:.1f} minutes"
@@ -788,9 +788,9 @@ class TestRealWorldScenarios:
         }
 
         passed_checks = sum(security_checks.values())
-        assert (
-            passed_checks >= 3
-        ), f"Security analysis incomplete: {passed_checks}/4 checks"
+        assert passed_checks >= 3, (
+            f"Security analysis incomplete: {passed_checks}/4 checks"
+        )
 
         print(f"✓ Security workflow: {passed_checks}/4 checks passed")
 

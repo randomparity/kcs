@@ -65,9 +65,9 @@ class TestWhoCallsContract:
         response = await http_client.post(
             "/mcp/tools/who_calls", json={"depth": 2}, headers=auth_headers
         )
-        assert (
-            response.status_code == 422
-        ), "Should reject request without required 'symbol' field"
+        assert response.status_code == 422, (
+            "Should reject request without required 'symbol' field"
+        )
 
         # Invalid depth type
         response = await http_client.post(
@@ -108,9 +108,9 @@ class TestWhoCallsContract:
                 assert "span" in caller, "Each caller should have 'span' field"
 
                 # Verify field types
-                assert isinstance(
-                    caller["symbol"], str
-                ), "Caller symbol should be string"
+                assert isinstance(caller["symbol"], str), (
+                    "Caller symbol should be string"
+                )
                 assert isinstance(caller["span"], dict), "Caller span should be object"
 
                 # Verify span structure
@@ -132,9 +132,9 @@ class TestWhoCallsContract:
                 # Verify optional call_type field
                 if "call_type" in caller:
                     valid_call_types = ["direct", "indirect", "macro", "inline"]
-                    assert (
-                        caller["call_type"] in valid_call_types
-                    ), f"Call type should be one of {valid_call_types}"
+                    assert caller["call_type"] in valid_call_types, (
+                        f"Call type should be one of {valid_call_types}"
+                    )
 
     async def test_who_calls_default_depth(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -174,9 +174,9 @@ class TestWhoCallsContract:
             data2 = response2.json()
 
             # Depth 2 should potentially return more results (or same if no deeper calls)
-            assert len(data2["callers"]) >= len(
-                data1["callers"]
-            ), "Deeper search may return more results"
+            assert len(data2["callers"]) >= len(data1["callers"]), (
+                "Deeper search may return more results"
+            )
 
     async def test_who_calls_nonexistent_symbol(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -197,9 +197,9 @@ class TestWhoCallsContract:
         if response.status_code == 200:
             data = response.json()
             assert "callers" in data, "Should still return callers array"
-            assert (
-                len(data["callers"]) == 0
-            ), "Should return empty array for non-existent symbol"
+            assert len(data["callers"]) == 0, (
+                "Should return empty array for non-existent symbol"
+            )
 
     async def test_who_calls_no_callers(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -237,9 +237,9 @@ class TestWhoCallsContract:
         if response.status_code == 200:
             data = response.json()
             # Should enforce reasonable limits to prevent infinite recursion
-            assert (
-                len(data["callers"]) <= 1000
-            ), "Should enforce reasonable result limits"
+            assert len(data["callers"]) <= 1000, (
+                "Should enforce reasonable result limits"
+            )
 
     async def test_who_calls_performance_requirement(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -263,9 +263,9 @@ class TestWhoCallsContract:
 
         if response.status_code in [200, 404]:
             # Performance requirement from constitution: p95 < 600ms
-            assert (
-                response_time_ms < 600
-            ), f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            assert response_time_ms < 600, (
+                f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            )
 
     async def test_who_calls_recursive_functions(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -284,9 +284,9 @@ class TestWhoCallsContract:
         if response.status_code == 200:
             data = response.json()
             # Should handle recursion without infinite loops
-            assert (
-                len(data["callers"]) < 10000
-            ), "Should handle recursion without infinite expansion"
+            assert len(data["callers"]) < 10000, (
+                "Should handle recursion without infinite expansion"
+            )
 
     @pytest.mark.integration
     async def test_who_calls_with_sample_data(
@@ -307,9 +307,9 @@ class TestWhoCallsContract:
             # Verify at least one caller makes sense
             caller_names = [caller["symbol"] for caller in data["callers"]]
             # Common callers of vfs_read might include sys_read, etc.
-            assert any(
-                "read" in name.lower() for name in caller_names
-            ), "Should find read-related callers"
+            assert any("read" in name.lower() for name in caller_names), (
+                "Should find read-related callers"
+            )
 
     async def test_who_calls_call_types(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -328,9 +328,9 @@ class TestWhoCallsContract:
                 if "call_type" in caller:
                     call_type = caller["call_type"]
                     valid_types = ["direct", "indirect", "macro", "inline"]
-                    assert (
-                        call_type in valid_types
-                    ), f"Call type '{call_type}' should be valid"
+                    assert call_type in valid_types, (
+                        f"Call type '{call_type}' should be valid"
+                    )
 
     async def test_who_calls_span_accuracy(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -348,18 +348,18 @@ class TestWhoCallsContract:
             for caller in data["callers"]:
                 span = caller["span"]
                 # Span should point to reasonable kernel source locations
-                assert span["path"].endswith(
-                    (".c", ".h", ".S")
-                ), "Should point to source files"
-                assert not span["path"].startswith(
-                    "/"
-                ), "Path should be relative to repo root"
+                assert span["path"].endswith((".c", ".h", ".S")), (
+                    "Should point to source files"
+                )
+                assert not span["path"].startswith("/"), (
+                    "Path should be relative to repo root"
+                )
 
                 # Line numbers should be reasonable
                 assert span["start"] <= span["end"], "Start should be <= end"
-                assert (
-                    span["end"] - span["start"] < 1000
-                ), "Span should not be excessively large"
+                assert span["end"] - span["start"] < 1000, (
+                    "Span should not be excessively large"
+                )
 
 
 class TestWhoCallsErrorHandling:

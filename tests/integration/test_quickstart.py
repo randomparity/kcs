@@ -255,15 +255,15 @@ class TestQuickstartConfiguration:
         # Check directory structure
         assert (kernel_path / "fs").exists(), "fs directory not created"
         assert (kernel_path / "kernel").exists(), "kernel directory not created"
-        assert (
-            kernel_path / "include" / "linux"
-        ).exists(), "include/linux directory not created"
+        assert (kernel_path / "include" / "linux").exists(), (
+            "include/linux directory not created"
+        )
 
         # Check test files
         assert (kernel_path / "fs" / "test.c").exists(), "Test C file not created"
-        assert (
-            kernel_path / "include" / "linux" / "test.h"
-        ).exists(), "Test header not created"
+        assert (kernel_path / "include" / "linux" / "test.h").exists(), (
+            "Test header not created"
+        )
 
         # Verify file contents
         test_c = (kernel_path / "fs" / "test.c").read_text()
@@ -321,9 +321,9 @@ class TestQuickstartParsing:
 
         # Check that it found some symbols
         output = result.stdout
-        assert (
-            "function" in output.lower() or "symbol" in output.lower()
-        ), "Parser output doesn't mention functions or symbols"
+        assert "function" in output.lower() or "symbol" in output.lower(), (
+            "Parser output doesn't mention functions or symbols"
+        )
 
 
 class TestQuickstartAPI:
@@ -432,9 +432,9 @@ class TestQuickstartEndToEnd:
             for spec_file in key_specs:
                 if spec_file.exists():
                     content = spec_file.read_text()
-                    assert (
-                        len(content) > 100
-                    ), f"Specification file too short: {spec_file}"
+                    assert len(content) > 100, (
+                        f"Specification file too short: {spec_file}"
+                    )
 
     def test_constitutional_requirements(self, quickstart_env):
         """Test that constitutional requirements are testable."""

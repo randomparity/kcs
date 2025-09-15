@@ -78,9 +78,9 @@ class TestImpactOfContract:
         response = await http_client.post(
             "/mcp/tools/impact_of", json={}, headers=auth_headers
         )
-        assert (
-            response.status_code == 422
-        ), "Should reject request without any input parameters"
+        assert response.status_code == 422, (
+            "Should reject request without any input parameters"
+        )
 
         # Invalid diff format
         response = await http_client.post(
@@ -150,9 +150,9 @@ class TestImpactOfContract:
 
                 assert isinstance(cite["path"], str), "Citation path should be string"
                 assert isinstance(cite["sha"], str), "Citation sha should be string"
-                assert isinstance(
-                    cite["start"], int
-                ), "Citation start should be integer"
+                assert isinstance(cite["start"], int), (
+                    "Citation start should be integer"
+                )
                 assert isinstance(cite["end"], int), "Citation end should be integer"
 
     async def test_impact_of_with_diff(
@@ -230,9 +230,9 @@ class TestImpactOfContract:
             configs = data["configs"]
             if len(configs) > 0:
                 # Should include the specified config or related ones
-                assert any(
-                    "x86_64" in config for config in configs
-                ), "Should consider x86_64 configs"
+                assert any("x86_64" in config for config in configs), (
+                    "Should consider x86_64 configs"
+                )
 
     async def test_impact_of_risk_assessment(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -281,9 +281,9 @@ index abc123..def456 100644
             modules = data["modules"]
             # Should identify the e1000 module
             if len(modules) > 0:
-                assert any(
-                    "e1000" in module for module in modules
-                ), "Should identify e1000 module"
+                assert any("e1000" in module for module in modules), (
+                    "Should identify e1000 module"
+                )
 
     async def test_impact_of_test_identification(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -347,9 +347,9 @@ index abc123..def456 100644
 
         if response.status_code == 200:
             # Performance requirement from constitution: p95 < 600ms
-            assert (
-                response_time_ms < 600
-            ), f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            assert response_time_ms < 600, (
+                f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            )
 
     async def test_impact_of_large_diff(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -391,12 +391,12 @@ index abc123..def456 100644
         if response.status_code == 200:
             data = response.json()
             # Should return empty results for empty input
-            assert (
-                len(data["configs"]) == 0
-            ), "Should return empty configs for empty input"
-            assert (
-                len(data["modules"]) == 0
-            ), "Should return empty modules for empty input"
+            assert len(data["configs"]) == 0, (
+                "Should return empty configs for empty input"
+            )
+            assert len(data["modules"]) == 0, (
+                "Should return empty modules for empty input"
+            )
 
     @pytest.mark.integration
     async def test_impact_of_with_sample_data(
@@ -413,16 +413,16 @@ index abc123..def456 100644
             data = response.json()
 
             # Should find realistic impact for vfs_read
-            assert (
-                len(data["configs"]) > 0
-            ), "vfs_read should affect some configurations"
+            assert len(data["configs"]) > 0, (
+                "vfs_read should affect some configurations"
+            )
             assert len(data["cites"]) > 0, "Should provide citations for analysis"
 
             # Verify citation quality
             for cite in data["cites"]:
-                assert cite["path"].startswith(
-                    ("fs/", "include/")
-                ), "Citations should point to relevant files"
+                assert cite["path"].startswith(("fs/", "include/")), (
+                    "Citations should point to relevant files"
+                )
 
 
 class TestImpactOfErrorHandling:

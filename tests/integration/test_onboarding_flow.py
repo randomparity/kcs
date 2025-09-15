@@ -97,9 +97,9 @@ class TestOnboardingFlow:
         if callers_response.status_code == 200:
             callers_data = callers_response.json()
             # sys_read is an entry point, should have few/no callers
-            assert (
-                len(callers_data["callers"]) <= 2
-            ), "Entry points should have few callers"
+            assert len(callers_data["callers"]) <= 2, (
+                "Entry points should have few callers"
+            )
 
         # Step 5: Find what sys_read calls (the implementation flow)
         deps_response = await mcp_client.post(
@@ -127,9 +127,9 @@ class TestOnboardingFlow:
         for response_data in all_responses:
             # Look for citation fields in various forms
             citations_found = self._find_citations_in_response(response_data)
-            assert (
-                citations_found
-            ), f"Response should include citations: {response_data}"
+            assert citations_found, (
+                f"Response should include citations: {response_data}"
+            )
 
     def _find_citations_in_response(self, data: dict[str, Any]) -> bool:
         """Recursively search for citation/span information in response."""
@@ -197,9 +197,9 @@ class TestOnboardingFlow:
         total_time_ms = (end_time - start_time) * 1000
 
         # Should complete within 2 seconds for good user experience
-        assert (
-            total_time_ms < 2000
-        ), f"Onboarding flow took {total_time_ms:.1f}ms, should be < 2000ms"
+        assert total_time_ms < 2000, (
+            f"Onboarding flow took {total_time_ms:.1f}ms, should be < 2000ms"
+        )
 
         # At least some requests should succeed (those implemented)
         [
@@ -251,9 +251,9 @@ class TestOnboardingFlow:
                     )
                 ]
                 # Complex syscalls should involve path resolution
-                assert (
-                    len(path_related) >= 0
-                ), "Complex syscalls should involve path operations"
+                assert len(path_related) >= 0, (
+                    "Complex syscalls should involve path operations"
+                )
 
     async def test_onboarding_error_handling(
         self, mcp_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -270,9 +270,9 @@ class TestOnboardingFlow:
         # Should return 404 gracefully
         if symbol_response.status_code == 404:
             error_data = symbol_response.json()
-            assert (
-                "error" in error_data or "message" in error_data
-            ), "Should provide error message"
+            assert "error" in error_data or "message" in error_data, (
+                "Should provide error message"
+            )
 
         # Try to trace non-existent entry point
         flow_response = await mcp_client.post(
@@ -311,9 +311,9 @@ class TestOnboardingFlow:
                     if "concurrency" in summary:
                         concurrency = summary["concurrency"]
                         # Should indicate if it can sleep, uses locks, etc.
-                        assert isinstance(
-                            concurrency, dict
-                        ), "Concurrency info should be structured"
+                        assert isinstance(concurrency, dict), (
+                            "Concurrency info should be structured"
+                        )
 
             # Check what it depends on
             deps_response = await mcp_client.post(
@@ -325,6 +325,6 @@ class TestOnboardingFlow:
             if deps_response.status_code == 200:
                 deps_data = deps_response.json()
                 # System calls should have dependencies
-                assert (
-                    len(deps_data["callees"]) >= 0
-                ), f"{syscall} should have some dependencies"
+                assert len(deps_data["callees"]) >= 0, (
+                    f"{syscall} should have some dependencies"
+                )

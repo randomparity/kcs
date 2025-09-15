@@ -72,9 +72,9 @@ class TestGetSymbolContract:
         response = await http_client.post(
             "/mcp/tools/get_symbol", json={}, headers=auth_headers
         )
-        assert (
-            response.status_code == 422
-        ), "Should reject request without required 'symbol' field"
+        assert response.status_code == 422, (
+            "Should reject request without required 'symbol' field"
+        )
 
         # Empty symbol name
         response = await http_client.post(
@@ -137,9 +137,9 @@ class TestGetSymbolContract:
 
             # Verify optional summary field if present
             if "summary" in data:
-                assert isinstance(
-                    data["summary"], dict
-                ), "Summary should be object if present"
+                assert isinstance(data["summary"], dict), (
+                    "Summary should be object if present"
+                )
 
     async def test_get_symbol_not_found(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -179,9 +179,9 @@ class TestGetSymbolContract:
             if response.status_code == 200:
                 data = response.json()
                 assert data["name"] == symbol_name, "Name should match requested symbol"
-                assert (
-                    data["kind"] == expected_kind
-                ), f"Kind should be {expected_kind} for {symbol_name}"
+                assert data["kind"] == expected_kind, (
+                    f"Kind should be {expected_kind} for {symbol_name}"
+                )
 
     async def test_get_symbol_with_summary(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -215,9 +215,9 @@ class TestGetSymbolContract:
                 present_fields = [
                     field for field in expected_fields if field in summary
                 ]
-                assert (
-                    len(present_fields) > 0
-                ), "Summary should contain some expected fields"
+                assert len(present_fields) > 0, (
+                    "Summary should contain some expected fields"
+                )
 
     async def test_get_symbol_case_sensitivity(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -240,9 +240,9 @@ class TestGetSymbolContract:
         # Symbol names should be case-sensitive in kernel
         # If exact case succeeds, different case should fail (or vice versa)
         if exact_case_status == 200:
-            assert (
-                different_case_status == 404
-            ), "Symbol lookup should be case-sensitive"
+            assert different_case_status == 404, (
+                "Symbol lookup should be case-sensitive"
+            )
 
     async def test_get_symbol_special_characters(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
@@ -293,9 +293,9 @@ class TestGetSymbolContract:
 
         if response.status_code in [200, 404]:
             # Performance requirement from constitution: p95 < 600ms
-            assert (
-                response_time_ms < 600
-            ), f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            assert response_time_ms < 600, (
+                f"Response time {response_time_ms:.1f}ms exceeds 600ms requirement"
+            )
 
     async def test_get_symbol_long_symbol_name(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
