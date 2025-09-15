@@ -337,6 +337,11 @@ main() {
         migration_files+=("$file")
     done < <(find "$MIGRATIONS_DIR" -name "*.sql" -print0 | sort -z)
 
+    verbose "Found ${#migration_files[@]} migration files"
+    for file in "${migration_files[@]}"; do
+        verbose "  - $(basename "$file")"
+    done
+
     if [[ ${#migration_files[@]} -eq 0 ]]; then
         warn "No migration files found in $MIGRATIONS_DIR"
         exit 0
@@ -348,11 +353,15 @@ main() {
     log "Current schema version: $current_version"
 
     # Apply pending migrations
+    verbose "Starting migration application loop"
     for file in "${migration_files[@]}"; do
+        verbose "Processing migration file: $file"
         local filename basename version
         filename=$(basename "$file")
         basename="${filename%.sql}"
         version="${basename:0:3}"
+
+        verbose "Extracted version: $version from filename: $filename"
 
         # Skip if version format is invalid
         if [[ ! "$version" =~ ^[0-9]{3}$ ]]; then
@@ -360,6 +369,7 @@ main() {
             continue
         fi
 
+        verbose "Checking if migration $version is already applied"
         # Skip if already applied (unless force)
         if [[ $(psql -t -c "SELECT 1 FROM schema_migrations WHERE version = '$version';" | xargs) == "1" ]]; then
             if [[ "$FORCE" == "false" ]]; then
@@ -372,7 +382,9 @@ main() {
         apply_migration "$file"
         verbose "Migration applied successfully: $file"
         ((pending_count++))
+        verbose "Pending count now: $pending_count"
     done
+    verbose "Completed migration application loop"
 
     if [[ $pending_count -eq 0 ]]; then
         success "No pending migrations found - database is up to date"
