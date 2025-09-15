@@ -5,7 +5,6 @@ These endpoints implement the contract defined in the OpenAPI spec
 and tested by our contract tests.
 """
 
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -338,13 +337,15 @@ async def entrypoint_flow(
                 FlowStep(
                     edge="function_call",
                     from_symbol="sys_read" if "read" in request.entry else "sys_openat",
-                    to_symbol="vfs_read"
-                    if "read" in request.entry
-                    else "do_sys_openat2",
+                    to_symbol=(
+                        "vfs_read" if "read" in request.entry else "do_sys_openat2"
+                    ),
                     span=Span(
-                        path="fs/read_write.c"
-                        if "read" in request.entry
-                        else "fs/open.c",
+                        path=(
+                            "fs/read_write.c"
+                            if "read" in request.entry
+                            else "fs/open.c"
+                        ),
                         sha="a1b2c3d4e5f6789012345678901234567890abcd",
                         start=451,
                         end=465,
