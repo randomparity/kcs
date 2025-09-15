@@ -12,13 +12,13 @@ analysis with ground-truth accuracy.
 
 ## Features
 
-🔍 **Semantic Code Search** - Search kernel code by natural language or technical terms
-📊 **Call Graph Analysis** - Understand function relationships and dependencies
-🔌 **Entry Point Detection** - Identify syscalls, ioctls, and kernel interfaces
-💥 **Impact Analysis** - Assess blast radius of code changes
-📖 **Auto-generated Summaries** - AI-powered documentation for complex kernel code
-🔒 **Read-only & Safe** - Never modifies kernel source code
-⚡ **High Performance** - Sub-600ms query response times
+🔍 **Semantic Code Search** - Search kernel code by natural language or technical terms\
+📊 **Call Graph Analysis** - Understand function relationships and dependencies\
+🔌 **Entry Point Detection** - Identify syscalls, ioctls, and kernel interfaces\
+💥 **Impact Analysis** - Assess blast radius of code changes\
+📖 **Auto-generated Summaries** - AI-powered documentation for complex kernel code\
+🔒 **Read-only & Safe** - Never modifies kernel source code\
+⚡ **High Performance** - Sub-600ms query response times\
 🔗 **Citation Support** - All results include file:line references
 
 ## Quick Start
