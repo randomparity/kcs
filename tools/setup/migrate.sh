@@ -347,7 +347,8 @@ main() {
         exit 0
     fi
 
-    local current_version pending_count=0
+    local current_version
+    local pending_count=0
     current_version=$(get_current_version)
 
     log "Current schema version: $current_version"
@@ -381,7 +382,7 @@ main() {
         verbose "About to apply migration: $file"
         apply_migration "$file"
         verbose "Migration applied successfully: $file"
-        ((pending_count++))
+        pending_count=$((pending_count + 1))
         verbose "Pending count now: $pending_count"
     done
     verbose "Completed migration application loop"
