@@ -44,9 +44,12 @@
 
 When creating this spec from a user prompt:
 
-1. **Mark all ambiguities**: Use [NEEDS CLARIFICATION: specific question] for any assumption you'd need to make
-2. **Don't guess**: If the prompt doesn't specify something (e.g., "login system" without auth method), mark it
-3. **Think like a tester**: Every vague requirement should fail the "testable and unambiguous" checklist item
+1. **Mark all ambiguities**: Use [NEEDS CLARIFICATION: specific question]
+   for any assumption you'd need to make
+2. **Don't guess**: If the prompt doesn't specify something (e.g., "login
+   system" without auth method), mark it
+3. **Think like a tester**: Every vague requirement should fail the
+   "testable and unambiguous" checklist item
 4. **Common underspecified areas**:
    - User types and permissions
    - Data retention/deletion policies  
@@ -77,16 +80,21 @@ When creating this spec from a user prompt:
 
 ### Functional Requirements
 
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
+- **FR-001**: System MUST [specific capability, e.g., "allow users to
+  create accounts"]
+- **FR-002**: System MUST [specific capability, e.g., "validate email
+  addresses"]
+- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their
+  password"]
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
 
 *Example of marking unclear requirements:*
 
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION:
+  auth method not specified - email/password, SSO, OAuth?]
+- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION:
+  retention period not specified]
 
 ### Key Entities *(include if feature involves data)*
 

@@ -648,7 +648,8 @@ spec:
 # Create secrets
 kubectl create secret generic kcs-secrets \\
   --from-literal=db-password='secure_password' \\
-  --from-literal=database-url='postgresql://kcs:secure_password@postgres:5432/kcs' \\
+  --from-literal=database-url=\\
+    'postgresql://kcs:secure_password@postgres:5432/kcs' \\
   --from-literal=auth-token='jwt_token_here' \\
   -n kcs
 
@@ -839,7 +840,8 @@ logging:
   version: 1
   formatters:
     json:
-      format: '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s", "module": "%(name)s"}'
+      format: '{"timestamp": "%(asctime)s", "level": "%(levelname)s",
+                "message": "%(message)s", "module": "%(name)s"}'
   
   handlers:
     console:

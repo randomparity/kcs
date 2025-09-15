@@ -11,7 +11,8 @@
 **Rationale**:
 
 - Standard grammar handles 95% of kernel code correctly
-- Custom queries can identify kernel-specific patterns (EXPORT_SYMBOL, module_param, etc.)
+- Custom queries can identify kernel-specific patterns (EXPORT_SYMBOL,
+  module_param, etc.)
 - Faster than maintaining a fork of the grammar
 **Alternatives considered**:
 - Fork tree-sitter-c: Too much maintenance overhead
@@ -20,7 +21,8 @@
 
 ### 2. Clang Index Integration
 
-**Decision**: Generate compile_commands.json per configuration using kernel's make system
+**Decision**: Generate compile_commands.json per configuration using
+kernel's make system
 **Rationale**:
 
 - `make compile_commands.json` native kernel support since v5.10
@@ -33,7 +35,8 @@
 
 ### 3. pgvector Indexing Strategy
 
-**Decision**: Hybrid approach - exact match for symbols, vector search for semantic queries
+**Decision**: Hybrid approach - exact match for symbols, vector search
+for semantic queries
 **Rationale**:
 
 - Symbol lookups need exact matching (hash index)
@@ -88,7 +91,8 @@
 ### Parser Pipeline
 
 ```text
-Kernel Repo → Tree-sitter (structure) → Clang (semantics) → Graph Builder → Postgres
+Kernel Repo → Tree-sitter (structure) → Clang (semantics) → Graph Builder
+→ Postgres
                      ↓                         ↓                    ↓
               Custom Queries            Macro Resolution      Edge Detection
 ```text
@@ -96,7 +100,8 @@ Kernel Repo → Tree-sitter (structure) → Clang (semantics) → Graph Builder 
 ### Query Flow
 
 ```text
-MCP Request → FastAPI → Query Planner → Postgres → Citation Formatter → MCP Response
+MCP Request → FastAPI → Query Planner → Postgres → Citation Formatter
+→ MCP Response
                  ↓            ↓              ↓              ↓
             Auth Check    Cache Check    pgvector      Line Mapping
 ```text
@@ -238,4 +243,5 @@ MCP Request → FastAPI → Query Planner → Postgres → Citation Formatter �
 
 ---
 
-*All technical decisions validated against constitutional requirements for performance, security, and simplicity.*
+*All technical decisions validated against constitutional requirements
+for performance, security, and simplicity.*

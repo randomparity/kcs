@@ -8,7 +8,8 @@
 ```text
 1. Load plan.md from feature directory
    → Tech stack: Rust 1.75, Python 3.11, PostgreSQL 15+
-   → Libraries: kcs-parser, kcs-extractor, kcs-graph, kcs-mcp, kcs-impact, kcs-drift
+   → Libraries: kcs-parser, kcs-extractor, kcs-graph, kcs-mcp, kcs-impact,
+     kcs-drift
 2. Load optional design documents:
    → data-model.md: 10 entities (File, Symbol, EntryPoint, etc.)
    → contracts/mcp-api.yaml: 11 MCP tools + resources
@@ -34,45 +35,70 @@
 
 ## Phase 3.1: Setup & Infrastructure
 
-- [x] T001 Create project structure per implementation plan (src/rust/, src/python/, src/sql/, tests/, tools/)
+- [x] T001 Create project structure per implementation plan (src/rust/,
+  src/python/, src/sql/, tests/, tools/)
 - [x] T002 Initialize Rust workspace with Cargo.toml for 6 libraries
-- [x] T003 Initialize Python project with pyproject.toml for MCP server
+- [x] T003 Initialize Python project with pyproject.toml for MCP
+  server
 - [x] T004 [P] Create Docker Compose configuration for PostgreSQL + pgvector
-- [x] T005 [P] Configure GitHub Actions CI workflow in .github/workflows/ci.yml
-- [x] T006 [P] Setup pre-commit hooks for Rust (rustfmt, clippy) and Python (black, ruff)
+- [x] T005 [P] Configure GitHub Actions CI workflow in
+  .github/workflows/ci.yml
+- [x] T006 [P] Setup pre-commit hooks for Rust (rustfmt, clippy) and
+  Python (black, ruff)
 
 ## Phase 3.2: Database Schema (Foundation)
 
-- [x] T007 Create initial migration in src/sql/migrations/001_initial_schema.sql with File, Symbol tables
-- [x] T008 Add EntryPoint, CallEdge, KconfigOption tables in src/sql/migrations/002_graph_tables.sql
-- [x] T009 Add Summary, DriftReport, TestCoverage tables in src/sql/migrations/003_aggregate_tables.sql
+- [x] T007 Create initial migration in
+  src/sql/migrations/001_initial_schema.sql with File, Symbol tables
+- [x] T008 Add EntryPoint, CallEdge, KconfigOption tables in
+  src/sql/migrations/002_graph_tables.sql
+- [x] T009 Add Summary, DriftReport, TestCoverage tables in
+  src/sql/migrations/003_aggregate_tables.sql
 - [x] T010 Create indexes and constraints in src/sql/migrations/004_indexes.sql
 - [x] T011 [P] Write migration runner script in tools/setup/migrate.sh
 
 ## Phase 3.3: Contract Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.4
 
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
+**CRITICAL: These tests MUST be written and MUST FAIL before ANY
+implementation**
 
-- [x] T012 [P] Contract test for search_code tool in tests/contract/test_search_code.py
-- [x] T013 [P] Contract test for get_symbol tool in tests/contract/test_get_symbol.py
-- [x] T014 [P] Contract test for who_calls tool in tests/contract/test_who_calls.py
-- [x] T015 [P] Contract test for list_dependencies tool in tests/contract/test_list_dependencies.py
-- [x] T016 [P] Contract test for entrypoint_flow tool in tests/contract/test_entrypoint_flow.py
-- [x] T017 [P] Contract test for impact_of tool in tests/contract/test_impact_of.py
-- [x] T018 [P] Contract test for diff_spec_vs_code tool in tests/contract/test_diff_spec_vs_code.py
-- [x] T019 [P] Contract test for owners_for tool in tests/contract/test_owners_for.py
-- [x] T020 [P] Integration test for onboarding flow in tests/integration/test_onboarding_flow.py
-- [x] T021 [P] Integration test for impact analysis flow in tests/integration/test_impact_analysis.py
-- [x] T022 [P] Integration test for drift detection flow in tests/integration/test_drift_detection.py
+- [x] T012 [P] Contract test for search_code tool in
+  tests/contract/test_search_code.py
+- [x] T013 [P] Contract test for get_symbol tool in
+  tests/contract/test_get_symbol.py
+- [x] T014 [P] Contract test for who_calls tool in
+  tests/contract/test_who_calls.py
+- [x] T015 [P] Contract test for list_dependencies tool in
+  tests/contract/test_list_dependencies.py
+- [x] T016 [P] Contract test for entrypoint_flow tool in
+  tests/contract/test_entrypoint_flow.py
+- [x] T017 [P] Contract test for impact_of tool in
+  tests/contract/test_impact_of.py
+- [x] T018 [P] Contract test for diff_spec_vs_code tool in
+  tests/contract/test_diff_spec_vs_code.py
+- [x] T019 [P] Contract test for owners_for tool in
+  tests/contract/test_owners_for.py
+- [x] T020 [P] Integration test for onboarding flow in
+  tests/integration/test_onboarding_flow.py
+- [x] T021 [P] Integration test for impact analysis flow in
+  tests/integration/test_impact_analysis.py
+- [x] T022 [P] Integration test for drift detection flow in
+  tests/integration/test_drift_detection.py
 
 ## Phase 3.4: Core Rust Libraries (ONLY after tests are failing)
 
-- [x] T023 [P] Scaffold kcs-parser library in src/rust/kcs-parser/ with tree-sitter setup
-- [x] T024 [P] Scaffold kcs-extractor library in src/rust/kcs-extractor/ for entry point detection
-- [x] T025 [P] Scaffold kcs-graph library in src/rust/kcs-graph/ for graph algorithms
-- [x] T026 [P] Scaffold kcs-impact library in src/rust/kcs-impact/ for impact analysis
-- [x] T027 [P] Scaffold kcs-drift library in src/rust/kcs-drift/ for drift detection
-- [x] T028 Implement parser CLI in src/rust/kcs-parser/src/main.rs with --parse command
+- [x] T023 [P] Scaffold kcs-parser library in src/rust/kcs-parser/ with
+  tree-sitter setup
+- [x] T024 [P] Scaffold kcs-extractor library in src/rust/kcs-extractor/
+  for entry point detection
+- [x] T025 [P] Scaffold kcs-graph library in src/rust/kcs-graph/ for
+  graph algorithms
+- [x] T026 [P] Scaffold kcs-impact library in src/rust/kcs-impact/ for
+  impact analysis
+- [x] T027 [P] Scaffold kcs-drift library in src/rust/kcs-drift/ for
+  drift detection
+- [x] T028 Implement parser CLI in src/rust/kcs-parser/src/main.rs with
+  --parse command
 - [x] T029 Implement syscall extractor in src/rust/kcs-extractor/src/syscalls.rs
 - [x] T030 Implement ioctl decoder in src/rust/kcs-extractor/src/ioctls.rs
 - [x] T031 Implement call graph builder in src/rust/kcs-graph/src/builder.rs
@@ -81,7 +107,8 @@
 
 ## Phase 3.5: Python MCP Server
 
-- [x] T034 Create FastAPI app structure in src/python/kcs_mcp/app.py with JWT auth
+- [x] T034 Create FastAPI app structure in src/python/kcs_mcp/app.py
+  with JWT auth
 - [x] T035 Implement MCP resource endpoints in src/python/kcs_mcp/resources.py
 - [x] T036 Implement MCP tool endpoints in src/python/kcs_mcp/tools.py
 - [x] T037 Create database connection pool in src/python/kcs_mcp/database.py
@@ -89,17 +116,22 @@
 
 ## Phase 3.6: Integration & Cross-Component
 
-- [x] T039 Create Python-Rust bridge using PyO3 in src/python/kcs_mcp/rust_bridge.py
-- [x] T040 Implement CI adapter in src/python/kcs_ci/adapter.py for GitHub Actions
+- [x] T039 Create Python-Rust bridge using PyO3 in
+  src/python/kcs_mcp/rust_bridge.py
+- [x] T040 Implement CI adapter in src/python/kcs_ci/adapter.py for
+  GitHub Actions
 - [x] T041 Create installation script in tools/setup/install.sh
 - [x] T042 Write kernel indexing pipeline script in tools/index_kernel.sh
 
 ## Phase 3.7: Performance & Polish
 
-- [x] T043 [P] Create k6 performance test for MCP endpoints in tests/performance/mcp_load.js
+- [x] T043 [P] Create k6 performance test for MCP endpoints in
+  tests/performance/mcp_load.js
 - [x] T044 [P] Add benchmark suite for parser in src/rust/kcs-parser/benches/
-- [x] T045 [P] Write unit tests for citation formatter in tests/unit/test_citations.py
-- [x] T046 [P] Update quickstart validation in tests/integration/test_quickstart.py
+- [x] T045 [P] Write unit tests for citation formatter in
+  tests/unit/test_citations.py
+- [x] T046 [P] Update quickstart validation in
+  tests/integration/test_quickstart.py
 - [x] T047 Generate API documentation from OpenAPI spec
 - [x] T048 Create deployment guide in docs/deployment.md
 - [x] T049 Run full system test with sample kernel repository

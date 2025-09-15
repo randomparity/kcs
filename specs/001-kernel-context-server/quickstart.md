@@ -52,7 +52,8 @@ diff --git a/fs/read_write.c b/fs/read_write.c
 index abc123..def456 100644
 --- a/fs/read_write.c
 +++ b/fs/read_write.c
-@@ -451,7 +451,7 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos
+@@ -451,7 +451,7 @@ ssize_t vfs_read(struct file *file, char __user *buf,
++size_t count, loff_t *pos
 -       if (!ret)
 +       if (!ret && count > 0)
                 ret = __vfs_read(file, buf, count, pos);

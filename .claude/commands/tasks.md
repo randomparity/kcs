@@ -6,7 +6,7 @@ description: Generate an actionable, dependency-ordered tasks.md for the feature
 
 Given the context provided as an argument, do this:
 
-1. Run `.specify/scripts/bash/check-task-prerequisites.sh --json` from repo root 
+1. Run `.specify/scripts/bash/check-task-prerequisites.sh --json` from repo root
    and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute.
 2. Load and analyze available design documents:
    - Always read plan.md for tech stack and libraries
@@ -58,4 +58,5 @@ Given the context provided as an argument, do this:
 
 Context for task generation: $ARGUMENTS
 
-The tasks.md should be immediately executable - each task must be specific enough that an LLM can complete it without additional context.
+The tasks.md should be immediately executable - each task must be specific enough
+that an LLM can complete it without additional context.

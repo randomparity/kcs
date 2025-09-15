@@ -16,7 +16,8 @@
    → Update Progress Tracking: Initial Constitution Check
 4. Execute Phase 0 → research.md
    → Research completed with architecture decisions
-5. Execute Phase 1 → contracts, data-model.md, quickstart.md, agent-specific template file
+5. Execute Phase 1 → contracts, data-model.md, quickstart.md,
+   agent-specific template file
 6. Re-evaluate Constitution Check section
    → No new violations
    → Update Progress Tracking: Post-Design Constitution Check
@@ -24,7 +25,8 @@
 8. STOP - Ready for /tasks command
 ```text
 
-**IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
+**IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by
+other commands:
 
 - Phase 2: /tasks command creates tasks.md
 - Phase 3-4: Implementation execution (manual or via tools)
@@ -43,8 +45,8 @@ semantic search, and optional eBPF tracing via Aya/libbpf-rs.
 ## Technical Context
 
 **Language/Version**: Rust 1.75 (extractors), Python 3.11 (MCP server)
-**Primary Dependencies**: tree-sitter, clang-sys, tokio, pyo3, fastapi, asyncpg, 
-pgvector, aya/libbpf-rs
+**Primary Dependencies**: tree-sitter, clang-sys, tokio, pyo3, fastapi,
+asyncpg, pgvector, aya/libbpf-rs
 **Storage**: PostgreSQL 15+ with pgvector extension
 **Testing**: cargo test (Rust), pytest (Python), k6 (performance)
 **Target Platform**: Linux x86_64 (primary), ppc64le, s390x (multi-arch 

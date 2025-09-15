@@ -157,7 +157,8 @@ Kernel boundary where external requests enter.
 **Fields**:
 
 - `id`: Unique identifier
-- `kind`: Type (syscall, ioctl, netlink, file_ops, sysfs, proc, debugfs, driver, notifier, bpf)
+- `kind`: Type (syscall, ioctl, netlink, file_ops, sysfs, proc, debugfs,
+  driver, notifier, bpf)
 - `key`: Unique identifier within kind (e.g., "__NR_read", "TCGETS")
 - `symbol_id`: Implementing function
 - `file_id`: Location of definition
@@ -340,7 +341,8 @@ CREATE INDEX idx_file_config ON file(config);
 CREATE INDEX idx_summary_content ON summary USING gin(content);
 
 -- Vector similarity search (pgvector)
-CREATE INDEX idx_symbol_embedding ON symbol_embedding USING hnsw(embedding vector_cosine_ops);
+CREATE INDEX idx_symbol_embedding ON symbol_embedding
+  USING hnsw(embedding vector_cosine_ops);
 
 -- Bitmap operations
 CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
@@ -421,4 +423,5 @@ CREATE INDEX idx_config_bitmap ON symbol USING gin(config_bitmap);
 
 ---
 
-*Data model designed for efficient graph traversal, configuration awareness, and citation traceability as required by the constitution.*
+*Data model designed for efficient graph traversal, configuration
+awareness, and citation traceability as required by the constitution.*

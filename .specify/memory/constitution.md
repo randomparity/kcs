@@ -4,23 +4,34 @@
 
 ### I. Read-Only Safety
 
-The KCS system must operate in read-only mode on kernel repositories. No code generation, modification, or mutation of kernel source is permitted. All operations must be non-destructive and auditable.
+The KCS system must operate in read-only mode on kernel repositories.
+No code generation, modification, or mutation of kernel source is permitted.
+All operations must be non-destructive and auditable.
 
 ### II. Citation-Based Truth
 
-Every claim, finding, or recommendation must include exact file/line citations. No unsourced assertions are permitted. All analysis results must be traceable to specific kernel source locations.
+Every claim, finding, or recommendation must include exact file/line
+citations. No unsourced assertions are permitted. All analysis results
+must be traceable to specific kernel source locations.
 
 ### III. MCP-First Interface
 
-All functionality must be exposed through Model Context Protocol (MCP) resources and tools. The MCP interface is the primary contract with AI agents and developers. Text-based queries in, structured JSON with citations out.
+All functionality must be exposed through Model Context Protocol (MCP)
+resources and tools. The MCP interface is the primary contract with AI
+agents and developers. Text-based queries in, structured JSON with
+citations out.
 
 ### IV. Configuration Awareness
 
-All analysis must be configuration-aware. Symbol presence, call graphs, and dependencies vary by kernel configuration (defconfig, allmodconfig, etc). Results must clearly indicate their configuration context.
+All analysis must be configuration-aware. Symbol presence, call graphs,
+and dependencies vary by kernel configuration (defconfig, allmodconfig,
+etc). Results must clearly indicate their configuration context.
 
 ### V. Performance Boundaries
 
-System must meet defined performance targets: full index ≤20min, incremental ≤3min, query p95 ≤600ms. Performance degradation blocks deployment. Cache aggressively but invalidate correctly.
+System must meet defined performance targets: full index ≤20min,
+incremental ≤3min, query p95 ≤600ms. Performance degradation blocks
+deployment. Cache aggressively but invalidate correctly.
 
 ## Quality Requirements
 
