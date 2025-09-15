@@ -465,6 +465,26 @@ info: ## Show project information
 	@echo "Git branch: $(shell git branch --show-current 2>/dev/null || echo 'not a git repo')"
 	@echo "Git status: $(shell git status --porcelain 2>/dev/null | wc -l | tr -d ' ') files changed"
 
+validate-env: ## Validate environment configuration
+	@echo "$(BLUE)Validating environment configuration...$(NC)"
+	@if [ ! -f ".env" ]; then \
+		echo "$(YELLOW)⚠️  No .env file found. Creating from .env.example...$(NC)"; \
+		cp .env.example .env; \
+	fi
+	@echo "$(BLUE)Checking environment variables...$(NC)"
+	@if [ -f ".env" ]; then \
+		source .env && \
+		echo "Database: $${DATABASE_URL:-Not set}" && \
+		echo "JWT Secret: $${JWT_SECRET:0:10}... (${#JWT_SECRET} chars)" && \
+		echo "Log Level: $${LOG_LEVEL:-INFO}" && \
+		echo "Workers: $${KCS_WORKERS:-4}" && \
+		echo "Port: $${KCS_EXTERNAL_PORT:-8080}"; \
+	fi
+	@echo "$(BLUE)Testing docker-compose configuration...$(NC)"
+	@docker compose config >/dev/null 2>&1 && \
+		echo "$(GREEN)✅ Docker compose configuration valid$(NC)" || \
+		echo "$(RED)❌ Docker compose configuration invalid$(NC)"
+
 version: ## Show version information
 	@echo "$(BLUE)Version Information$(NC)"
 	@echo "==================="

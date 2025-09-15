@@ -2,49 +2,93 @@ services:
   postgres:
     image: pgvector/pgvector:pg15
     environment:
-      POSTGRES_DB: kcs
-      POSTGRES_USER: kcs
-      POSTGRES_PASSWORD: kcs_dev_password
+      POSTGRES_DB: ${POSTGRES_DB:-kcs}
+      POSTGRES_USER: ${POSTGRES_USER:-kcs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kcs_dev_password}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "${POSTGRES_EXTERNAL_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./src/sql/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kcs -d kcs"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kcs} -d ${POSTGRES_DB:-kcs}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - kcs-network
+    deploy:
+      resources:
+        limits:
+          memory: ${POSTGRES_MEMORY_LIMIT:-2g}
+          cpus: "${POSTGRES_CPU_LIMIT:-2.0}"
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_EXTERNAL_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: >
+      redis-server
+      --appendonly yes
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "${REDIS_PASSWORD:+--auth ${REDIS_PASSWORD}}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
     networks:
       - kcs-network
+    deploy:
+      resources:
+        limits:
+          memory: ${REDIS_MEMORY_LIMIT:-512m}
+          cpus: "${REDIS_CPU_LIMIT:-1.0}"
 
   kcs-mcp:
     build:
       context: .
       dockerfile: Dockerfile.mcp
     ports:
-      - "8080:8080"
+      - "${KCS_EXTERNAL_PORT:-8080}:${KCS_PORT:-8080}"
     environment:
-      DATABASE_URL: postgresql://kcs:kcs_dev_password@postgres:5432/kcs
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: dev_jwt_secret_change_in_production
-      LOG_LEVEL: INFO
+      # Database configuration
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-kcs}:${POSTGRES_PASSWORD:-kcs_dev_password}@postgres:5432/${POSTGRES_DB:-kcs}}
+
+      # Redis configuration
+      REDIS_URL: ${REDIS_URL:-redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/${REDIS_DB:-0}}
+
+      # Server configuration
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      KCS_HOST: ${KCS_HOST:-0.0.0.0}
+      KCS_PORT: ${KCS_PORT:-8080}
+
+      # Performance settings
+      KCS_WORKERS: ${KCS_WORKERS:-4}
+      KCS_MAX_CONNECTIONS: ${KCS_MAX_CONNECTIONS:-100}
+      KCS_REQUEST_TIMEOUT: ${KCS_REQUEST_TIMEOUT:-30}
+
+      # Indexing configuration
+      KCS_KERNEL_PATH: ${KCS_KERNEL_PATH:-/usr/src/linux}
+      KCS_DEFAULT_CONFIG: ${KCS_DEFAULT_CONFIG:-x86_64:defconfig}
+      KCS_MAX_INDEX_TIME: ${KCS_MAX_INDEX_TIME:-1200}
+      KCS_MAX_INCREMENTAL_TIME: ${KCS_MAX_INCREMENTAL_TIME:-180}
+
+      # Database pool settings
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_POOL_MAX_OVERFLOW: ${DB_POOL_MAX_OVERFLOW:-30}
+      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
+
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
+
+      # Optional integrations
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,13 +98,19 @@ services:
       - kcs-network
     profiles:
       - app
+    deploy:
+      resources:
+        limits:
+          memory: ${KCS_MEMORY_LIMIT:-1g}
+          cpus: "${KCS_CPU_LIMIT:-2.0}"
 
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "${GRAFANA_EXTERNAL_PORT:-3000}:3000"
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin_change_in_production}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./tools/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -73,7 +123,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_EXTERNAL_PORT:-9090}:9090"
     volumes:
       - ./tools/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -82,7 +132,7 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-200h}'
       - '--web.enable-lifecycle'
     networks:
       - kcs-network

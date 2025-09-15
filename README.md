@@ -33,15 +33,24 @@ analysis with ground-truth accuracy.
 
 ### Option 1: Docker Compose (Recommended)
 
-1. **Clone and Start Infrastructure**
+1. **Clone and Setup Environment**
 
    ```bash
    git clone https://github.com/randomparity/kcs.git
    cd kcs
+
+   # Copy and customize environment variables
+   cp .env.example .env
+   # Edit .env with your preferred settings (optional for development)
+   ```
+
+2. **Start Infrastructure**
+
+   ```bash
    make docker-compose-up  # Starts PostgreSQL and Redis
    ```
 
-2. **Start the MCP Server**
+3. **Start the MCP Server**
 
    ```bash
    # Option A: Use convenient make targets
@@ -53,7 +62,7 @@ analysis with ground-truth accuracy.
    docker compose --profile app --profile monitoring up -d
    ```
 
-3. **Verify Services**
+4. **Verify Services**
 
    ```bash
    # Check all services are running
@@ -63,7 +72,7 @@ analysis with ground-truth accuracy.
    curl http://localhost:8080/health
    ```
 
-4. **Index Your Kernel**
+5. **Index Your Kernel**
 
    ```bash
    # Index a Linux kernel repository
@@ -73,7 +82,7 @@ analysis with ground-truth accuracy.
    tools/index_kernel.sh -c arm64:defconfig ~/src/linux
    ```
 
-5. **Test the API**
+6. **Test the API**
 
    ```bash
    # Search for memory management code
@@ -304,15 +313,74 @@ make benchmark-k6    # Load testing with k6
 
 ## Configuration
 
-### Environment Variables
+### Environment Setup
+
+KCS uses environment variables for configuration. Copy the example file and customize as needed:
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+### Key Environment Variables
+
+#### Database Configuration
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection | `postgresql://kcs:kcs_password@localhost:5432/kcs` |
-| `REDIS_URL` | Redis connection | `redis://localhost:6379/0` |
-| `JWT_SECRET` | Authentication secret | `dev_jwt_secret_change_in_production` |
+| `POSTGRES_DB` | Database name | `kcs` |
+| `POSTGRES_USER` | Database user | `kcs` |
+| `POSTGRES_PASSWORD` | Database password | `kcs_dev_password` |
+| `DATABASE_URL` | Full connection string | Auto-generated |
+
+#### Server Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `JWT_SECRET` | Authentication secret | `dev_jwt_secret...` |
+| `KCS_PORT` | Server port | `8080` |
 | `LOG_LEVEL` | Logging level | `INFO` |
-| `KCS_KERNEL_PATH` | Default kernel path | - |
+| `KCS_WORKERS` | Worker processes | `4` |
+
+#### Port Mapping
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KCS_EXTERNAL_PORT` | KCS server port (host) | `8080` |
+| `POSTGRES_EXTERNAL_PORT` | PostgreSQL port (host) | `5432` |
+| `REDIS_EXTERNAL_PORT` | Redis port (host) | `6379` |
+| `GRAFANA_EXTERNAL_PORT` | Grafana port (host) | `3000` |
+
+#### Performance Tuning
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KCS_MEMORY_LIMIT` | Docker memory limit | `1g` |
+| `POSTGRES_MEMORY_LIMIT` | PostgreSQL memory | `2g` |
+| `DB_POOL_SIZE` | Connection pool size | `20` |
+
+### Production Configuration
+
+For production, ensure you change these critical settings in your `.env` file:
+
+```bash
+# Security
+POSTGRES_PASSWORD=your_secure_password_here
+JWT_SECRET=your_64_character_random_string_here
+GRAFANA_ADMIN_PASSWORD=your_grafana_password_here
+
+# Environment
+ENVIRONMENT=production
+DEBUG=false
+SECURE_COOKIES=true
+CORS_ORIGINS=https://your-domain.com
+
+# Performance
+KCS_WORKERS=8
+DB_POOL_SIZE=50
+POSTGRES_MEMORY_LIMIT=4g
+KCS_MEMORY_LIMIT=2g
+```
 
 ### Kernel Configurations
 
@@ -375,11 +443,34 @@ KCS adheres to strict constitutional requirements:
 # Check database is running
 docker compose ps postgres
 
-# Check connection
+# Check connection with your environment variables
+source .env
 psql $DATABASE_URL -c "SELECT 1;"
 
 # Reset database
 make db-stop && make db-start && make db-migrate
+
+# Check environment variables are loaded
+docker compose config | grep -A 5 -B 5 DATABASE_URL
+
+# Validate environment file
+make validate-env  # (if available)
+```
+
+#### Environment Variable Issues
+
+```bash
+# Test environment variable loading
+docker compose config
+
+# Verify specific variables
+echo "Database: $DATABASE_URL"
+echo "JWT Secret: ${JWT_SECRET:0:10}..."  # Show first 10 chars only
+
+# Test with different .env files
+cp .env.example .env.test
+# Edit .env.test with test settings
+docker compose --env-file .env.test config
 ```
 
 #### Parsing Failures
