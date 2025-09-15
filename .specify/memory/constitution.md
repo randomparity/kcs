@@ -1,50 +1,54 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# KCS Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Read-Only Safety
+The KCS system must operate in read-only mode on kernel repositories. No code generation, modification, or mutation of kernel source is permitted. All operations must be non-destructive and auditable.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Citation-Based Truth
+Every claim, finding, or recommendation must include exact file/line citations. No unsourced assertions are permitted. All analysis results must be traceable to specific kernel source locations.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. MCP-First Interface
+All functionality must be exposed through Model Context Protocol (MCP) resources and tools. The MCP interface is the primary contract with AI agents and developers. Text-based queries in, structured JSON with citations out.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Configuration Awareness
+All analysis must be configuration-aware. Symbol presence, call graphs, and dependencies vary by kernel configuration (defconfig, allmodconfig, etc). Results must clearly indicate their configuration context.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Performance Boundaries
+System must meet defined performance targets: full index ≤20min, incremental ≤3min, query p95 ≤600ms. Performance degradation blocks deployment. Cache aggressively but invalidate correctly.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Quality Requirements
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### Static Analysis Coverage
+- Minimum 90% first-hop edge resolution for modified files
+- Minimum 95% ioctl decoding accuracy
+- All entry points must be identified and typed
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### Testing Standards
+- Unit tests for all graph algorithms
+- Integration tests for MCP endpoints
+- Regression tests for known kernel patterns
+- Performance benchmarks with alerts on degradation
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+## Security & Privacy
+
+### Access Control
+- Token-based authentication required
+- Per-project access scoping
+- Read-only enforcement at all layers
+
+### Data Protection
+- No kernel source in logs
+- PII redaction in all outputs
+- Audit trail for all queries
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+The constitution supersedes all implementation decisions. Changes require:
+1. Documentation of rationale
+2. Impact analysis on existing functionality
+3. Migration plan for breaking changes
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+All code reviews must verify constitutional compliance. Violations block merge.
+
+**Version**: 1.0.0 | **Ratified**: 2025-09-14 | **Last Amended**: 2025-09-14
