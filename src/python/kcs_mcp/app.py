@@ -41,7 +41,7 @@ structlog.configure(
 logger = structlog.get_logger(__name__)
 
 # Security
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 # Configuration
 DATABASE_URL = os.getenv(
@@ -99,9 +99,16 @@ app.add_middleware(
 
 
 async def verify_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> str:
     """Verify JWT token and return user info."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token = credentials.credentials
 
     # For development, accept test tokens

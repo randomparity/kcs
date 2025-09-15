@@ -19,6 +19,27 @@ from typing import Any, Optional
 import pytest
 import requests
 
+# Skip integration tests in CI environments unless explicitly enabled
+skip_integration_in_ci = pytest.mark.skipif(
+    os.getenv("CI") == "true" and os.getenv("RUN_INTEGRATION_TESTS") != "true",
+    reason="Integration tests skipped in CI (set RUN_INTEGRATION_TESTS=true to enable)",
+)
+
+
+def is_mcp_server_running() -> bool:
+    """Check if MCP server is accessible."""
+    try:
+        response = requests.get("http://localhost:8080", timeout=2)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+# Skip tests requiring MCP server when it's not running
+skip_without_mcp_server = pytest.mark.skipif(
+    not is_mcp_server_running(), reason="MCP server not running"
+)
+
 # Test configuration
 KERNEL_PATH = Path("~/src/linux").expanduser()
 TEST_TIMEOUT = 1800  # 30 minutes for full system test
@@ -80,6 +101,10 @@ def system_env():
         yield env
 
 
+@skip_integration_in_ci
+@skip_without_mcp_server
+@pytest.mark.integration
+@pytest.mark.requires_mcp_server
 class TestKernelAnalysis:
     """Test kernel analysis components."""
 
@@ -224,6 +249,10 @@ class TestKernelAnalysis:
         }
 
 
+@skip_integration_in_ci
+@skip_without_mcp_server
+@pytest.mark.integration
+@pytest.mark.requires_mcp_server
 class TestSymbolExtraction:
     """Test symbol extraction from kernel code."""
 
@@ -398,6 +427,10 @@ class TestSymbolExtraction:
         system_env.test_results["entry_points"] = entry_points[:20]
 
 
+@skip_integration_in_ci
+@skip_without_mcp_server
+@pytest.mark.integration
+@pytest.mark.requires_mcp_server
 class TestCallGraphConstruction:
     """Test call graph construction."""
 
@@ -521,6 +554,10 @@ class TestCallGraphConstruction:
         system_env.test_results["common_functions"] = found_common
 
 
+@skip_integration_in_ci
+@skip_without_mcp_server
+@pytest.mark.integration
+@pytest.mark.requires_mcp_server
 class TestConstitutionalCompliance:
     """Test constitutional requirements compliance."""
 
@@ -635,6 +672,10 @@ class TestConstitutionalCompliance:
         print(f"✓ Performance requirement verified: p95 = {p95_time:.1f}ms")
 
 
+@skip_integration_in_ci
+@skip_without_mcp_server
+@pytest.mark.integration
+@pytest.mark.requires_mcp_server
 class TestSystemIntegration:
     """Test system integration scenarios."""
 
@@ -722,6 +763,10 @@ class TestSystemIntegration:
 
 
 @pytest.mark.slow
+@skip_integration_in_ci
+@skip_without_mcp_server
+@pytest.mark.integration
+@pytest.mark.requires_mcp_server
 class TestRealWorldScenarios:
     """Test real-world usage scenarios."""
 

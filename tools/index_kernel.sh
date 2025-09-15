@@ -686,9 +686,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Use environment variable as default if no argument provided
+if [ -z "$KERNEL_PATH" ] && [ -n "$KCS_KERNEL_PATH" ]; then
+    KERNEL_PATH="$KCS_KERNEL_PATH"
+    log "Using KCS_KERNEL_PATH environment variable: $KERNEL_PATH"
+fi
+
 # Validate required arguments
 if [ -z "$KERNEL_PATH" ]; then
     log_error "Kernel path is required"
+    log_error "Either provide as argument or set KCS_KERNEL_PATH environment variable"
     show_help
     exit 1
 fi

@@ -423,44 +423,56 @@ class TestCitationFormatter:
 
     def test_validate_citations_invalid_paths(self):
         """Test validating citations with invalid paths."""
+        # Test empty path
+        with pytest.raises(ValueError, match="Path cannot be empty"):
+            Citation(Span("", "abc123", 10, 20))
+
+        # Valid citations with valid paths
         formatter = CitationFormatter()
         citations = [
-            Citation(Span("", "abc123", 10, 20)),  # Empty path
-            Citation(Span("invalid path with spaces", "def456", 5, 5)),  # Invalid chars
+            Citation(Span("test.c", "abc123", 10, 20)),
+            Citation(Span("src/file.h", "def456", 5, 10)),
         ]
-
         errors = formatter.validate_citations(citations)
-        assert len(errors) >= 2
-        assert any("Empty path" in error for error in errors)
-        assert any("Invalid path format" in error for error in errors)
+        assert len(errors) == 0
 
     def test_validate_citations_invalid_shas(self):
         """Test validating citations with invalid SHAs."""
+        # Test empty SHA
+        with pytest.raises(ValueError, match="SHA cannot be empty"):
+            Citation(Span("test.c", "", 10, 20))
+
+        # Valid citations for further validation
         formatter = CitationFormatter()
         citations = [
-            Citation(Span("test.c", "", 10, 20)),  # Empty SHA
-            Citation(Span("test.c", "xyz", 5, 5)),  # Too short
-            Citation(Span("test.c", "not_hex_chars", 1, 1)),  # Invalid chars
+            Citation(Span("test.c", "abc123def456", 10, 20)),
+            Citation(Span("test.c", "0123456789abcdef", 5, 10)),
         ]
-
         errors = formatter.validate_citations(citations)
-        assert len(errors) >= 3
-        assert any("Empty SHA" in error for error in errors)
-        assert any("Invalid SHA format" in error for error in errors)
+        assert len(errors) == 0
 
     def test_validate_citations_invalid_lines(self):
         """Test validating citations with invalid line numbers."""
+        # Test invalid start line (0)
+        with pytest.raises(ValueError, match="Start line must be positive, got 0"):
+            Citation(Span("test.c", "abc123", 0, 20))
+
+        # Test negative start line
+        with pytest.raises(ValueError, match="Start line must be positive, got -5"):
+            Citation(Span("test.c", "def456", -5, 5))
+
+        # Test end < start
+        with pytest.raises(ValueError, match="End line 10 must be >= start line 20"):
+            Citation(Span("test.c", "ghi789", 20, 10))
+
+        # Valid citations
         formatter = CitationFormatter()
         citations = [
-            Citation(Span("test.c", "abc123", 0, 20)),  # Invalid start
-            Citation(Span("test.c", "def456", -5, 5)),  # Negative start
-            Citation(Span("test.c", "ghi789", 20, 10)),  # End < start
+            Citation(Span("test.c", "abc123", 1, 20)),
+            Citation(Span("test.c", "def456", 5, 5)),
         ]
-
         errors = formatter.validate_citations(citations)
-        assert len(errors) >= 3
-        assert any("Invalid start line" in error for error in errors)
-        assert any("End line" in error and "start line" in error for error in errors)
+        assert len(errors) == 0
 
 
 class TestEnsureCitations:

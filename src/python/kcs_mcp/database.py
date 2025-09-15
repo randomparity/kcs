@@ -98,7 +98,7 @@ class Database:
                 s.name,
                 s.start_line,
                 s.end_line,
-                s.snippet,
+                COALESCE(s.signature, s.name || ' (' || s.kind || ')') as snippet,
                 0.95 as score
             FROM symbol s
             JOIN file f ON s.file_id = f.id
@@ -140,7 +140,7 @@ class Database:
                 s.kind,
                 s.start_line,
                 s.end_line,
-                s.snippet,
+                COALESCE(s.signature, s.name || ' (' || s.kind || ')') as snippet,
                 f.path,
                 f.sha
             FROM symbol s

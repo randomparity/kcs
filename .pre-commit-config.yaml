@@ -92,6 +92,16 @@ repos:
         files: (Cargo\.toml|Cargo\.lock|\.rs)$
         pass_filenames: false
 
+  # Pre-push hooks
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest tests/ -v --cov=src/python --cov-report=xml
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
 # Configuration
 default_stages: [pre-commit]
 fail_fast: false

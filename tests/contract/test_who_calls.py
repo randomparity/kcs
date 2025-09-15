@@ -5,10 +5,33 @@ These tests verify the API contract defined in contracts/mcp-api.yaml.
 They MUST fail before implementation and pass after.
 """
 
+import os
 from typing import Any
 
 import httpx
 import pytest
+import requests
+
+
+# Skip tests requiring MCP server when it's not running
+def is_mcp_server_running() -> bool:
+    """Check if MCP server is accessible."""
+    try:
+        response = requests.get("http://localhost:8080", timeout=2)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+skip_without_mcp_server = pytest.mark.skipif(
+    not is_mcp_server_running(), reason="MCP server not running"
+)
+
+# Skip integration tests in CI environments unless explicitly enabled
+skip_integration_in_ci = pytest.mark.skipif(
+    os.getenv("CI") == "true" and os.getenv("RUN_INTEGRATION_TESTS") != "true",
+    reason="Integration tests skipped in CI (set RUN_INTEGRATION_TESTS=true to enable)",
+)
 
 # Test configuration
 MCP_BASE_URL = "http://localhost:8080"
@@ -30,6 +53,8 @@ async def http_client() -> httpx.AsyncClient:
 
 
 # Contract test cases
+@skip_integration_in_ci
+@skip_without_mcp_server
 class TestWhoCallsContract:
     """Contract tests for who_calls MCP tool."""
 
@@ -362,6 +387,8 @@ class TestWhoCallsContract:
                 )
 
 
+@skip_integration_in_ci
+@skip_without_mcp_server
 class TestWhoCallsErrorHandling:
     """Test error handling for who_calls tool."""
 

@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
 
-use kcs_parser::{Parser, ParserConfig, SymbolInfo, ParseResult};
+use kcs_parser::{ParsedFile, Parser, ExtendedParserConfig, ParseResult};
 
 /// Python wrapper for the Rust Parser
 #[pyclass]
@@ -48,86 +48,96 @@ struct PyParseResult {
 impl PyParser {
     #[new]
     fn new(
-        tree_sitter_enabled: bool,
-        clang_enabled: bool,
+        use_clang: Option<bool>,
+        compile_commands_path: Option<String>,
         target_arch: Option<String>,
-        kernel_version: Option<String>,
+        config_name: Option<String>,
     ) -> PyResult<Self> {
-        let config = ParserConfig {
-            tree_sitter_enabled,
-            clang_enabled,
-            target_arch: target_arch.unwrap_or_else(|| "x86_64".to_string()),
-            kernel_version: kernel_version.unwrap_or_else(|| "6.1".to_string()),
+        use std::path::PathBuf;
+
+        let config = ExtendedParserConfig {
+            use_clang: use_clang.unwrap_or(false),
+            compile_commands_path: compile_commands_path.map(PathBuf::from),
+            include_paths: Vec::new(),
+            defines: HashMap::new(),
+            arch: target_arch.unwrap_or_else(|| "x86_64".to_string()),
+            config_name: config_name.unwrap_or_else(|| "defconfig".to_string()),
         };
 
-        let parser = Parser::new(config)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create parser: {}", e)))?;
+        let parser = Parser::new(config).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to create parser: {}", e))
+        })?;
 
         Ok(PyParser { parser })
     }
 
     /// Parse a single file and extract symbols
-    fn parse_file(&mut self, file_path: &str, content: &str) -> PyResult<PyParseResult> {
-        let result = self.parser
-            .parse_file(file_path, content)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Parse error: {}", e)))?;
+    fn parse_file(&mut self, file_path: &str) -> PyResult<PyParseResult> {
+        let result = self.parser.parse_file(file_path).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Parse error: {}", e))
+        })?;
 
-        Ok(convert_parse_result(result))
+        Ok(convert_parsed_file(result))
     }
 
     /// Parse multiple files in batch for better performance
     fn parse_files(&mut self, files: HashMap<String, String>) -> PyResult<PyParseResult> {
-        let result = self.parser
-            .parse_files(files)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Batch parse error: {}", e)))?;
+        let result = self.parser.parse_files_content(files).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Batch parse error: {}", e))
+        })?;
 
         Ok(convert_parse_result(result))
     }
 
     /// Extract symbols from kernel directory
-    fn parse_kernel_tree(&mut self, kernel_path: &str, config_name: &str) -> PyResult<PyParseResult> {
-        let result = self.parser
+    fn parse_kernel_tree(
+        &mut self,
+        kernel_path: &str,
+        config_name: &str,
+    ) -> PyResult<PyParseResult> {
+        let result = self
+            .parser
             .parse_kernel_tree(kernel_path, config_name)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Kernel tree parse error: {}", e)))?;
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("Kernel tree parse error: {}", e))
+            })?;
 
         Ok(convert_parse_result(result))
     }
 
-    /// Set parser configuration
-    fn configure(&mut self, py_config: &PyDict) -> PyResult<()> {
-        let mut config = ParserConfig {
-            tree_sitter_enabled: true,
-            clang_enabled: false,
-            target_arch: "x86_64".to_string(),
-            kernel_version: "6.1".to_string(),
-        };
-
-        if let Some(tree_sitter) = py_config.get_item("tree_sitter_enabled")? {
-            config.tree_sitter_enabled = tree_sitter.extract()?;
-        }
-
-        if let Some(clang) = py_config.get_item("clang_enabled")? {
-            config.clang_enabled = clang.extract()?;
-        }
-
-        if let Some(arch) = py_config.get_item("target_arch")? {
-            config.target_arch = arch.extract()?;
-        }
-
-        if let Some(version) = py_config.get_item("kernel_version")? {
-            config.kernel_version = version.extract()?;
-        }
-
-        self.parser.reconfigure(config)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Configuration error: {}", e)))?;
-
+    /// Set parser configuration (deprecated - configuration is now set at construction time)
+    fn configure(&mut self, _py_config: &PyDict) -> PyResult<()> {
+        // Configuration is now immutable and set at parser creation
+        // This method is kept for backward compatibility but does nothing
         Ok(())
     }
 }
 
 /// Convert Rust ParseResult to Python representation
+fn convert_parsed_file(result: ParsedFile) -> PyParseResult {
+    let symbols = result
+        .symbols
+        .into_iter()
+        .map(|s| PySymbolInfo {
+            name: s.name,
+            kind: format!("{:?}", s.kind), // Convert enum to string
+            file_path: result.path.to_string_lossy().to_string(),
+            start_line: s.start_line,
+            end_line: s.end_line,
+            signature: Some(s.signature),
+        })
+        .collect();
+
+    PyParseResult {
+        symbols,
+        call_edges: Vec::new(), // ParsedFile doesn't have call edges
+        errors: Vec::new(),
+    }
+}
+
 fn convert_parse_result(result: ParseResult) -> PyParseResult {
-    let symbols = result.symbols
+    let symbols = result
+        .symbols
         .into_iter()
         .map(|s| PySymbolInfo {
             name: s.name,
@@ -139,7 +149,8 @@ fn convert_parse_result(result: ParseResult) -> PyParseResult {
         })
         .collect();
 
-    let call_edges = result.call_edges
+    let call_edges = result
+        .call_edges
         .into_iter()
         .map(|(caller, callee)| (caller, callee))
         .collect();
@@ -153,22 +164,36 @@ fn convert_parse_result(result: ParseResult) -> PyParseResult {
 
 /// Utility function to extract symbols from a single file
 #[pyfunction]
-fn parse_c_file(file_path: &str, content: &str, arch: Option<&str>) -> PyResult<PyParseResult> {
-    let config = ParserConfig {
-        tree_sitter_enabled: true,
-        clang_enabled: false,
-        target_arch: arch.unwrap_or("x86_64").to_string(),
-        kernel_version: "6.1".to_string(),
+fn parse_c_file(_file_path: &str, content: &str, arch: Option<&str>) -> PyResult<PyParseResult> {
+    use std::fs;
+
+    let config = ExtendedParserConfig {
+        use_clang: false,
+        compile_commands_path: None,
+        include_paths: Vec::new(),
+        defines: HashMap::new(),
+        arch: arch.unwrap_or("x86_64").to_string(),
+        config_name: "defconfig".to_string(),
     };
 
-    let mut parser = Parser::new(config)
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Parser creation failed: {}", e)))?;
+    let mut parser = Parser::new(config).map_err(|e| {
+        pyo3::exceptions::PyRuntimeError::new_err(format!("Parser creation failed: {}", e))
+    })?;
+
+    // Write content to a temporary file since the new API reads from file
+    let temp_file = format!("/tmp/kcs_parse_{}.c", std::process::id());
+    fs::write(&temp_file, content).map_err(|e| {
+        pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to write temp file: {}", e))
+    })?;
 
     let result = parser
-        .parse_file(file_path, content)
+        .parse_file(&temp_file)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Parse failed: {}", e)))?;
 
-    Ok(convert_parse_result(result))
+    // Clean up temp file
+    let _ = fs::remove_file(&temp_file);
+
+    Ok(convert_parsed_file(result))
 }
 
 /// Utility function to analyze kernel patterns in code

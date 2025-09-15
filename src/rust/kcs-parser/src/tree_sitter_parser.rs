@@ -50,8 +50,8 @@ impl TreeSitterParser {
             (enum_specifier
               name: (type_identifier) @enum.name) @enum.definition
 
-            (typedef_declaration
-              declarator: (type_identifier) @typedef.name) @typedef.definition
+            (type_definition
+              type: (type_identifier) @typedef.name) @typedef.definition
 
             (declaration
               declarator: (identifier) @variable.name) @variable.definition
@@ -201,17 +201,18 @@ impl TreeSitterParser {
 
     fn extract_macros(&self, source: &str, tree: &Tree) -> Result<Vec<Macro>> {
         let mut query_cursor = QueryCursor::new();
-        let matches = query_cursor.captures(&self.macro_query, tree.root_node(), source.as_bytes());
+        let matches = query_cursor.matches(&self.macro_query, tree.root_node(), source.as_bytes());
 
-        let mut macros = Vec::new();
+        let mut macros = std::collections::HashMap::new();
         let source_bytes = source.as_bytes();
 
-        for (match_, _) in matches {
+        for match_ in matches {
             let mut name = String::new();
             let mut definition = String::new();
             let mut parameters = Vec::new();
             let mut start_line = 0;
 
+            // Process all captures for this match
             for capture in match_.captures {
                 let node = capture.node;
                 let capture_name = self
@@ -244,16 +245,22 @@ impl TreeSitterParser {
             }
 
             if !name.is_empty() {
-                macros.push(Macro {
-                    name,
-                    definition,
-                    start_line,
-                    parameters,
-                });
+                // Use a composite key for deduplication (name + line)
+                let key = (name.clone(), start_line);
+                macros.insert(
+                    key,
+                    Macro {
+                        name,
+                        definition,
+                        start_line,
+                        parameters,
+                    },
+                );
             }
         }
 
-        Ok(macros)
+        // Convert HashMap values to Vec
+        Ok(macros.into_values().collect())
     }
 
     fn extract_attributes(&self, signature: &str) -> Vec<String> {

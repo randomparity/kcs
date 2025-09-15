@@ -347,10 +347,13 @@ def ensure_citations(
         if field in response_data:
             citations_data = response_data[field]
             if isinstance(citations_data, list):
-                citations = [
-                    formatter.from_dict(c) if isinstance(c, dict) else c
-                    for c in citations_data
-                ]
+                try:
+                    citations = [
+                        formatter.from_dict(c) if isinstance(c, dict) else c
+                        for c in citations_data
+                    ]
+                except ValueError as e:
+                    raise ValueError(f"Invalid citations: {e}") from e
                 # Filter to only Citations for validation
                 citation_objects = [
                     c

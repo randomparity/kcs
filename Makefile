@@ -340,12 +340,86 @@ profile: venv ## Profile Python code performance
 	@echo "$(GREEN)✅ Profiling complete$(NC)"
 
 # CI targets
-ci: ## Run CI pipeline (used by GitHub Actions)
-	@echo "$(BLUE)Running CI pipeline...$(NC)"
-	@$(MAKE) check
-	@$(MAKE) test
-	@$(MAKE) security
-	@echo "$(GREEN)✅ CI pipeline passed$(NC)"
+ci: ## Run CI pipeline matching pre-commit hooks exactly (skips Rust checks like CI)
+	@echo "$(BLUE)Running CI pipeline (matching pre-commit hooks)...$(NC)"
+	@$(MAKE) ci-ruff
+	@$(MAKE) ci-mypy
+	@$(MAKE) ci-file-checks
+	@$(MAKE) ci-markdown
+	@$(MAKE) ci-config-validation
+	@$(MAKE) ci-pytest
+	@echo "$(GREEN)✅ CI pipeline passed (all pre-commit hooks)$(NC)"
+
+ci-local: ## Run full CI pipeline including local-only Rust checks
+	@echo "$(BLUE)Running full local CI pipeline...$(NC)"
+	@$(MAKE) ci-ruff
+	@$(MAKE) ci-mypy
+	@$(MAKE) ci-rust
+	@$(MAKE) ci-file-checks
+	@$(MAKE) ci-markdown
+	@$(MAKE) ci-config-validation
+	@$(MAKE) ci-pytest
+	@echo "$(GREEN)✅ Full local CI pipeline passed$(NC)"
+
+# Mini-kernel testing
+test-mini-kernel: venv ## Run tests with mini-kernel fixture
+	@echo "$(BLUE)Running mini-kernel tests...$(NC)"
+	@$(VENV_BIN)/pytest tests/integration/test_mini_kernel.py -v
+	@echo "$(GREEN)✅ Mini-kernel tests passed$(NC)"
+
+test-mini-kernel-fast: venv ## Run fast mini-kernel tests only
+	@echo "$(BLUE)Running fast mini-kernel tests...$(NC)"
+	@$(VENV_BIN)/pytest tests/integration/test_mini_kernel.py -v -m "not performance"
+	@echo "$(GREEN)✅ Fast mini-kernel tests passed$(NC)"
+
+ci-ruff: venv ## Run ruff linting and formatting (matches pre-commit)
+	@echo "$(BLUE)Running ruff lint and fix...$(NC)"
+	@$(VENV_BIN)/ruff check src/python/ tests/ --fix
+	@echo "$(BLUE)Running ruff format...$(NC)"
+	@$(VENV_BIN)/ruff format src/python/ tests/
+
+ci-mypy: venv ## Run mypy type checking (matches pre-commit)
+	@echo "$(BLUE)Running mypy type checking...$(NC)"
+	@$(VENV_BIN)/mypy src/python/
+
+ci-rust: ## Run Rust formatting and linting (matches pre-commit)
+	@echo "$(BLUE)Running Rust checks...$(NC)"
+	@if [ -d "src/rust" ]; then \
+		echo "$(BLUE)Running cargo fmt...$(NC)"; \
+		cd src/rust && cargo fmt --all --; \
+		echo "$(BLUE)Running cargo clippy...$(NC)"; \
+		cd src/rust && cargo clippy --all-targets --all-features -- -D warnings; \
+		echo "$(BLUE)Running cargo check...$(NC)"; \
+		cd src/rust && cargo check --all-targets; \
+	else \
+		echo "$(YELLOW)⚠️  No Rust source found, skipping$(NC)"; \
+	fi
+
+ci-file-checks: venv ## Run general file checks (matches pre-commit)
+	@echo "$(BLUE)Running file checks...$(NC)"
+	@$(VENV_BIN)/pre-commit run trailing-whitespace --all-files
+	@$(VENV_BIN)/pre-commit run end-of-file-fixer --all-files
+	@$(VENV_BIN)/pre-commit run check-yaml --all-files
+	@$(VENV_BIN)/pre-commit run check-toml --all-files
+	@$(VENV_BIN)/pre-commit run check-json --all-files
+	@$(VENV_BIN)/pre-commit run check-merge-conflict --all-files
+	@$(VENV_BIN)/pre-commit run check-added-large-files --all-files
+	@$(VENV_BIN)/pre-commit run detect-private-key --all-files
+
+ci-markdown: venv ## Run markdown linting (matches pre-commit)
+	@echo "$(BLUE)Running markdownlint...$(NC)"
+	@$(VENV_BIN)/pre-commit run markdownlint --all-files
+
+ci-config-validation: ## Run configuration validation (matches pre-commit)
+	@echo "$(BLUE)Running configuration validation...$(NC)"
+	@if [ -f "docker-compose.yml" ] || [ -f "docker-compose.yaml" ]; then \
+		echo "$(BLUE)Checking docker-compose config...$(NC)"; \
+		docker compose config >/dev/null; \
+	fi
+
+ci-pytest: venv ## Run pytest with coverage (matches pre-push hook)
+	@echo "$(BLUE)Running pytest with coverage...$(NC)"
+	@$(VENV_BIN)/pytest tests/ -v --cov=src/python --cov-report=xml
 
 ci-setup: ## Setup for CI environment
 	@echo "$(BLUE)Setting up CI environment...$(NC)"

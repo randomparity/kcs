@@ -112,8 +112,9 @@ class GitHubActionsAdapter:
         if self.github_context.token:
             self.github_session.headers.update(
                 {
-                    "Authorization": f"token {self.github_context.token}",
-                    "Accept": "application/vnd.github.v3+json",
+                    "Authorization": f"Bearer {self.github_context.token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
                 }
             )
 
@@ -162,9 +163,12 @@ class GitHubActionsAdapter:
         url = f"{self.github_context.api_url}/repos/{self.github_context.repository}/pulls/{pr_number}"
 
         try:
-            response = self.github_session.get(
-                url, headers={"Accept": "application/vnd.github.v3.diff"}
-            )
+            # Get the diff using the correct GitHub API format
+            headers = {
+                "Accept": "application/vnd.github.diff",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+            response = self.github_session.get(url, headers=headers)
             response.raise_for_status()
             return response.text
 

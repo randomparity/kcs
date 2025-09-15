@@ -8,10 +8,33 @@ with entry points, function calls, locks/RCU usage, and relevant test coverage
 with exact file/line citations."
 """
 
+import os
 from typing import Any
 
 import httpx
 import pytest
+import requests
+
+# Skip integration tests in CI environments unless explicitly enabled
+skip_integration_in_ci = pytest.mark.skipif(
+    os.getenv("CI") == "true" and os.getenv("RUN_INTEGRATION_TESTS") != "true",
+    reason="Integration tests skipped in CI (set RUN_INTEGRATION_TESTS=true to enable)",
+)
+
+
+def is_mcp_server_running() -> bool:
+    """Check if MCP server is accessible."""
+    try:
+        response = requests.get("http://localhost:8080", timeout=2)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+# Skip tests requiring MCP server when it's not running
+skip_without_mcp_server = pytest.mark.skipif(
+    not is_mcp_server_running(), reason="MCP server not running"
+)
 
 
 @pytest.fixture
@@ -30,7 +53,10 @@ async def mcp_client() -> httpx.AsyncClient:
         yield client
 
 
+@skip_integration_in_ci
+@skip_without_mcp_server
 @pytest.mark.integration
+@pytest.mark.requires_mcp_server
 class TestOnboardingFlow:
     """Integration test for developer onboarding flow."""
 

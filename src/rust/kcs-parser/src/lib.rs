@@ -385,7 +385,7 @@ fn should_skip_file(path: &Path) -> bool {
     path_str.contains("/tools/")
         || path_str.contains("/scripts/")
         || path_str.contains("/Documentation/")
-        || path_str.contains(".tmp")
+        || path_str.ends_with(".tmp")  // Only skip files that END with .tmp, not paths containing .tmp
         || path_str.contains(".mod.c")
 }
 

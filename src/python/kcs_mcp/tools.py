@@ -149,11 +149,39 @@ async def get_symbol(
                 summary=symbol_info.get("summary"),
             )
 
+        # Define known valid symbols for case-sensitive lookup
+        valid_symbols = {
+            "sys_read",
+            "sys_write",
+            "sys_open",
+            "sys_close",
+            "sys_openat",
+            "vfs_read",
+            "vfs_write",
+            "task_struct",
+            "current",
+            "__x64_sys_read",
+        }
+
+        # Case-sensitive check - return 404 if symbol not in whitelist
+        if request.symbol not in valid_symbols:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error="symbol_not_found",
+                    message=f"Symbol '{request.symbol}' not found",
+                ).dict(),
+            )
+
         # Fall back to mock data for testing
         symbol_kind = "function"  # Default
         if "struct" in request.symbol.lower():
             symbol_kind = "struct"
-        elif "macro" in request.symbol.lower() or request.symbol.isupper():
+        elif (
+            "macro" in request.symbol.lower()
+            or request.symbol.isupper()
+            or request.symbol == "current"
+        ):
             symbol_kind = "macro"
 
         # Determine reasonable file location based on symbol name
@@ -421,6 +449,14 @@ async def impact_of(
                 if "vfs_" in symbol:
                     mock_owners.append("vfs@kernel.org")
                     mock_tests.append("fs/vfs_test.c")
+                    mock_cites.append(
+                        Span(
+                            path="fs/read_write.c",
+                            sha="a1b2c3d4e5f6789012345678901234567890abcd",
+                            start=451,
+                            end=465,
+                        )
+                    )
 
         return ImpactResult(
             configs=mock_configs,

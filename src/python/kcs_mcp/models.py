@@ -7,7 +7,7 @@ Defines request/response schemas matching the OpenAPI specification.
 import typing
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # Core data types
@@ -44,7 +44,9 @@ class SearchCodeRequest(BaseModel):
     """Request for code search."""
 
     query: str = Field(..., description="Search query", min_length=1)
-    top_k: int | None = Field(10, description="Maximum results to return", ge=1, le=100)
+    top_k: int | None = Field(
+        10, alias="topK", description="Maximum results to return", ge=1, le=100
+    )
 
 
 class SearchHit(BaseModel):
@@ -144,6 +146,15 @@ class ImpactOfRequest(BaseModel):
     files: list[str] | None = Field(None, description="Files to analyze")
     symbols: list[str] | None = Field(None, description="Symbols to analyze")
     config: str | None = Field(None, description="Configuration context")
+
+    @model_validator(mode="after")
+    def validate_at_least_one_input(self) -> "ImpactOfRequest":
+        """Ensure at least one input parameter is provided."""
+        if not any([self.diff, self.files, self.symbols]):
+            raise ValueError(
+                "At least one of 'diff', 'files', or 'symbols' must be provided"
+            )
+        return self
 
 
 class ImpactResult(BaseModel):

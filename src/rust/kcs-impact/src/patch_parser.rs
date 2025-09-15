@@ -14,7 +14,7 @@ pub fn parse_patch(patch_content: &str) -> Result<Vec<ChangePoint>> {
         Regex::new(r"^[+-]\s*(?:static\s+)?(?:inline\s+)?(?:extern\s+)?(\w+\s+)+(\w+)\s*\(")?;
     let struct_def = Regex::new(r"^[+-]\s*struct\s+(\w+)\s*\{")?;
     let macro_def = Regex::new(r"^[+-]\s*#define\s+(\w+)")?;
-    let config_change = Regex::new(r"^[+-]\s*(?:#\s*)?(?:config|CONFIG_)(\w+)")?;
+    let config_change = Regex::new(r"^[+-]\s*(?:#\s*)?(?:config|CONFIG_)\s+(\w+)")?;
 
     for line in patch_content.lines() {
         // Track current file

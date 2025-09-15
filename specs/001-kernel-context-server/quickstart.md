@@ -3,10 +3,35 @@
 **Version**: 1.0.0
 **Prerequisites**: Linux x86_64, Docker, 8GB RAM, 20GB disk
 
+## Prerequisites
+
+### Kernel Source Setup
+
+KCS analyzes existing Linux kernel repositories. Set up your kernel source:
+
+```bash
+# Option 1: Use existing kernel source
+export KCS_KERNEL_PATH="$HOME/src/linux"
+
+# Option 2: Clone a fresh kernel (if needed)
+git clone https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git ~/src/linux
+export KCS_KERNEL_PATH="$HOME/src/linux"
+
+# Option 3: Use stable kernel
+git clone https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git ~/src/linux-stable
+export KCS_KERNEL_PATH="$HOME/src/linux-stable"
+
+# Make environment variable persistent
+echo 'export KCS_KERNEL_PATH="$HOME/src/linux"' >> ~/.bashrc
+```
+
+> **Note**: KCS does **not** include kernel source. It's designed to work with your existing
+> kernel development setup or any kernel repository you want to analyze.
+
 ## 1-Minute Setup
 
 ```bash
-# Clone and setup
+# Clone and setup KCS
 git clone https://github.com/your-org/kcs.git
 cd kcs
 ./tools/setup/install.sh
@@ -14,14 +39,12 @@ cd kcs
 # Start services
 docker-compose up -d
 
-# Index a kernel repository
-kcs-parser --parse ~/linux --config x86_64:defconfig --format json | \
-  kcs-extractor --extract all --input - | \
-  kcs-graph --load --db postgresql://localhost/kcs
+# Index your kernel repository
+tools/index_kernel.sh "$KCS_KERNEL_PATH"
 
 # Start MCP server
 kcs-mcp --serve --port 8080 --auth-token dev-token
-```text
+```
 
 ## Verification Steps
 
@@ -271,12 +294,46 @@ kcs-parser --parse ~/linux --config x86_64:allmodconfig --force
                                          └──────────────┘
 ```text
 
+## Development & Testing
+
+### Using Mini-Kernel Fixture
+
+For development and CI, KCS includes a mini-kernel fixture:
+
+```bash
+# Fast testing with mini-kernel (< 1 second)
+export KCS_KERNEL_PATH="./tests/fixtures/mini-kernel-v6.1"
+make test-mini-kernel
+
+# Test indexing with mini-kernel
+tools/index_kernel.sh "$KCS_KERNEL_PATH" --dry-run
+
+# CI-friendly testing
+make test-mini-kernel-fast
+```
+
+The mini-kernel fixture:
+
+- ✅ **Size**: <100KB (vs 5GB+ full kernel)
+- ✅ **Speed**: <1s parsing (vs 20min full kernel)
+- ✅ **Coverage**: Representative kernel patterns
+- ✅ **CI-Ready**: No external dependencies
+
+### Full Kernel Development
+
+```bash
+# Use your real kernel for development
+export KCS_KERNEL_PATH="$HOME/src/linux"
+tools/index_kernel.sh "$KCS_KERNEL_PATH"
+```
+
 ## Next Steps
 
-1. **Index your kernel**: Full indexing takes ~20 minutes
-2. **Configure authentication**: Replace dev-token with JWT
-3. **Set up monitoring**: Enable Prometheus metrics
-4. **Join community**: <https://github.com/your-org/kcs/discussions>
+1. **Start with mini-kernel**: Test KCS with the included fixture
+2. **Index your kernel**: Full indexing takes ~20 minutes
+3. **Configure authentication**: Replace dev-token with JWT
+4. **Set up monitoring**: Enable Prometheus metrics
+5. **Join community**: <https://github.com/your-org/kcs/discussions>
 
 ## Support
 

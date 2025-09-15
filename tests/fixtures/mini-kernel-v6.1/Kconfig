@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Mini kernel configuration for testing
+#
+
+config DEBUG_KERNEL
+	bool "Kernel debugging"
+	help
+	  Enable kernel debugging features for development.
+
+config VFS
+	bool "Virtual File System support"
+	default y
+	help
+	  Enable VFS layer for file operations.
+
+config PROC_FS
+	bool "Proc filesystem support"
+	depends on VFS
+	help
+	  Enable /proc filesystem.
+
+config 64BIT
+	bool "64-bit kernel"
+	default y
+	help
+	  Build for 64-bit architecture.
+
+config X86_64
+	bool "x86-64 support"
+	depends on 64BIT
+	help
+	  Support for x86-64 architecture.
+
+config MODULES
+	bool "Enable loadable module support"
+	help
+	  Enable support for loadable kernel modules.

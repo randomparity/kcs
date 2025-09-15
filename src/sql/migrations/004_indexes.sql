@@ -16,8 +16,9 @@ CREATE INDEX idx_entrypoint_kind_config ON entrypoint(kind, config);
 CREATE INDEX idx_entrypoint_symbol_config ON entrypoint(symbol_id, config);
 
 -- Config bitmap operations (for multi-config queries)
-CREATE INDEX idx_symbol_config_bitmap_gin ON symbol USING gin(config_bitmap);
-CREATE INDEX idx_call_edge_config_bitmap_gin ON call_edge USING gin(config_bitmap);
+-- TODO: Fix GIN indexes for bytea columns - need specific operator class
+-- CREATE INDEX idx_symbol_config_bitmap_gin ON symbol USING gin(config_bitmap);
+-- CREATE INDEX idx_call_edge_config_bitmap_gin ON call_edge USING gin(config_bitmap);
 
 -- Text search optimizations
 CREATE INDEX idx_symbol_name_trgm ON symbol USING gin(name gin_trgm_ops);
@@ -209,7 +210,7 @@ ALTER TABLE symbol ADD CONSTRAINT symbol_location_consistency
 COMMENT ON INDEX idx_symbol_name_config IS 'Primary lookup index for symbol queries by name and config';
 COMMENT ON INDEX idx_call_edge_caller_config IS 'Optimizes who_calls queries';
 COMMENT ON INDEX idx_call_edge_callee_config IS 'Optimizes list_dependencies queries';
-COMMENT ON INDEX idx_symbol_config_bitmap_gin IS 'Enables efficient multi-config symbol filtering';
+-- COMMENT ON INDEX idx_symbol_config_bitmap_gin IS 'Enables efficient multi-config symbol filtering';
 COMMENT ON INDEX idx_symbol_name_trgm IS 'Enables fuzzy symbol name search';
 COMMENT ON INDEX idx_summary_content_fts IS 'Full-text search on symbol summaries';
 
