@@ -187,7 +187,7 @@ $$ LANGUAGE plpgsql;
 
 -- Constraint validation helpers
 ALTER TABLE symbol ADD CONSTRAINT symbol_signature_json_valid
-    CHECK (signature IS NULL OR (signature ~ '^[^{]*$' OR json_valid(signature)));
+    CHECK (signature IS NULL OR (signature ~ '^[^{]*$' OR (signature::json IS NOT NULL)));
 
 ALTER TABLE entrypoint ADD CONSTRAINT entrypoint_details_schema_valid
     CHECK (details IS NULL OR jsonb_typeof(details) = 'object');
