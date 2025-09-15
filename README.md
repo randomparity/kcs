@@ -36,7 +36,7 @@ analysis with ground-truth accuracy.
 1. **Clone and Start Infrastructure**
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/randomparity/kcs.git
    cd kcs
    make docker-compose-up  # Starts PostgreSQL and Redis
    ```
