@@ -218,7 +218,7 @@ show_status() {
             version="${basename:0:3}"
             checksum=$(calculate_checksum "$file")
 
-            if psql -t -c "SELECT 1 FROM schema_migrations WHERE version = '$version';" | grep -q 1; then
+            if [[ $(psql -t -c "SELECT 1 FROM schema_migrations WHERE version = '$version';" | xargs) == "1" ]]; then
                 echo "  ✓ $filename (applied)"
             else
                 echo "  - $filename (pending)"
@@ -250,7 +250,7 @@ apply_migration() {
     fi
 
     # Check if already applied
-    if psql -t -c "SELECT 1 FROM schema_migrations WHERE version = '$version';" | grep -q 1; then
+    if [[ $(psql -t -c "SELECT 1 FROM schema_migrations WHERE version = '$version';" | xargs) == "1" ]]; then
         # Verify checksum matches
         local existing_checksum
         existing_checksum=$(psql -t -c "SELECT checksum FROM schema_migrations WHERE version = '$version';" | xargs)
@@ -361,7 +361,7 @@ main() {
         fi
 
         # Skip if already applied (unless force)
-        if psql -t -c "SELECT 1 FROM schema_migrations WHERE version = '$version';" | grep -q 1; then
+        if [[ $(psql -t -c "SELECT 1 FROM schema_migrations WHERE version = '$version';" | xargs) == "1" ]]; then
             if [[ "$FORCE" == "false" ]]; then
                 verbose "Skipping already applied migration: $filename"
                 continue
