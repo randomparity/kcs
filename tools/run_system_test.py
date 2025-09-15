@@ -4,11 +4,8 @@
 This is a standalone version that doesn't require pytest.
 """
 
-import os
 import time
 from pathlib import Path
-from typing import Dict, Any, List
-
 
 KERNEL_PATH = Path("~/src/linux").expanduser()
 
@@ -63,7 +60,7 @@ def test_kernel_structure():
                 "description": description,
                 "c_files": len(c_files),
                 "h_files": len(h_files),
-                "total_files": subsystem_files
+                "total_files": subsystem_files,
             }
 
             print(f"  ✓ {subsystem}: {subsystem_files} files ({description})")
@@ -93,7 +90,7 @@ def test_sample_file_selection():
             c_files = list(subsystem_path.rglob("*.c"))
             if c_files:
                 # Take first few files from each subsystem
-                selected = c_files[:min(25, len(c_files))]
+                selected = c_files[: min(25, len(c_files))]
                 sample_files.extend(selected)
                 print(f"  ✓ {subsystem}: selected {len(selected)} files")
 
@@ -104,7 +101,7 @@ def test_sample_file_selection():
     valid_files = []
     for file_path in sample_files:
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
             if len(content) > 100:  # Skip very small files
                 valid_files.append(file_path)
         except Exception as e:
@@ -120,7 +117,7 @@ def test_sample_file_selection():
         return []
 
 
-def test_parsing_performance(sample_files: List[Path]):
+def test_parsing_performance(sample_files: list[Path]):
     """Test parsing performance on sample files."""
     print_section("Testing Parsing Performance")
 
@@ -139,11 +136,13 @@ def test_parsing_performance(sample_files: List[Path]):
 
     for file_path in test_files:
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
 
             # Count basic patterns (simple parsing simulation)
-            patterns = {
-                "functions": content.count("(") - content.count("if (") - content.count("while ("),
+            _ = {
+                "functions": content.count("(")
+                - content.count("if (")
+                - content.count("while ("),
                 "includes": content.count("#include"),
                 "structs": content.count("struct "),
                 "static": content.count("static "),
@@ -172,7 +171,7 @@ def test_parsing_performance(sample_files: List[Path]):
         return False
 
 
-def test_function_detection(sample_files: List[Path]):
+def test_function_detection(sample_files: list[Path]):
     """Test detection of kernel functions."""
     print_section("Testing Function Detection")
 
@@ -188,21 +187,31 @@ def test_function_detection(sample_files: List[Path]):
 
     for file_path in test_files:
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')
-            lines = content.split('\n')
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+            lines = content.split("\n")
 
             for line in lines:
                 line = line.strip()
 
                 # Simple heuristics for function detection
-                if 'SYSCALL_DEFINE' in line:
+                if "SYSCALL_DEFINE" in line:
                     syscall_functions += 1
                     total_functions += 1
-                elif line.startswith('static ') and '(' in line and ('{' in line or ';' not in line):
+                elif (
+                    line.startswith("static ")
+                    and "(" in line
+                    and ("{" in line or ";" not in line)
+                ):
                     static_functions += 1
                     total_functions += 1
-                elif ('int ' in line or 'void ' in line or 'long ' in line) and '(' in line and ')' in line:
-                    if not any(keyword in line for keyword in ['if', 'while', 'for', '#define']):
+                elif (
+                    ("int " in line or "void " in line or "long " in line)
+                    and "(" in line
+                    and ")" in line
+                ):
+                    if not any(
+                        keyword in line for keyword in ["if", "while", "for", "#define"]
+                    ):
                         total_functions += 1
 
         except Exception as e:
@@ -229,13 +238,14 @@ def test_syscall_identification():
         KERNEL_PATH / "fs",
         KERNEL_PATH / "kernel",
         KERNEL_PATH / "mm",
-        KERNEL_PATH / "net"
+        KERNEL_PATH / "net",
     ]
 
     found_syscalls = []
 
     import re
-    syscall_pattern = r'SYSCALL_DEFINE\d*\(\s*(\w+)'
+
+    syscall_pattern = r"SYSCALL_DEFINE\d*\(\s*(\w+)"
 
     for location in syscall_locations:
         if not location.exists():
@@ -250,15 +260,17 @@ def test_syscall_identification():
                 break
 
             try:
-                content = c_file.read_text(encoding='utf-8', errors='ignore')
+                content = c_file.read_text(encoding="utf-8", errors="ignore")
                 matches = re.findall(syscall_pattern, content)
 
                 for match in matches:
-                    found_syscalls.append({
-                        "name": match,
-                        "file": str(c_file.relative_to(KERNEL_PATH)),
-                        "pattern": "SYSCALL_DEFINE"
-                    })
+                    found_syscalls.append(
+                        {
+                            "name": match,
+                            "file": str(c_file.relative_to(KERNEL_PATH)),
+                            "pattern": "SYSCALL_DEFINE",
+                        }
+                    )
 
             except Exception:
                 continue
@@ -303,7 +315,7 @@ def test_constitutional_compliance():
         original_size = test_file.stat().st_size
 
         # Read the file (simulate analysis)
-        _ = test_file.read_text(encoding='utf-8', errors='ignore')
+        _ = test_file.read_text(encoding="utf-8", errors="ignore")
 
         new_mtime = test_file.stat().st_mtime
         new_size = test_file.stat().st_size
@@ -327,16 +339,16 @@ def test_constitutional_compliance():
         if i >= 3:  # Limit test
             break
         try:
-            content = c_file.read_text(encoding='utf-8', errors='ignore')
-            lines = content.split('\n')
+            content = c_file.read_text(encoding="utf-8", errors="ignore")
+            lines = content.split("\n")
 
             for line_num, line in enumerate(lines[:20], 1):
-                if 'SYSCALL_DEFINE' in line:
+                if "SYSCALL_DEFINE" in line:
                     citation = {
                         "path": str(c_file.relative_to(KERNEL_PATH)),
                         "line": line_num,
                         "sha": "abcd1234",
-                        "context": "Syscall definition"
+                        "context": "Syscall definition",
                     }
                     citations.append(citation)
         except Exception:
@@ -352,7 +364,7 @@ def test_constitutional_compliance():
     # Test 3: Performance requirement
     print("  Testing performance requirement...")
     query_times = []
-    for i in range(5):
+    for _ in range(5):
         start = time.time()
         time.sleep(0.01)  # Simulate 10ms processing
         end = time.time()
@@ -412,7 +424,7 @@ def main():
                 if result:
                     passed += 1
         except Exception as e:
-            print(f"❌ {test_name}: ERROR - {str(e)}")
+            print(f"❌ {test_name}: ERROR - {e!s}")
             test_results[test_name] = False
 
     # Run tests that depend on sample files
@@ -430,7 +442,7 @@ def main():
                     passed += 1
                 total += 1
             except Exception as e:
-                print(f"❌ {test_name}: ERROR - {str(e)}")
+                print(f"❌ {test_name}: ERROR - {e!s}")
                 test_results[test_name] = False
                 total += 1
 

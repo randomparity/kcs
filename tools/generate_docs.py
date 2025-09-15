@@ -7,10 +7,10 @@ including examples, authentication, and integration guides.
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any
+
 import yaml
 
 
@@ -28,16 +28,16 @@ class OpenAPIDocGenerator:
         self.output_dir = output_dir
         self.spec = self._load_spec()
 
-    def _load_spec(self) -> Dict[str, Any]:
+    def _load_spec(self) -> dict[str, Any]:
         """Load OpenAPI specification from file."""
         try:
             with open(self.spec_file) as f:
-                if self.spec_file.suffix in ['.yaml', '.yml']:
+                if self.spec_file.suffix in [".yaml", ".yml"]:
                     return yaml.safe_load(f)
                 else:
                     return json.load(f)
         except Exception as e:
-            raise ValueError(f"Failed to load OpenAPI spec: {e}")
+            raise ValueError(f"Failed to load OpenAPI spec: {e}") from e
 
     def generate_all(self):
         """Generate all documentation files."""
@@ -56,14 +56,14 @@ class OpenAPIDocGenerator:
 
     def _generate_api_overview(self):
         """Generate API overview documentation."""
-        info = self.spec.get('info', {})
-        servers = self.spec.get('servers', [])
+        info = self.spec.get("info", {})
+        servers = self.spec.get("servers", [])
 
-        content = f"""# {info.get('title', 'API Documentation')}
+        content = f"""# {info.get("title", "API Documentation")}
 
-{info.get('description', 'API Documentation')}
+{info.get("description", "API Documentation")}
 
-**Version:** {info.get('version', '1.0.0')}
+**Version:** {info.get("version", "1.0.0")}
 
 ## Overview
 
@@ -82,7 +82,9 @@ The Kernel Context Server (KCS) provides a Model Context Protocol (MCP) API for 
 """
 
         for server in servers:
-            content += f"- **{server.get('description', 'Server')}**: `{server.get('url')}`\n"
+            content += (
+                f"- **{server.get('description', 'Server')}**: `{server.get('url')}`\n"
+            )
 
         content += """
 ## Quick Start
@@ -110,7 +112,7 @@ See the [Integration Guide](integration.md) for complete setup instructions.
 
     def _generate_authentication_guide(self):
         """Generate authentication documentation."""
-        security_schemes = self.spec.get('components', {}).get('securitySchemes', {})
+        security_schemes = self.spec.get("components", {}).get("securitySchemes", {})
 
         content = """# Authentication
 
@@ -120,13 +122,13 @@ KCS API uses JWT Bearer token authentication. All API requests (except `/health`
 
 """
 
-        if 'bearerAuth' in security_schemes:
-            bearer_auth = security_schemes['bearerAuth']
+        if "bearerAuth" in security_schemes:
+            bearer_auth = security_schemes["bearerAuth"]
             content += f"""## Bearer Token Authentication
 
-**Type**: {bearer_auth.get('type', 'http')}
-**Scheme**: {bearer_auth.get('scheme', 'bearer')}
-**Format**: {bearer_auth.get('bearerFormat', 'JWT')}
+**Type**: {bearer_auth.get("type", "http")}
+**Scheme**: {bearer_auth.get("scheme", "bearer")}
+**Format**: {bearer_auth.get("bearerFormat", "JWT")}
 
 ### Request Headers
 
@@ -141,7 +143,7 @@ Authorization: Bearer YOUR_TOKEN_HERE
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \\
      -H "Content-Type: application/json" \\
-     {self.spec.get('servers', [{}])[0].get('url', 'http://localhost:8080')}/health
+     {self.spec.get("servers", [{}])[0].get("url", "http://localhost:8080")}/health
 ```
 
 """
@@ -202,7 +204,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \\
 
     def _generate_endpoint_docs(self):
         """Generate endpoint documentation."""
-        paths = self.spec.get('paths', {})
+        paths = self.spec.get("paths", {})
 
         content = """# API Endpoints
 
@@ -222,9 +224,9 @@ The KCS API provides endpoints for kernel analysis, organized into categories:
         system_endpoints = []
 
         for path, methods in paths.items():
-            if '/mcp/tools/' in path:
+            if "/mcp/tools/" in path:
                 tools_endpoints.append((path, methods))
-            elif '/mcp/resources' in path:
+            elif "/mcp/resources" in path:
                 resources_endpoints.append((path, methods))
             else:
                 system_endpoints.append((path, methods))
@@ -253,16 +255,16 @@ The KCS API provides endpoints for kernel analysis, organized into categories:
         with open(self.output_dir / "endpoints.md", "w") as f:
             f.write(content)
 
-    def _generate_endpoint_section(self, path: str, methods: Dict[str, Any]) -> str:
+    def _generate_endpoint_section(self, path: str, methods: dict[str, Any]) -> str:
         """Generate documentation for a single endpoint."""
         content = ""
 
         for method, operation in methods.items():
-            if method.upper() not in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']:
+            if method.upper() not in ["GET", "POST", "PUT", "DELETE", "PATCH"]:
                 continue
 
-            summary = operation.get('summary', 'No summary available')
-            description = operation.get('description', '')
+            summary = operation.get("summary", "No summary available")
+            description = operation.get("description", "")
 
             content += f"\n### {method.upper()} {path}\n\n"
             content += f"**Summary**: {summary}\n\n"
@@ -271,62 +273,62 @@ The KCS API provides endpoints for kernel analysis, organized into categories:
                 content += f"{description}\n\n"
 
             # Parameters
-            parameters = operation.get('parameters', [])
+            parameters = operation.get("parameters", [])
             if parameters:
                 content += "**Parameters**:\n\n"
                 for param in parameters:
-                    name = param.get('name', 'unknown')
-                    location = param.get('in', 'unknown')
-                    required = param.get('required', False)
-                    param_type = param.get('schema', {}).get('type', 'unknown')
-                    param_desc = param.get('description', 'No description')
+                    name = param.get("name", "unknown")
+                    location = param.get("in", "unknown")
+                    required = param.get("required", False)
+                    param_type = param.get("schema", {}).get("type", "unknown")
+                    param_desc = param.get("description", "No description")
 
                     req_text = " (required)" if required else " (optional)"
                     content += f"- `{name}` ({location}, {param_type}){req_text}: {param_desc}\n"
                 content += "\n"
 
             # Request body
-            request_body = operation.get('requestBody')
+            request_body = operation.get("requestBody")
             if request_body:
                 content += "**Request Body**:\n\n"
-                content_types = request_body.get('content', {})
+                content_types = request_body.get("content", {})
 
                 for content_type, schema_info in content_types.items():
                     content += f"Content-Type: `{content_type}`\n\n"
 
-                    schema = schema_info.get('schema', {})
-                    if 'properties' in schema:
+                    schema = schema_info.get("schema", {})
+                    if "properties" in schema:
                         content += "Properties:\n"
-                        for prop_name, prop_schema in schema['properties'].items():
-                            prop_type = prop_schema.get('type', 'unknown')
-                            prop_desc = prop_schema.get('description', 'No description')
-                            is_required = prop_name in schema.get('required', [])
+                        for prop_name, prop_schema in schema["properties"].items():
+                            prop_type = prop_schema.get("type", "unknown")
+                            prop_desc = prop_schema.get("description", "No description")
+                            is_required = prop_name in schema.get("required", [])
                             req_text = " (required)" if is_required else " (optional)"
                             content += f"- `{prop_name}` ({prop_type}){req_text}: {prop_desc}\n"
 
                     # Add example if available
-                    example = schema_info.get('example')
+                    example = schema_info.get("example")
                     if example:
                         content += f"\nExample:\n```json\n{json.dumps(example, indent=2)}\n```\n"
                 content += "\n"
 
             # Responses
-            responses = operation.get('responses', {})
+            responses = operation.get("responses", {})
             if responses:
                 content += "**Responses**:\n\n"
                 for status_code, response_info in responses.items():
-                    description = response_info.get('description', 'No description')
+                    description = response_info.get("description", "No description")
                     content += f"- **{status_code}**: {description}\n"
 
                     # Response schema
-                    response_content = response_info.get('content', {})
+                    response_content = response_info.get("content", {})
                     for content_type, schema_info in response_content.items():
-                        schema = schema_info.get('schema', {})
+                        schema = schema_info.get("schema", {})
                         if schema:
                             content += f"  - Content-Type: `{content_type}`\n"
 
                             # Add example response if available
-                            example = schema_info.get('example')
+                            example = schema_info.get("example")
                             if example:
                                 content += f"  - Example:\n    ```json\n    {json.dumps(example, indent=4)}\n    ```\n"
                 content += "\n"
@@ -337,78 +339,81 @@ The KCS API provides endpoints for kernel analysis, organized into categories:
 
         return content
 
-    def _generate_curl_example(self, path: str, method: str, operation: Dict[str, Any]) -> str:
+    def _generate_curl_example(
+        self, path: str, method: str, operation: dict[str, Any]
+    ) -> str:
         """Generate curl example for an endpoint."""
-        base_url = self.spec.get('servers', [{}])[0].get('url', 'http://localhost:8080')
+        base_url = self.spec.get("servers", [{}])[0].get("url", "http://localhost:8080")
 
         curl_cmd = f"curl -X {method.upper()}"
 
         # Add auth header if required
-        security = operation.get('security', self.spec.get('security', []))
-        if security and any('bearerAuth' in sec for sec in security):
+        security = operation.get("security", self.spec.get("security", []))
+        if security and any("bearerAuth" in sec for sec in security):
             curl_cmd += ' \\\n     -H "Authorization: Bearer YOUR_TOKEN"'
 
         # Add content type for requests with body
-        if method.upper() in ['POST', 'PUT', 'PATCH'] and operation.get('requestBody'):
+        if method.upper() in ["POST", "PUT", "PATCH"] and operation.get("requestBody"):
             curl_cmd += ' \\\n     -H "Content-Type: application/json"'
 
         # Add example request body
-        request_body = operation.get('requestBody', {})
+        request_body = operation.get("requestBody", {})
         if request_body:
-            content = request_body.get('content', {})
-            json_content = content.get('application/json', {})
-            schema = json_content.get('schema', {})
+            content = request_body.get("content", {})
+            json_content = content.get("application/json", {})
+            schema = json_content.get("schema", {})
 
             # Create example data
             example_data = self._create_example_from_schema(schema)
             if example_data:
-                curl_cmd += f' \\\n     -d \'{json.dumps(example_data, indent=2)}\''
+                curl_cmd += f" \\\n     -d '{json.dumps(example_data, indent=2)}'"
 
-        curl_cmd += f' \\\n     {base_url}{path}'
+        curl_cmd += f" \\\n     {base_url}{path}"
 
         return f"**Example**:\n```bash\n{curl_cmd}\n```"
 
-    def _create_example_from_schema(self, schema: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _create_example_from_schema(
+        self, schema: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Create example data from JSON schema."""
         if not schema:
             return None
 
-        properties = schema.get('properties', {})
-        required = schema.get('required', [])
+        properties = schema.get("properties", {})
         example = {}
 
         for prop_name, prop_schema in properties.items():
-            prop_type = prop_schema.get('type', 'string')
-            prop_example = prop_schema.get('example')
+            prop_type = prop_schema.get("type", "string")
+            prop_example = prop_schema.get("example")
 
             if prop_example is not None:
                 example[prop_name] = prop_example
-            elif prop_type == 'string':
-                if 'symbol' in prop_name.lower():
-                    example[prop_name] = 'sys_read'
-                elif 'query' in prop_name.lower():
-                    example[prop_name] = 'read from file descriptor'
-                elif 'path' in prop_name.lower():
-                    example[prop_name] = 'fs/read_write.c'
+            elif prop_type == "string":
+                if "symbol" in prop_name.lower():
+                    example[prop_name] = "sys_read"
+                elif "query" in prop_name.lower():
+                    example[prop_name] = "read from file descriptor"
+                elif "path" in prop_name.lower():
+                    example[prop_name] = "fs/read_write.c"
                 else:
-                    example[prop_name] = f'example_{prop_name}'
-            elif prop_type == 'integer':
+                    example[prop_name] = f"example_{prop_name}"
+            elif prop_type == "integer":
                 example[prop_name] = 10
-            elif prop_type == 'number':
+            elif prop_type == "number":
                 example[prop_name] = 1.0
-            elif prop_type == 'boolean':
+            elif prop_type == "boolean":
                 example[prop_name] = True
-            elif prop_type == 'array':
-                example[prop_name] = ['example_item']
-            elif prop_type == 'object':
+            elif prop_type == "array":
+                example[prop_name] = ["example_item"]
+            elif prop_type == "object":
                 example[prop_name] = {}
 
         return example if example else None
 
     def _generate_schema_docs(self):
         """Generate schema documentation."""
-        components = self.spec.get('components', {})
-        schemas = components.get('schemas', {})
+        components = self.spec.get("components", {})
+        schemas = components.get("schemas", {})
 
         content = """# Data Schemas
 
@@ -425,11 +430,13 @@ All KCS responses include citations with file:line references per constitutional
 """
 
         # Document key schemas
-        key_schemas = ['Span', 'Citation', 'SymbolInfo', 'SearchHit', 'ImpactResult']
+        key_schemas = ["Span", "Citation", "SymbolInfo", "SearchHit", "ImpactResult"]
 
         for schema_name in key_schemas:
             if schema_name in schemas:
-                content += self._generate_schema_section(schema_name, schemas[schema_name])
+                content += self._generate_schema_section(
+                    schema_name, schemas[schema_name]
+                )
 
         content += "\n## Other Schemas\n\n"
 
@@ -440,18 +447,18 @@ All KCS responses include citations with file:line references per constitutional
         with open(self.output_dir / "schemas.md", "w") as f:
             f.write(content)
 
-    def _generate_schema_section(self, name: str, schema: Dict[str, Any]) -> str:
+    def _generate_schema_section(self, name: str, schema: dict[str, Any]) -> str:
         """Generate documentation for a schema."""
         content = f"\n### {name}\n\n"
 
-        description = schema.get('description', 'No description available')
+        description = schema.get("description", "No description available")
         content += f"{description}\n\n"
 
-        schema_type = schema.get('type', 'object')
+        schema_type = schema.get("type", "object")
         content += f"**Type**: {schema_type}\n\n"
 
-        properties = schema.get('properties', {})
-        required = schema.get('required', [])
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
 
         if properties:
             content += "**Properties**:\n\n"
@@ -459,38 +466,42 @@ All KCS responses include citations with file:line references per constitutional
             content += "|----------|------|----------|-------------|\n"
 
             for prop_name, prop_schema in properties.items():
-                prop_type = prop_schema.get('type', 'unknown')
-                prop_format = prop_schema.get('format')
+                prop_type = prop_schema.get("type", "unknown")
+                prop_format = prop_schema.get("format")
                 if prop_format:
                     prop_type += f" ({prop_format})"
 
                 is_required = "✓" if prop_name in required else ""
-                prop_desc = prop_schema.get('description', 'No description')
+                prop_desc = prop_schema.get("description", "No description")
 
                 # Handle references
-                if '$ref' in prop_schema:
-                    ref_name = prop_schema['$ref'].split('/')[-1]
+                if "$ref" in prop_schema:
+                    ref_name = prop_schema["$ref"].split("/")[-1]
                     prop_type = f"[{ref_name}](#{ref_name.lower()})"
 
-                content += f"| `{prop_name}` | {prop_type} | {is_required} | {prop_desc} |\n"
+                content += (
+                    f"| `{prop_name}` | {prop_type} | {is_required} | {prop_desc} |\n"
+                )
 
             content += "\n"
 
         # Add example if available
-        example = schema.get('example')
+        example = schema.get("example")
         if example:
-            content += f"**Example**:\n```json\n{json.dumps(example, indent=2)}\n```\n\n"
+            content += (
+                f"**Example**:\n```json\n{json.dumps(example, indent=2)}\n```\n\n"
+            )
         elif properties:
             # Generate example from properties
             example_obj = {}
             for prop_name, prop_schema in properties.items():
                 if prop_name in required[:3]:  # Include first 3 required properties
-                    prop_example = prop_schema.get('example')
+                    prop_example = prop_schema.get("example")
                     if prop_example is not None:
                         example_obj[prop_name] = prop_example
-                    elif prop_schema.get('type') == 'string':
+                    elif prop_schema.get("type") == "string":
                         example_obj[prop_name] = f"example_{prop_name}"
-                    elif prop_schema.get('type') == 'integer':
+                    elif prop_schema.get("type") == "integer":
                         example_obj[prop_name] = 42
 
             if example_obj:
@@ -1662,9 +1673,13 @@ Error Report:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Generate API documentation from OpenAPI spec")
+    parser = argparse.ArgumentParser(
+        description="Generate API documentation from OpenAPI spec"
+    )
     parser.add_argument("spec_file", help="Path to OpenAPI specification file")
-    parser.add_argument("-o", "--output", default="docs", help="Output directory (default: docs)")
+    parser.add_argument(
+        "-o", "--output", default="docs", help="Output directory (default: docs)"
+    )
 
     args = parser.parse_args()
 

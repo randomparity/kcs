@@ -19,9 +19,11 @@ if [ -z "$REDIS_URL" ]; then
     echo "Info: REDIS_URL not set. Running without Redis caching."
 fi
 
-# Authentication token
-if [ -z "$KCS_AUTH_TOKEN" ]; then
-    echo "Warning: KCS_AUTH_TOKEN not set. API will be unauthenticated."
+# Authentication configuration
+if [ -z "$JWT_SECRET" ]; then
+    echo "Warning: JWT_SECRET not set. API will use insecure default token."
+elif [ "$JWT_SECRET" = "dev_jwt_secret_change_in_production" ]; then
+    echo "Warning: JWT_SECRET is using default value. Change for production use."
 fi
 
 # Log startup info

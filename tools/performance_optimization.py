@@ -6,13 +6,11 @@ constitutional performance requirements and real-world usage patterns.
 """
 
 import argparse
-import json
-import os
+import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-import subprocess
+from typing import Any
 
 
 class PerformanceOptimizer:
@@ -27,7 +25,7 @@ class PerformanceOptimizer:
         self.kcs_root = kcs_root
         self.results = {}
 
-    def analyze_current_performance(self) -> Dict[str, Any]:
+    def analyze_current_performance(self) -> dict[str, Any]:
         """Analyze current performance characteristics."""
         print("🔍 Analyzing current performance...")
 
@@ -35,7 +33,7 @@ class PerformanceOptimizer:
             "timestamp": time.time(),
             "analysis": {},
             "recommendations": [],
-            "constitutional_compliance": {}
+            "constitutional_compliance": {},
         }
 
         # Check constitutional requirements
@@ -56,13 +54,13 @@ class PerformanceOptimizer:
         self.results = results
         return results
 
-    def _check_constitutional_requirements(self) -> Dict[str, Any]:
+    def _check_constitutional_requirements(self) -> dict[str, Any]:
         """Check compliance with constitutional performance requirements."""
         print("  📋 Checking constitutional requirements...")
 
         requirements = {
             "index_time_target": 20 * 60,  # 20 minutes in seconds
-            "query_p95_target": 600,       # 600ms
+            "query_p95_target": 600,  # 600ms
             "graph_size_target": 20 * 1024**3,  # 20GB
         }
 
@@ -71,14 +69,14 @@ class PerformanceOptimizer:
         # Estimate index time based on system test results
         # System test showed 8,623 files/second parsing speed
         estimated_files = 50000  # Conservative kernel estimate
-        parsing_speed = 8623     # From system test
+        parsing_speed = 8623  # From system test
         estimated_index_time = estimated_files / parsing_speed
 
         compliance["index_time"] = {
             "estimated_seconds": estimated_index_time,
             "target_seconds": requirements["index_time_target"],
             "compliant": estimated_index_time <= requirements["index_time_target"],
-            "margin": requirements["index_time_target"] - estimated_index_time
+            "margin": requirements["index_time_target"] - estimated_index_time,
         }
 
         # Estimate query performance (mock for now)
@@ -88,24 +86,28 @@ class PerformanceOptimizer:
             "estimated_p95_ms": estimated_query_p95,
             "target_p95_ms": requirements["query_p95_target"],
             "compliant": estimated_query_p95 <= requirements["query_p95_target"],
-            "margin": requirements["query_p95_target"] - estimated_query_p95
+            "margin": requirements["query_p95_target"] - estimated_query_p95,
         }
 
         # Estimate graph size
         estimated_symbols = 50000
         estimated_edges = 200000
-        estimated_size_gb = (estimated_symbols * 1000 + estimated_edges * 500) / (1024**3)
+        estimated_size_gb = (estimated_symbols * 1000 + estimated_edges * 500) / (
+            1024**3
+        )
 
         compliance["graph_size"] = {
             "estimated_gb": estimated_size_gb,
             "target_gb": requirements["graph_size_target"] / (1024**3),
-            "compliant": estimated_size_gb <= requirements["graph_size_target"] / (1024**3),
-            "margin": (requirements["graph_size_target"] / (1024**3)) - estimated_size_gb
+            "compliant": estimated_size_gb
+            <= requirements["graph_size_target"] / (1024**3),
+            "margin": (requirements["graph_size_target"] / (1024**3))
+            - estimated_size_gb,
         }
 
         return compliance
 
-    def _analyze_parser_performance(self) -> Dict[str, Any]:
+    def _analyze_parser_performance(self) -> dict[str, Any]:
         """Analyze parser performance characteristics."""
         print("  ⚡ Analyzing parser performance...")
 
@@ -113,48 +115,54 @@ class PerformanceOptimizer:
             "current_performance": {
                 "files_per_second": 8623,  # From system test
                 "memory_usage_mb": "unknown",
-                "cpu_usage_percent": "unknown"
+                "cpu_usage_percent": "unknown",
             },
             "bottlenecks": [],
-            "optimization_opportunities": []
+            "optimization_opportunities": [],
         }
 
         # Check if Rust components are built in release mode
         cargo_toml = self.kcs_root / "src" / "rust" / "Cargo.toml"
         if cargo_toml.exists():
-            analysis["optimization_opportunities"].append({
-                "area": "build_optimization",
-                "description": "Ensure Rust components built with --release",
-                "impact": "high",
-                "implementation": "cargo build --release"
-            })
+            analysis["optimization_opportunities"].append(
+                {
+                    "area": "build_optimization",
+                    "description": "Ensure Rust components built with --release",
+                    "impact": "high",
+                    "implementation": "cargo build --release",
+                }
+            )
 
         # Check for parallel processing opportunities
-        analysis["optimization_opportunities"].append({
-            "area": "parallel_processing",
-            "description": "Implement parallel file processing with rayon",
-            "impact": "high",
-            "implementation": "Use rayon for parallel iteration over files"
-        })
+        analysis["optimization_opportunities"].append(
+            {
+                "area": "parallel_processing",
+                "description": "Implement parallel file processing with rayon",
+                "impact": "high",
+                "implementation": "Use rayon for parallel iteration over files",
+            }
+        )
 
         # Memory optimization
-        analysis["optimization_opportunities"].append({
-            "area": "memory_optimization",
-            "description": "Implement streaming parsing for large files",
-            "impact": "medium",
-            "implementation": "Process files in chunks rather than loading entirely"
-        })
+        analysis["optimization_opportunities"].append(
+            {
+                "area": "memory_optimization",
+                "description": "Implement streaming parsing for large files",
+                "impact": "medium",
+                "implementation": "Process files in chunks rather than loading entirely",
+            }
+        )
 
         return analysis
 
-    def _analyze_database_performance(self) -> Dict[str, Any]:
+    def _analyze_database_performance(self) -> dict[str, Any]:
         """Analyze database performance characteristics."""
         print("  🗄️ Analyzing database performance...")
 
         analysis = {
             "index_optimization": [],
             "query_optimization": [],
-            "connection_optimization": []
+            "connection_optimization": [],
         }
 
         # Index optimization recommendations
@@ -163,20 +171,20 @@ class PerformanceOptimizer:
                 "table": "symbols",
                 "columns": ["name", "file_path"],
                 "type": "btree",
-                "rationale": "Frequent lookups by symbol name and file path"
+                "rationale": "Frequent lookups by symbol name and file path",
             },
             {
                 "table": "call_edges",
                 "columns": ["caller_id", "callee_id"],
                 "type": "btree",
-                "rationale": "Graph traversal queries"
+                "rationale": "Graph traversal queries",
             },
             {
                 "table": "symbols",
                 "columns": ["name"],
                 "type": "gin",
-                "rationale": "Full-text search on symbol names"
-            }
+                "rationale": "Full-text search on symbol names",
+            },
         ]
 
         # Query optimization
@@ -184,18 +192,18 @@ class PerformanceOptimizer:
             {
                 "area": "prepared_statements",
                 "description": "Use prepared statements for all queries",
-                "impact": "medium"
+                "impact": "medium",
             },
             {
                 "area": "connection_pooling",
                 "description": "Implement connection pooling with appropriate sizing",
-                "impact": "high"
+                "impact": "high",
             },
             {
                 "area": "query_caching",
                 "description": "Cache frequent queries with Redis",
-                "impact": "high"
-            }
+                "impact": "high",
+            },
         ]
 
         # Connection optimization
@@ -203,35 +211,35 @@ class PerformanceOptimizer:
             {
                 "parameter": "max_connections",
                 "recommended_value": 200,
-                "rationale": "Support concurrent API requests"
+                "rationale": "Support concurrent API requests",
             },
             {
                 "parameter": "shared_buffers",
                 "recommended_value": "25% of RAM",
-                "rationale": "Improve cache hit ratio"
+                "rationale": "Improve cache hit ratio",
             },
             {
                 "parameter": "work_mem",
                 "recommended_value": "256MB",
-                "rationale": "Support complex queries"
-            }
+                "rationale": "Support complex queries",
+            },
         ]
 
         return analysis
 
-    def _analyze_api_performance(self) -> Dict[str, Any]:
+    def _analyze_api_performance(self) -> dict[str, Any]:
         """Analyze API performance characteristics."""
         print("  🌐 Analyzing API performance...")
 
         analysis = {
             "response_time_targets": {
-                "search_code": 300,      # ms
-                "get_symbol": 100,       # ms
-                "who_calls": 500,        # ms
-                "impact_of": 1000        # ms
+                "search_code": 300,  # ms
+                "get_symbol": 100,  # ms
+                "who_calls": 500,  # ms
+                "impact_of": 1000,  # ms
             },
             "optimization_opportunities": [],
-            "caching_strategy": {}
+            "caching_strategy": {},
         }
 
         # API optimization opportunities
@@ -240,26 +248,26 @@ class PerformanceOptimizer:
                 "area": "async_processing",
                 "description": "Use async/await for I/O operations",
                 "impact": "high",
-                "implementation": "FastAPI with async endpoints"
+                "implementation": "FastAPI with async endpoints",
             },
             {
                 "area": "request_batching",
                 "description": "Support batch requests to reduce round trips",
                 "impact": "medium",
-                "implementation": "Batch API endpoints"
+                "implementation": "Batch API endpoints",
             },
             {
                 "area": "response_compression",
                 "description": "Enable gzip compression for responses",
                 "impact": "medium",
-                "implementation": "FastAPI middleware"
+                "implementation": "FastAPI middleware",
             },
             {
                 "area": "connection_keepalive",
                 "description": "Use HTTP/2 and connection keepalive",
                 "impact": "medium",
-                "implementation": "Uvicorn HTTP/2 support"
-            }
+                "implementation": "Uvicorn HTTP/2 support",
+            },
         ]
 
         # Caching strategy
@@ -269,119 +277,126 @@ class PerformanceOptimizer:
                     "level": "application",
                     "description": "In-memory LRU cache for frequent queries",
                     "ttl": 300,  # 5 minutes
-                    "size": "100MB"
+                    "size": "100MB",
                 },
                 {
                     "level": "redis",
                     "description": "Distributed cache for parsed results",
                     "ttl": 3600,  # 1 hour
-                    "size": "1GB"
+                    "size": "1GB",
                 },
                 {
                     "level": "database",
                     "description": "Materialized views for complex queries",
-                    "refresh": "hourly"
-                }
+                    "refresh": "hourly",
+                },
             ]
         }
 
         return analysis
 
-    def _generate_recommendations(self, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _generate_recommendations(
+        self, analysis: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Generate prioritized optimization recommendations."""
         print("  💡 Generating optimization recommendations...")
 
         recommendations = []
 
         # High priority recommendations
-        recommendations.extend([
-            {
-                "priority": "high",
-                "area": "build_optimization",
-                "title": "Build Rust components in release mode",
-                "description": "Ensure all Rust components are built with --release flag for maximum performance",
-                "estimated_impact": "20-50% performance improvement",
-                "implementation_effort": "low",
-                "commands": [
-                    "cd src/rust",
-                    "cargo build --release --workspace"
-                ]
-            },
-            {
-                "priority": "high",
-                "area": "database_indexing",
-                "title": "Create optimized database indexes",
-                "description": "Add indexes for frequently queried columns",
-                "estimated_impact": "50-90% query speedup",
-                "implementation_effort": "low",
-                "sql": [
-                    "CREATE INDEX CONCURRENTLY idx_symbols_name ON symbols(name);",
-                    "CREATE INDEX CONCURRENTLY idx_symbols_file_path ON symbols(file_path);",
-                    "CREATE INDEX CONCURRENTLY idx_call_edges_caller ON call_edges(caller_id);",
-                    "CREATE INDEX CONCURRENTLY idx_call_edges_callee ON call_edges(callee_id);"
-                ]
-            },
-            {
-                "priority": "high",
-                "area": "api_async",
-                "title": "Implement async API endpoints",
-                "description": "Convert API endpoints to async/await for better concurrency",
-                "estimated_impact": "2-5x concurrent request handling",
-                "implementation_effort": "medium"
-            }
-        ])
+        recommendations.extend(
+            [
+                {
+                    "priority": "high",
+                    "area": "build_optimization",
+                    "title": "Build Rust components in release mode",
+                    "description": "Ensure all Rust components are built with --release flag for maximum performance",
+                    "estimated_impact": "20-50% performance improvement",
+                    "implementation_effort": "low",
+                    "commands": ["cd src/rust", "cargo build --release --workspace"],
+                },
+                {
+                    "priority": "high",
+                    "area": "database_indexing",
+                    "title": "Create optimized database indexes",
+                    "description": "Add indexes for frequently queried columns",
+                    "estimated_impact": "50-90% query speedup",
+                    "implementation_effort": "low",
+                    "sql": [
+                        "CREATE INDEX CONCURRENTLY idx_symbols_name ON symbols(name);",
+                        "CREATE INDEX CONCURRENTLY idx_symbols_file_path ON symbols(file_path);",
+                        "CREATE INDEX CONCURRENTLY idx_call_edges_caller ON call_edges(caller_id);",
+                        "CREATE INDEX CONCURRENTLY idx_call_edges_callee ON call_edges(callee_id);",
+                    ],
+                },
+                {
+                    "priority": "high",
+                    "area": "api_async",
+                    "title": "Implement async API endpoints",
+                    "description": "Convert API endpoints to async/await for better concurrency",
+                    "estimated_impact": "2-5x concurrent request handling",
+                    "implementation_effort": "medium",
+                },
+            ]
+        )
 
         # Medium priority recommendations
-        recommendations.extend([
-            {
-                "priority": "medium",
-                "area": "caching",
-                "title": "Implement multi-level caching",
-                "description": "Add Redis caching for frequent queries",
-                "estimated_impact": "30-70% response time improvement",
-                "implementation_effort": "medium"
-            },
-            {
-                "priority": "medium",
-                "area": "parallel_processing",
-                "title": "Parallelize file processing",
-                "description": "Use rayon for parallel parsing of multiple files",
-                "estimated_impact": "2-4x parsing speedup on multi-core systems",
-                "implementation_effort": "medium"
-            },
-            {
-                "priority": "medium",
-                "area": "connection_pooling",
-                "title": "Optimize database connection pooling",
-                "description": "Fine-tune connection pool parameters",
-                "estimated_impact": "20-40% database query speedup",
-                "implementation_effort": "low"
-            }
-        ])
+        recommendations.extend(
+            [
+                {
+                    "priority": "medium",
+                    "area": "caching",
+                    "title": "Implement multi-level caching",
+                    "description": "Add Redis caching for frequent queries",
+                    "estimated_impact": "30-70% response time improvement",
+                    "implementation_effort": "medium",
+                },
+                {
+                    "priority": "medium",
+                    "area": "parallel_processing",
+                    "title": "Parallelize file processing",
+                    "description": "Use rayon for parallel parsing of multiple files",
+                    "estimated_impact": "2-4x parsing speedup on multi-core systems",
+                    "implementation_effort": "medium",
+                },
+                {
+                    "priority": "medium",
+                    "area": "connection_pooling",
+                    "title": "Optimize database connection pooling",
+                    "description": "Fine-tune connection pool parameters",
+                    "estimated_impact": "20-40% database query speedup",
+                    "implementation_effort": "low",
+                },
+            ]
+        )
 
         # Low priority recommendations
-        recommendations.extend([
-            {
-                "priority": "low",
-                "area": "memory_optimization",
-                "title": "Implement streaming parsing",
-                "description": "Process large files in chunks to reduce memory usage",
-                "estimated_impact": "Reduced memory usage, handle larger files",
-                "implementation_effort": "high"
-            },
-            {
-                "priority": "low",
-                "area": "compression",
-                "title": "Enable response compression",
-                "description": "Add gzip compression for API responses",
-                "estimated_impact": "Reduced network transfer time",
-                "implementation_effort": "low"
-            }
-        ])
+        recommendations.extend(
+            [
+                {
+                    "priority": "low",
+                    "area": "memory_optimization",
+                    "title": "Implement streaming parsing",
+                    "description": "Process large files in chunks to reduce memory usage",
+                    "estimated_impact": "Reduced memory usage, handle larger files",
+                    "implementation_effort": "high",
+                },
+                {
+                    "priority": "low",
+                    "area": "compression",
+                    "title": "Enable response compression",
+                    "description": "Add gzip compression for API responses",
+                    "estimated_impact": "Reduced network transfer time",
+                    "implementation_effort": "low",
+                },
+            ]
+        )
 
         return recommendations
 
-    def implement_optimizations(self, priorities: List[str] = None) -> Dict[str, Any]:
+    def implement_optimizations(
+        self, priorities: list[str] | None = None
+    ) -> dict[str, Any]:
         """Implement selected optimizations.
 
         Args:
@@ -395,11 +410,7 @@ class PerformanceOptimizer:
         if not self.results:
             self.analyze_current_performance()
 
-        implementation_results = {
-            "implemented": [],
-            "failed": [],
-            "skipped": []
-        }
+        implementation_results = {"implemented": [], "failed": [], "skipped": []}
 
         for recommendation in self.results["recommendations"]:
             if recommendation["priority"] not in priorities:
@@ -409,18 +420,22 @@ class PerformanceOptimizer:
             try:
                 success = self._implement_recommendation(recommendation)
                 if success:
-                    implementation_results["implemented"].append(recommendation["title"])
+                    implementation_results["implemented"].append(
+                        recommendation["title"]
+                    )
                     print(f"  ✅ {recommendation['title']}")
                 else:
                     implementation_results["failed"].append(recommendation["title"])
                     print(f"  ❌ {recommendation['title']}")
             except Exception as e:
-                implementation_results["failed"].append(f"{recommendation['title']}: {str(e)}")
-                print(f"  ❌ {recommendation['title']}: {str(e)}")
+                implementation_results["failed"].append(
+                    f"{recommendation['title']}: {e!s}"
+                )
+                print(f"  ❌ {recommendation['title']}: {e!s}")
 
         return implementation_results
 
-    def _implement_recommendation(self, recommendation: Dict[str, Any]) -> bool:
+    def _implement_recommendation(self, recommendation: dict[str, Any]) -> bool:
         """Implement a specific recommendation.
 
         Args:
@@ -441,7 +456,7 @@ class PerformanceOptimizer:
             print(f"    ⚠️ Implementation not available for {area}")
             return False
 
-    def _implement_build_optimization(self, recommendation: Dict[str, Any]) -> bool:
+    def _implement_build_optimization(self, recommendation: dict[str, Any]) -> bool:
         """Implement Rust build optimizations."""
         rust_dir = self.kcs_root / "src" / "rust"
         if not rust_dir.exists():
@@ -454,13 +469,13 @@ class PerformanceOptimizer:
                 cwd=rust_dir,
                 capture_output=True,
                 text=True,
-                timeout=300
+                timeout=300,
             )
             return result.returncode == 0
         except Exception:
             return False
 
-    def _implement_database_indexing(self, recommendation: Dict[str, Any]) -> bool:
+    def _implement_database_indexing(self, recommendation: dict[str, Any]) -> bool:
         """Implement database indexing optimizations."""
         # For now, just create the SQL file
         sql_dir = self.kcs_root / "src" / "sql" / "optimizations"
@@ -495,7 +510,7 @@ ANALYZE entry_points;
         print(f"    📝 Created optimization SQL at {sql_file}")
         return True
 
-    def _implement_api_async(self, recommendation: Dict[str, Any]) -> bool:
+    def _implement_api_async(self, recommendation: dict[str, Any]) -> bool:
         """Implement async API optimizations."""
         # Create async optimization recommendations file
         docs_dir = self.kcs_root / "docs"
@@ -585,7 +600,7 @@ pytest -v tests/test_async_api.py
 
         report = f"""# KCS Performance Optimization Report
 
-Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}
+Generated: {time.strftime("%Y-%m-%d %H:%M:%S")}
 
 ## Executive Summary
 
@@ -594,24 +609,24 @@ KCS performance analysis shows strong baseline performance with opportunities fo
 ## Constitutional Compliance
 
 ### Index Time Target: ≤20 minutes
-- **Current**: {self.results['constitutional_compliance']['index_time']['estimated_seconds']:.1f} seconds
-- **Status**: {'✅ COMPLIANT' if self.results['constitutional_compliance']['index_time']['compliant'] else '❌ NON-COMPLIANT'}
-- **Margin**: {self.results['constitutional_compliance']['index_time']['margin']:.1f} seconds
+- **Current**: {self.results["constitutional_compliance"]["index_time"]["estimated_seconds"]:.1f} seconds
+- **Status**: {"✅ COMPLIANT" if self.results["constitutional_compliance"]["index_time"]["compliant"] else "❌ NON-COMPLIANT"}
+- **Margin**: {self.results["constitutional_compliance"]["index_time"]["margin"]:.1f} seconds
 
 ### Query Performance Target: p95 ≤600ms
-- **Current**: {self.results['constitutional_compliance']['query_performance']['estimated_p95_ms']}ms
-- **Status**: {'✅ COMPLIANT' if self.results['constitutional_compliance']['query_performance']['compliant'] else '❌ NON-COMPLIANT'}
-- **Margin**: {self.results['constitutional_compliance']['query_performance']['margin']}ms
+- **Current**: {self.results["constitutional_compliance"]["query_performance"]["estimated_p95_ms"]}ms
+- **Status**: {"✅ COMPLIANT" if self.results["constitutional_compliance"]["query_performance"]["compliant"] else "❌ NON-COMPLIANT"}
+- **Margin**: {self.results["constitutional_compliance"]["query_performance"]["margin"]}ms
 
 ### Graph Size Target: ≤20GB
-- **Current**: {self.results['constitutional_compliance']['graph_size']['estimated_gb']:.1f}GB
-- **Status**: {'✅ COMPLIANT' if self.results['constitutional_compliance']['graph_size']['compliant'] else '❌ NON-COMPLIANT'}
-- **Margin**: {self.results['constitutional_compliance']['graph_size']['margin']:.1f}GB
+- **Current**: {self.results["constitutional_compliance"]["graph_size"]["estimated_gb"]:.1f}GB
+- **Status**: {"✅ COMPLIANT" if self.results["constitutional_compliance"]["graph_size"]["compliant"] else "❌ NON-COMPLIANT"}
+- **Margin**: {self.results["constitutional_compliance"]["graph_size"]["margin"]:.1f}GB
 
 ## Current Performance
 
 ### Parser Performance
-- **Files/second**: {self.results['analysis']['parser']['current_performance']['files_per_second']:,}
+- **Files/second**: {self.results["analysis"]["parser"]["current_performance"]["files_per_second"]:,}
 - **Status**: Excellent - exceeds targets
 
 ### Key Metrics from System Test
@@ -625,25 +640,29 @@ KCS performance analysis shows strong baseline performance with opportunities fo
 ### High Priority (Implement First)
 """
 
-        high_priority = [r for r in self.results["recommendations"] if r["priority"] == "high"]
+        high_priority = [
+            r for r in self.results["recommendations"] if r["priority"] == "high"
+        ]
         for i, rec in enumerate(high_priority, 1):
             report += f"""
-{i}. **{rec['title']}**
-   - Impact: {rec['estimated_impact']}
-   - Effort: {rec['implementation_effort']}
-   - Description: {rec['description']}
+{i}. **{rec["title"]}**
+   - Impact: {rec["estimated_impact"]}
+   - Effort: {rec["implementation_effort"]}
+   - Description: {rec["description"]}
 """
 
         report += """
 ### Medium Priority (Implement Next)
 """
 
-        medium_priority = [r for r in self.results["recommendations"] if r["priority"] == "medium"]
+        medium_priority = [
+            r for r in self.results["recommendations"] if r["priority"] == "medium"
+        ]
         for i, rec in enumerate(medium_priority, 1):
             report += f"""
-{i}. **{rec['title']}**
-   - Impact: {rec['estimated_impact']}
-   - Effort: {rec['implementation_effort']}
+{i}. **{rec["title"]}**
+   - Impact: {rec["estimated_impact"]}
+   - Effort: {rec["implementation_effort"]}
 """
 
         report += """
@@ -695,10 +714,18 @@ Key metrics to monitor post-optimization:
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(description="KCS Performance Optimization Tool")
-    parser.add_argument("--analyze", action="store_true", help="Analyze current performance")
-    parser.add_argument("--implement", nargs="*", choices=["high", "medium", "low"],
-                       help="Implement optimizations by priority")
-    parser.add_argument("--report", action="store_true", help="Generate optimization report")
+    parser.add_argument(
+        "--analyze", action="store_true", help="Analyze current performance"
+    )
+    parser.add_argument(
+        "--implement",
+        nargs="*",
+        choices=["high", "medium", "low"],
+        help="Implement optimizations by priority",
+    )
+    parser.add_argument(
+        "--report", action="store_true", help="Generate optimization report"
+    )
     parser.add_argument("--output", help="Output file for report")
 
     args = parser.parse_args()
@@ -721,14 +748,14 @@ def main():
         print(f"🚀 Implementing optimizations for: {args.implement}")
         implementation_results = optimizer.implement_optimizations(args.implement)
 
-        print(f"\n📈 Implementation Results:")
+        print("\n📈 Implementation Results:")
         print(f"  ✅ Implemented: {len(implementation_results['implemented'])}")
         print(f"  ❌ Failed: {len(implementation_results['failed'])}")
         print(f"  ⏭️ Skipped: {len(implementation_results['skipped'])}")
 
-        if implementation_results['failed']:
-            print(f"\n❌ Failed implementations:")
-            for failure in implementation_results['failed']:
+        if implementation_results["failed"]:
+            print("\n❌ Failed implementations:")
+            for failure in implementation_results["failed"]:
                 print(f"  - {failure}")
 
     if args.report:
