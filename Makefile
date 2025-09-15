@@ -264,20 +264,21 @@ docker-run: ## Run Docker container
 create-data-dirs: ## Create data directories for host bind mounts
 	@echo "$(BLUE)Creating data directories...$(NC)"
 	@if [ -f ".env" ]; then \
-		source .env && \
-		mkdir -p "$${POSTGRES_DATA_DIR:-./data/postgres}" && \
-		mkdir -p "$${REDIS_DATA_DIR:-./data/redis}" && \
-		mkdir -p "$${GRAFANA_DATA_DIR:-./data/grafana}" && \
-		mkdir -p "$${PROMETHEUS_DATA_DIR:-./data/prometheus}" && \
-		mkdir -p "$${KCS_INDEX_DATA_DIR:-./data/kcs-index}" && \
-		mkdir -p "$${KCS_CACHE_DIR:-./data/cache}" && \
-		mkdir -p "$${KCS_LOG_DIR:-./data/logs}" && \
-		mkdir -p "$${POSTGRES_LOG_DIR:-./data/logs/postgres}" && \
-		mkdir -p "$${REDIS_LOG_DIR:-./data/logs/redis}" && \
-		echo "$(GREEN)✅ Data directories created$(NC)"; \
+		bash -c 'set -a; source .env; set +a; \
+		mkdir -p "$${POSTGRES_DATA_DIR:-./data/postgres/data}" && \
+		mkdir -p "$${REDIS_DATA_DIR:-./data/redis/data}" && \
+		mkdir -p "$${GRAFANA_DATA_DIR:-./data/grafana/data}" && \
+		mkdir -p "$${PROMETHEUS_DATA_DIR:-./data/prometheus/data}" && \
+		mkdir -p "$${KCS_INDEX_DATA_DIR:-./data/kcs/index}" && \
+		mkdir -p "$${KCS_CACHE_DIR:-./data/kcs/cache}" && \
+		mkdir -p "$${KCS_LOG_DIR:-./data/kcs/log}" && \
+		mkdir -p "$${POSTGRES_LOG_DIR:-./data/kcs/log/postgres}" && \
+		mkdir -p "$${REDIS_LOG_DIR:-./data/kcs/log/redis}" && \
+		echo "$(GREEN)✅ Data directories created$(NC)"'; \
 	else \
-		mkdir -p ./data/{postgres,redis,grafana,prometheus,kcs-index,cache} && \
-		mkdir -p ./data/logs/{postgres,redis} && \
+		mkdir -p ./data/postgres/data ./data/redis/data ./data/grafana/data ./data/prometheus/data && \
+		mkdir -p ./data/kcs/{index,cache,log} && \
+		mkdir -p ./data/kcs/log/{postgres,redis} && \
 		echo "$(GREEN)✅ Default data directories created$(NC)"; \
 	fi
 
@@ -347,8 +348,7 @@ clean-data: ## Clean all persistent data (WARNING: This will delete all database
 	@docker compose down
 	@echo "$(BLUE)Removing data directories...$(NC)"
 	@if [ -f ".env" ]; then \
-		source .env && \
-		rm -rf "$${KCS_DATA_DIR:-./data}"; \
+		bash -c 'set -a; source .env; set +a; rm -rf "$${KCS_DATA_DIR:-./data}"'; \
 	else \
 		rm -rf ./data; \
 	fi
@@ -359,9 +359,7 @@ backup-data: ## Create backup of all persistent data
 	@BACKUP_DIR="backups/backup-$$(date +%Y%m%d-%H%M%S)" && \
 	mkdir -p "$$BACKUP_DIR" && \
 	if [ -f ".env" ]; then \
-		source .env && \
-		cp -r "$${KCS_DATA_DIR:-./data}" "$$BACKUP_DIR/" && \
-		cp .env "$$BACKUP_DIR/"; \
+		bash -c 'set -a; source .env; set +a; cp -r "$${KCS_DATA_DIR:-./data}" "'$$BACKUP_DIR'/" && cp .env "'$$BACKUP_DIR'/"'; \
 	else \
 		cp -r ./data "$$BACKUP_DIR/" 2>/dev/null || echo "No data directory found"; \
 	fi && \
@@ -379,9 +377,7 @@ restore-data: ## Restore data from backup (provide BACKUP_PATH=path/to/backup)
 	@echo "$(BLUE)Restoring data from $(BACKUP_PATH)...$(NC)"
 	@docker compose down
 	@if [ -f ".env" ]; then \
-		source .env && \
-		rm -rf "$${KCS_DATA_DIR:-./data}" && \
-		cp -r "$(BACKUP_PATH)/data" "$${KCS_DATA_DIR:-./data}"; \
+		bash -c 'set -a; source .env; set +a; rm -rf "$${KCS_DATA_DIR:-./data}" && cp -r "$(BACKUP_PATH)/data" "$${KCS_DATA_DIR:-./data}"'; \
 	else \
 		rm -rf ./data && \
 		cp -r "$(BACKUP_PATH)/data" ./data; \
@@ -542,12 +538,12 @@ validate-env: ## Validate environment configuration
 	fi
 	@echo "$(BLUE)Checking environment variables...$(NC)"
 	@if [ -f ".env" ]; then \
-		source .env && \
+		bash -c 'set -a; source .env; set +a; \
 		echo "Database: $${DATABASE_URL:-Not set}" && \
-		echo "JWT Secret: $${JWT_SECRET:0:10}... (${#JWT_SECRET} chars)" && \
+		echo "JWT Secret: $${JWT_SECRET:0:10}... ($${#JWT_SECRET} chars)" && \
 		echo "Log Level: $${LOG_LEVEL:-INFO}" && \
 		echo "Workers: $${KCS_WORKERS:-4}" && \
-		echo "Port: $${KCS_EXTERNAL_PORT:-8080}"; \
+		echo "Port: $${KCS_EXTERNAL_PORT:-8080}"'; \
 	fi
 	@echo "$(BLUE)Testing docker-compose configuration...$(NC)"
 	@docker compose config >/dev/null 2>&1 && \
