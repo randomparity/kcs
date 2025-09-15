@@ -11,7 +11,7 @@ be properly configured and coordinated.
 ```text
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Load Balancer │    │   KCS MCP API   │    │   PostgreSQL    │
-│   (nginx/HAProxy)│◄──►│   (Python)      │◄──►│   + pgvector    │
+│  (nginx/HAProxy)│◄──►│   (Python)      │◄──►│   + pgvector    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
                         ┌─────────────────┐
