@@ -6,7 +6,7 @@ for kernel analysis data access.
 """
 
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any
 
 import asyncpg
 import structlog
@@ -22,7 +22,7 @@ class Database:
 
     def __init__(self, database_url: str):
         self.database_url = database_url
-        self.pool: Optional[asyncpg.Pool] = None
+        self.pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
         """Establish database connection pool."""
@@ -47,7 +47,7 @@ class Database:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=ErrorResponse(
                     error="database_connection_failed",
-                    message=f"Failed to connect to database: {str(e)}",
+                    message=f"Failed to connect to database: {e!s}",
                 ).dict(),
             )
 
@@ -73,7 +73,7 @@ class Database:
             yield conn
 
     async def search_code_semantic(
-        self, query: str, top_k: int = 10, config: Optional[str] = None
+        self, query: str, top_k: int = 10, config: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Search code using semantic similarity.
@@ -120,8 +120,8 @@ class Database:
             ]
 
     async def get_symbol_info(
-        self, symbol_name: str, config: Optional[str] = None
-    ) -> Optional[dict[str, Any]]:
+        self, symbol_name: str, config: str | None = None
+    ) -> dict[str, Any] | None:
         """
         Get detailed symbol information.
 
@@ -166,7 +166,7 @@ class Database:
             }
 
     async def find_callers(
-        self, symbol_name: str, depth: int = 1, config: Optional[str] = None
+        self, symbol_name: str, depth: int = 1, config: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Find functions that call the specified symbol.
@@ -216,7 +216,7 @@ class Database:
             ]
 
     async def find_callees(
-        self, symbol_name: str, depth: int = 1, config: Optional[str] = None
+        self, symbol_name: str, depth: int = 1, config: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Find functions called by the specified symbol.
@@ -264,7 +264,7 @@ class Database:
 
 
 # Global database instance
-_database: Optional[Database] = None
+_database: Database | None = None
 
 
 async def get_database() -> Database:
@@ -280,7 +280,7 @@ class MockDatabase:
     """Mock database for testing without PostgreSQL."""
 
     async def search_code_semantic(
-        self, query: str, top_k: int = 10, config: Optional[str] = None
+        self, query: str, top_k: int = 10, config: str | None = None
     ) -> list[dict[str, Any]]:
         """Mock semantic search."""
         if query.lower() == "nonexistent_function_12345_abcde":
@@ -298,8 +298,8 @@ class MockDatabase:
         ]
 
     async def get_symbol_info(
-        self, symbol_name: str, config: Optional[str] = None
-    ) -> Optional[dict[str, Any]]:
+        self, symbol_name: str, config: str | None = None
+    ) -> dict[str, Any] | None:
         """Mock symbol lookup."""
         if (
             symbol_name.startswith("nonexistent_")
@@ -320,7 +320,7 @@ class MockDatabase:
         }
 
     async def find_callers(
-        self, symbol_name: str, depth: int = 1, config: Optional[str] = None
+        self, symbol_name: str, depth: int = 1, config: str | None = None
     ) -> list[dict[str, Any]]:
         """Mock caller analysis."""
         if symbol_name.startswith("nonexistent_"):
@@ -343,7 +343,7 @@ class MockDatabase:
         ]
 
     async def find_callees(
-        self, symbol_name: str, depth: int = 1, config: Optional[str] = None
+        self, symbol_name: str, depth: int = 1, config: str | None = None
     ) -> list[dict[str, Any]]:
         """Mock dependency analysis."""
         if symbol_name.startswith("nonexistent_"):

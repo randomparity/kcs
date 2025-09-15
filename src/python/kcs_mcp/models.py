@@ -4,7 +4,8 @@ Pydantic models for KCS MCP API.
 Defines request/response schemas matching the OpenAPI specification.
 """
 
-from typing import Any, Optional
+import typing
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -21,7 +22,7 @@ class Span(BaseModel):
     end: int = Field(..., description="Ending line number", gt=0)
 
     class Config:
-        json_schema_extra = {
+        json_schema_extra: typing.ClassVar[dict[str, typing.Any]] = {
             "example": {
                 "path": "fs/read_write.c",
                 "sha": "a1b2c3d4e5f6789012345678901234567890abcd",
@@ -35,7 +36,7 @@ class Citation(BaseModel):
     """Citation with optional context."""
 
     span: Span
-    context: Optional[str] = Field(None, description="Optional context around citation")
+    context: str | None = Field(None, description="Optional context around citation")
 
 
 # Tool request/response models
@@ -43,9 +44,7 @@ class SearchCodeRequest(BaseModel):
     """Request for code search."""
 
     query: str = Field(..., description="Search query", min_length=1)
-    topK: Optional[int] = Field(
-        10, description="Maximum results to return", ge=1, le=100
-    )
+    top_k: int | None = Field(10, description="Maximum results to return", ge=1, le=100)
 
 
 class SearchHit(BaseModel):
@@ -53,7 +52,7 @@ class SearchHit(BaseModel):
 
     span: Span
     snippet: str = Field(..., description="Code snippet with match highlighted")
-    score: Optional[float] = Field(None, description="Relevance score")
+    score: float | None = Field(None, description="Relevance score")
 
 
 class SearchCodeResponse(BaseModel):
@@ -78,7 +77,7 @@ class SymbolInfo(BaseModel):
         pattern="^(function|struct|variable|macro|typedef)$",
     )
     decl: Span = Field(..., description="Declaration location")
-    summary: Optional[dict[str, Any]] = Field(
+    summary: dict[str, Any] | None = Field(
         None, description="Optional AI-generated summary"
     )
 
@@ -87,7 +86,7 @@ class WhoCallsRequest(BaseModel):
     """Request for caller analysis."""
 
     symbol: str = Field(..., description="Symbol name", min_length=1)
-    depth: Optional[int] = Field(1, description="Call graph depth", ge=1, le=10)
+    depth: int | None = Field(1, description="Call graph depth", ge=1, le=10)
 
 
 class CallerInfo(BaseModel):
@@ -95,7 +94,7 @@ class CallerInfo(BaseModel):
 
     symbol: str
     span: Span
-    call_type: Optional[str] = Field(None, pattern="^(direct|indirect|macro|inline)$")
+    call_type: str | None = Field(None, pattern="^(direct|indirect|macro|inline)$")
 
 
 class WhoCallsResponse(BaseModel):
@@ -108,7 +107,7 @@ class ListDependenciesRequest(BaseModel):
     """Request for dependency analysis."""
 
     symbol: str = Field(..., description="Symbol name", min_length=1)
-    depth: Optional[int] = Field(1, description="Dependency depth", ge=1, le=10)
+    depth: int | None = Field(1, description="Dependency depth", ge=1, le=10)
 
 
 class ListDependenciesResponse(BaseModel):
@@ -141,10 +140,10 @@ class EntrypointFlowResponse(BaseModel):
 class ImpactOfRequest(BaseModel):
     """Request for impact analysis."""
 
-    diff: Optional[str] = Field(None, description="Git diff content")
-    files: Optional[list[str]] = Field(None, description="Files to analyze")
-    symbols: Optional[list[str]] = Field(None, description="Symbols to analyze")
-    config: Optional[str] = Field(None, description="Configuration context")
+    diff: str | None = Field(None, description="Git diff content")
+    files: list[str] | None = Field(None, description="Files to analyze")
+    symbols: list[str] | None = Field(None, description="Symbols to analyze")
+    config: str | None = Field(None, description="Configuration context")
 
 
 class ImpactResult(BaseModel):
@@ -162,9 +161,7 @@ class SearchDocsRequest(BaseModel):
     """Request for documentation search."""
 
     query: str = Field(..., description="Search query", min_length=1)
-    corpus: Optional[list[str]] = Field(
-        None, description="Document collections to search"
-    )
+    corpus: list[str] | None = Field(None, description="Document collections to search")
 
 
 class DocHit(BaseModel):
@@ -172,7 +169,7 @@ class DocHit(BaseModel):
 
     source: str = Field(..., description="Document source")
     anchor: str = Field(..., description="Section/anchor")
-    span: Optional[Span] = Field(None, description="File location if applicable")
+    span: Span | None = Field(None, description="File location if applicable")
 
 
 class SearchDocsResponse(BaseModel):
@@ -196,7 +193,7 @@ class DriftMismatch(BaseModel):
         pattern="^(missing_abi_doc|kconfig_mismatch|test_missing|contract_violation)$",
     )
     detail: str = Field(..., description="Detailed description")
-    span: Optional[Span] = Field(None, description="Related code location")
+    span: Span | None = Field(None, description="Related code location")
 
 
 class DiffSpecVsCodeResponse(BaseModel):
@@ -208,8 +205,8 @@ class DiffSpecVsCodeResponse(BaseModel):
 class OwnersForRequest(BaseModel):
     """Request for maintainer information."""
 
-    paths: Optional[list[str]] = Field(None, description="File paths")
-    symbols: Optional[list[str]] = Field(None, description="Symbol names")
+    paths: list[str] | None = Field(None, description="File paths")
+    symbols: list[str] | None = Field(None, description="Symbol names")
 
 
 class MaintainerInfo(BaseModel):
@@ -234,7 +231,7 @@ class ErrorResponse(BaseModel):
     message: str = Field(..., description="Human-readable error message")
 
     class Config:
-        json_schema_extra = {
+        json_schema_extra: typing.ClassVar[dict[str, typing.Any]] = {
             "example": {
                 "error": "symbol_not_found",
                 "message": "Symbol 'nonexistent_func' not found in any configuration",
@@ -255,4 +252,4 @@ class HealthResponse(BaseModel):
 
     status: str = Field(..., pattern="^healthy$")
     version: str
-    indexed_at: Optional[str] = Field(None, description="Last index timestamp")
+    indexed_at: str | None = Field(None, description="Last index timestamp")

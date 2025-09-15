@@ -103,7 +103,7 @@ async def search_code(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                error="search_failed", message=f"Search failed: {str(e)}"
+                error="search_failed", message=f"Search failed: {e!s}"
             ).dict(),
         )
 
@@ -197,7 +197,7 @@ async def get_symbol(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                error="symbol_lookup_failed", message=f"Symbol lookup failed: {str(e)}"
+                error="symbol_lookup_failed", message=f"Symbol lookup failed: {e!s}"
             ).dict(),
         )
 
@@ -248,7 +248,7 @@ async def who_calls(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="caller_analysis_failed",
-                message=f"Caller analysis failed: {str(e)}",
+                message=f"Caller analysis failed: {e!s}",
             ).dict(),
         )
 
@@ -296,7 +296,7 @@ async def list_dependencies(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="dependency_analysis_failed",
-                message=f"Dependency analysis failed: {str(e)}",
+                message=f"Dependency analysis failed: {e!s}",
             ).dict(),
         )
 
@@ -360,7 +360,7 @@ async def entrypoint_flow(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                error="flow_analysis_failed", message=f"Flow analysis failed: {str(e)}"
+                error="flow_analysis_failed", message=f"Flow analysis failed: {e!s}"
             ).dict(),
         )
 
@@ -439,7 +439,7 @@ async def impact_of(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="impact_analysis_failed",
-                message=f"Impact analysis failed: {str(e)}",
+                message=f"Impact analysis failed: {e!s}",
             ).dict(),
         )
 
@@ -503,6 +503,6 @@ async def owners_for(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
-                error="owner_lookup_failed", message=f"Owner lookup failed: {str(e)}"
+                error="owner_lookup_failed", message=f"Owner lookup failed: {e!s}"
             ).dict(),
         )

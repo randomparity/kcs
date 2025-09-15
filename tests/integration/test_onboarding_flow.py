@@ -306,7 +306,7 @@ class TestOnboardingFlow:
                 symbol_data = symbol_response.json()
 
                 # Should have summary with concurrency info if available
-                if "summary" in symbol_data and symbol_data["summary"]:
+                if symbol_data.get("summary"):
                     summary = symbol_data["summary"]
                     if "concurrency" in summary:
                         concurrency = summary["concurrency"]

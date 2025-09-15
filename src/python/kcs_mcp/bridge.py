@@ -6,7 +6,7 @@ using the compiled PyO3 extension module.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 try:
     import kcs_python_bridge
@@ -52,7 +52,7 @@ class RustParser:
                 logger.info("Rust parser initialized successfully", config=self.config)
             except Exception as e:
                 logger.error("Failed to initialize Rust parser", error=str(e))
-                raise RuntimeError(f"Rust parser initialization failed: {e}")
+                raise RuntimeError(f"Rust parser initialization failed: {e}") from e
         else:
             self.parser = None
             logger.warning("Using fallback implementation (Rust bridge not available)")
@@ -313,7 +313,7 @@ class RustParser:
             "errors": ["Fallback kernel tree parsing not implemented"],
         }
 
-    def _extract_function_name(self, line: str) -> Optional[str]:
+    def _extract_function_name(self, line: str) -> str | None:
         """Extract function name from function definition line."""
         try:
             if "(" in line:
@@ -325,7 +325,7 @@ class RustParser:
             pass
         return None
 
-    def _extract_struct_name(self, line: str) -> Optional[str]:
+    def _extract_struct_name(self, line: str) -> str | None:
         """Extract struct name from struct definition line."""
         try:
             parts = line.split()
@@ -337,7 +337,7 @@ class RustParser:
 
 
 # Global parser instance for the application
-_rust_parser: Optional[RustParser] = None
+_rust_parser: RustParser | None = None
 
 
 def get_rust_parser() -> RustParser:

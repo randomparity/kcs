@@ -9,7 +9,7 @@ import logging
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -30,7 +30,7 @@ class GitHubContext:
     run_id: str
     run_number: str
     api_url: str = "https://api.github.com"
-    token: Optional[str] = None
+    token: str | None = None
 
     @classmethod
     def from_env(cls) -> "GitHubContext":
@@ -58,7 +58,7 @@ class PullRequestChange:
     additions: int
     deletions: int
     changes: int
-    patch: Optional[str] = None
+    patch: str | None = None
 
 
 @dataclass
@@ -85,7 +85,7 @@ class GitHubActionsAdapter:
         self,
         kcs_server_url: str,
         kcs_auth_token: str,
-        github_context: Optional[GitHubContext] = None,
+        github_context: GitHubContext | None = None,
     ):
         """Initialize the adapter.
 

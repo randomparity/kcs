@@ -5,7 +5,6 @@ These endpoints provide direct access to kernel data without
 requiring complex queries, supporting MCP resource protocol.
 """
 
-from typing import Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -82,7 +81,7 @@ async def get_kernel_configs(db: Database = Depends(get_database)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="config_lookup_failed",
-                message=f"Failed to retrieve kernel configs: {str(e)}",
+                message=f"Failed to retrieve kernel configs: {e!s}",
             ).dict(),
         )
 
@@ -172,15 +171,13 @@ async def get_subsystems(db: Database = Depends(get_database)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="subsystem_lookup_failed",
-                message=f"Failed to retrieve subsystems: {str(e)}",
+                message=f"Failed to retrieve subsystems: {e!s}",
             ).dict(),
         )
 
 
 @router.get("/kernel/syscalls")
-async def get_syscalls(
-    arch: Optional[str] = None, db: Database = Depends(get_database)
-):
+async def get_syscalls(arch: str | None = None, db: Database = Depends(get_database)):
     """
     Get system call definitions.
 
@@ -234,14 +231,14 @@ async def get_syscalls(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="syscall_lookup_failed",
-                message=f"Failed to retrieve syscalls: {str(e)}",
+                message=f"Failed to retrieve syscalls: {e!s}",
             ).dict(),
         )
 
 
 @router.get("/kernel/exports")
 async def get_exported_symbols(
-    module: Optional[str] = None, db: Database = Depends(get_database)
+    module: str | None = None, db: Database = Depends(get_database)
 ):
     """
     Get EXPORT_SYMBOL declarations.
@@ -286,6 +283,6 @@ async def get_exported_symbols(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="export_lookup_failed",
-                message=f"Failed to retrieve exported symbols: {str(e)}",
+                message=f"Failed to retrieve exported symbols: {e!s}",
             ).dict(),
         )

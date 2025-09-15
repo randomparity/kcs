@@ -854,9 +854,9 @@ def test_full_system_with_kernel():
                     else:
                         results_summary["failed_tests"] += 1
                         results_summary["errors"].append(
-                            f"{class_name}.{method_name}: {str(e)}"
+                            f"{class_name}.{method_name}: {e!s}"
                         )
-                        print(f"  ✗ {method_name}: {str(e)}")
+                        print(f"  ✗ {method_name}: {e!s}")
 
         # Print final summary
         print("\n" + "=" * 60)

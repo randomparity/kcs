@@ -7,7 +7,7 @@ Formats citations in consistent format for MCP protocol.
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 
 @dataclass
@@ -36,13 +36,13 @@ class Citation:
     """Citation with span and optional context."""
 
     span: Span
-    context: Optional[str] = None
+    context: str | None = None
 
 
 class CitationFormatter:
     """Formats citations for MCP protocol responses."""
 
-    def __init__(self, repo_root: Optional[str] = None):
+    def __init__(self, repo_root: str | None = None):
         """Initialize formatter.
 
         Args:
@@ -51,7 +51,7 @@ class CitationFormatter:
         self.repo_root = Path(repo_root) if repo_root else None
 
     def create_span(
-        self, file_path: Union[str, Path], start_line: int, end_line: int, sha: str
+        self, file_path: str | Path, start_line: int, end_line: int, sha: str
     ) -> Span:
         """Create a span from file location.
 
@@ -88,11 +88,11 @@ class CitationFormatter:
 
     def create_citation(
         self,
-        file_path: Union[str, Path],
+        file_path: str | Path,
         start_line: int,
         end_line: int,
         sha: str,
-        context: Optional[str] = None,
+        context: str | None = None,
     ) -> Citation:
         """Create a citation from file location.
 
@@ -137,7 +137,7 @@ class CitationFormatter:
             return f"{span_text} ({citation.context})"
         return span_text
 
-    def to_dict(self, span_or_citation: Union[Span, Citation]) -> dict[str, Any]:
+    def to_dict(self, span_or_citation: Span | Citation) -> dict[str, Any]:
         """Convert span or citation to dictionary for JSON serialization.
 
         Args:
@@ -161,7 +161,7 @@ class CitationFormatter:
         else:
             raise TypeError(f"Expected Span or Citation, got {type(span_or_citation)}")
 
-    def from_dict(self, data: dict[str, Any]) -> Union[Span, Citation]:
+    def from_dict(self, data: dict[str, Any]) -> Span | Citation:
         """Create span or citation from dictionary.
 
         Args:
@@ -296,7 +296,7 @@ class CitationFormatter:
                     )
 
             except Exception as e:
-                errors.append(f"Citation {i}: {str(e)}")
+                errors.append(f"Citation {i}: {e!s}")
 
         return errors
 
