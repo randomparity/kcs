@@ -1,5 +1,5 @@
 # Multi-stage build for KCS MCP server
-FROM rust:1.75 as rust-builder
+FROM rust:1.75 AS rust-builder
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
@@ -8,7 +8,7 @@ COPY src/rust/ src/rust/
 # Build Rust libraries
 RUN cargo build --release
 
-FROM python:3.11-slim as python-builder
+FROM python:3.11-slim AS python-builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
