@@ -274,6 +274,8 @@ docs/generated/
 docker-data/
 postgres-data/
 redis-data/
+data/
+backups/
 
 # Profiling output
 *.prof

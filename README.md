@@ -42,6 +42,9 @@ analysis with ground-truth accuracy.
    # Copy and customize environment variables
    cp .env.example .env
    # Edit .env with your preferred settings (optional for development)
+
+   # Create data directories for persistent storage
+   make create-data-dirs
    ```
 
 2. **Start Infrastructure**
@@ -382,6 +385,55 @@ POSTGRES_MEMORY_LIMIT=4g
 KCS_MEMORY_LIMIT=2g
 ```
 
+### Data Persistence
+
+KCS uses host bind mounts for data persistence, ensuring your data survives container restarts and updates.
+
+#### Data Directory Structure
+
+```
+./data/                          # Base data directory
+├── postgres/                    # PostgreSQL database files
+├── redis/                       # Redis persistence files
+├── grafana/                     # Grafana dashboards and settings
+├── prometheus/                  # Prometheus metrics data
+├── kcs-index/                   # Kernel index and analysis data
+├── cache/                       # Application cache
+└── logs/                        # Service logs
+    ├── postgres/
+    └── redis/
+```
+
+#### Data Management Commands
+
+```bash
+# Create data directories
+make create-data-dirs
+
+# Backup all data
+make backup-data
+
+# Clean all data (WARNING: destructive!)
+make clean-data
+
+# Restore from backup
+make restore-data BACKUP_PATH=backups/backup-20241215-143022
+```
+
+#### Customizing Data Locations
+
+Edit your `.env` file to change data locations:
+
+```bash
+# Custom data directory
+KCS_DATA_DIR=/var/lib/kcs
+
+# Individual service directories
+POSTGRES_DATA_DIR=/data/postgresql
+REDIS_DATA_DIR=/data/redis
+KCS_INDEX_DATA_DIR=/data/kcs-indexes
+```
+
 ### Kernel Configurations
 
 KCS supports multiple kernel configurations simultaneously:
@@ -455,6 +507,27 @@ docker compose config | grep -A 5 -B 5 DATABASE_URL
 
 # Validate environment file
 make validate-env  # (if available)
+```
+
+#### Data Persistence Issues
+
+```bash
+# Check data directory permissions
+ls -la data/
+
+# Fix ownership issues (run as your user)
+sudo chown -R $USER:$USER data/
+
+# Check disk space
+df -h data/
+
+# Verify bind mounts are working
+docker compose exec postgres ls -la /var/lib/postgresql/data/
+docker compose exec redis ls -la /data/
+
+# Reset data if corrupted
+make clean-data  # WARNING: destructive!
+make create-data-dirs
 ```
 
 #### Environment Variable Issues

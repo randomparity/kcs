@@ -9,7 +9,8 @@ services:
     ports:
       - "${POSTGRES_EXTERNAL_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_DIR:-./data/postgres}:/var/lib/postgresql/data
+      - ${POSTGRES_LOG_DIR:-./data/logs/postgres}:/var/log/postgresql
       - ./src/sql/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kcs} -d ${POSTGRES_DB:-kcs}"]
@@ -29,7 +30,8 @@ services:
     ports:
       - "${REDIS_EXTERNAL_PORT:-6379}:6379"
     volumes:
-      - redis_data:/data
+      - ${REDIS_DATA_DIR:-./data/redis}:/data
+      - ${REDIS_LOG_DIR:-./data/logs/redis}:/var/log/redis
     command: >
       redis-server
       --appendonly yes
@@ -89,6 +91,10 @@ services:
       # Optional integrations
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - ${KCS_INDEX_DATA_DIR:-./data/kcs-index}:/app/data
+      - ${KCS_CACHE_DIR:-./data/cache}:/app/cache
+      - ${KCS_LOG_DIR:-./data/logs}:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -112,7 +118,7 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin_change_in_production}
     volumes:
-      - grafana_data:/var/lib/grafana
+      - ${GRAFANA_DATA_DIR:-./data/grafana}:/var/lib/grafana
       - ./tools/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./tools/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     networks:
@@ -126,7 +132,7 @@ services:
       - "${PROMETHEUS_EXTERNAL_PORT:-9090}:9090"
     volumes:
       - ./tools/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+      - ${PROMETHEUS_DATA_DIR:-./data/prometheus}:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -138,12 +144,6 @@ services:
       - kcs-network
     profiles:
       - monitoring
-
-volumes:
-  postgres_data:
-  redis_data:
-  grafana_data:
-  prometheus_data:
 
 networks:
   kcs-network:

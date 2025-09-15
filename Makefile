@@ -261,17 +261,37 @@ docker-run: ## Run Docker container
 	@echo "$(BLUE)Running Docker container...$(NC)"
 	@docker run -p 8080:8080 --env-file .env kcs:latest
 
-docker-compose-up: ## Start infrastructure services (PostgreSQL, Redis)
+create-data-dirs: ## Create data directories for host bind mounts
+	@echo "$(BLUE)Creating data directories...$(NC)"
+	@if [ -f ".env" ]; then \
+		source .env && \
+		mkdir -p "$${POSTGRES_DATA_DIR:-./data/postgres}" && \
+		mkdir -p "$${REDIS_DATA_DIR:-./data/redis}" && \
+		mkdir -p "$${GRAFANA_DATA_DIR:-./data/grafana}" && \
+		mkdir -p "$${PROMETHEUS_DATA_DIR:-./data/prometheus}" && \
+		mkdir -p "$${KCS_INDEX_DATA_DIR:-./data/kcs-index}" && \
+		mkdir -p "$${KCS_CACHE_DIR:-./data/cache}" && \
+		mkdir -p "$${KCS_LOG_DIR:-./data/logs}" && \
+		mkdir -p "$${POSTGRES_LOG_DIR:-./data/logs/postgres}" && \
+		mkdir -p "$${REDIS_LOG_DIR:-./data/logs/redis}" && \
+		echo "$(GREEN)✅ Data directories created$(NC)"; \
+	else \
+		mkdir -p ./data/{postgres,redis,grafana,prometheus,kcs-index,cache} && \
+		mkdir -p ./data/logs/{postgres,redis} && \
+		echo "$(GREEN)✅ Default data directories created$(NC)"; \
+	fi
+
+docker-compose-up: create-data-dirs ## Start infrastructure services (PostgreSQL, Redis)
 	@echo "$(BLUE)Starting infrastructure services with docker compose...$(NC)"
 	@docker compose up -d
 	@echo "$(GREEN)✅ Infrastructure services started$(NC)"
 
-docker-compose-up-app: ## Start all services including MCP server
+docker-compose-up-app: create-data-dirs ## Start all services including MCP server
 	@echo "$(BLUE)Starting all services including MCP server...$(NC)"
 	@docker compose --profile app up -d
 	@echo "$(GREEN)✅ All services started$(NC)"
 
-docker-compose-up-all: ## Start all services including monitoring
+docker-compose-up-all: create-data-dirs ## Start all services including monitoring
 	@echo "$(BLUE)Starting all services including monitoring...$(NC)"
 	@docker compose --profile app --profile monitoring up -d
 	@echo "$(GREEN)✅ All services including monitoring started$(NC)"
@@ -318,6 +338,55 @@ clean: ## Clean build artifacts and caches
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	@if [ -d "src/rust" ]; then cd src/rust && cargo clean; fi
 	@echo "$(GREEN)✅ Clean complete$(NC)"
+
+clean-data: ## Clean all persistent data (WARNING: This will delete all databases and indexes!)
+	@echo "$(RED)⚠️  WARNING: This will delete all persistent data!$(NC)"
+	@echo "$(YELLOW)This includes PostgreSQL databases, Redis data, and all indexes.$(NC)"
+	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ] || exit 1
+	@echo "$(BLUE)Stopping all services...$(NC)"
+	@docker compose down
+	@echo "$(BLUE)Removing data directories...$(NC)"
+	@if [ -f ".env" ]; then \
+		source .env && \
+		rm -rf "$${KCS_DATA_DIR:-./data}"; \
+	else \
+		rm -rf ./data; \
+	fi
+	@echo "$(GREEN)✅ All persistent data removed$(NC)"
+
+backup-data: ## Create backup of all persistent data
+	@echo "$(BLUE)Creating backup of persistent data...$(NC)"
+	@BACKUP_DIR="backups/backup-$$(date +%Y%m%d-%H%M%S)" && \
+	mkdir -p "$$BACKUP_DIR" && \
+	if [ -f ".env" ]; then \
+		source .env && \
+		cp -r "$${KCS_DATA_DIR:-./data}" "$$BACKUP_DIR/" && \
+		cp .env "$$BACKUP_DIR/"; \
+	else \
+		cp -r ./data "$$BACKUP_DIR/" 2>/dev/null || echo "No data directory found"; \
+	fi && \
+	echo "$(GREEN)✅ Backup created at $$BACKUP_DIR$(NC)"
+
+restore-data: ## Restore data from backup (provide BACKUP_PATH=path/to/backup)
+	@if [ -z "$(BACKUP_PATH)" ]; then \
+		echo "$(RED)❌ Please provide BACKUP_PATH=path/to/backup$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -d "$(BACKUP_PATH)" ]; then \
+		echo "$(RED)❌ Backup directory $(BACKUP_PATH) not found$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Restoring data from $(BACKUP_PATH)...$(NC)"
+	@docker compose down
+	@if [ -f ".env" ]; then \
+		source .env && \
+		rm -rf "$${KCS_DATA_DIR:-./data}" && \
+		cp -r "$(BACKUP_PATH)/data" "$${KCS_DATA_DIR:-./data}"; \
+	else \
+		rm -rf ./data && \
+		cp -r "$(BACKUP_PATH)/data" ./data; \
+	fi
+	@echo "$(GREEN)✅ Data restored from backup$(NC)"
 
 clean-all: clean ## Clean everything including venv
 	@echo "$(BLUE)Cleaning everything...$(NC)"
