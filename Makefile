@@ -35,17 +35,17 @@ help: ## Show this help message
 
 # Setup targets
 setup: ## Setup development environment (venv, dependencies, hooks)
-	@echo "$(BLUE)Setting up KCS development environment...$(NC)"
+	@printf "$(BLUE)Setting up KCS development environment...$(NC)\n"
 	@$(MAKE) venv
 	@$(MAKE) install-deps
 	@$(MAKE) install-hooks
 	@$(MAKE) build-rust
-	@echo "$(GREEN)✅ Setup complete!$(NC)"
+	@printf "$(GREEN)✅ Setup complete!$(NC)\n"
 	@echo ""
-	@echo "$(BLUE)Next steps:$(NC)"
-	@echo "  1. Activate virtual environment: $(YELLOW)source $(VENV_DIR)/bin/activate$(NC)"
-	@echo "  2. Run tests: $(YELLOW)make test$(NC)"
-	@echo "  3. Check code quality: $(YELLOW)make check$(NC)"
+	@printf "$(BLUE)Next steps:$(NC)\n"
+	@printf "  1. Activate virtual environment: $(YELLOW)source $(VENV_DIR)/bin/activate$(NC)\n"
+	@printf "  2. Run tests: $(YELLOW)make test$(NC)\n"
+	@printf "  3. Check code quality: $(YELLOW)make check$(NC)\n"
 
 venv: ## Create Python virtual environment
 	@if [ ! -d "$(VENV_DIR)" ]; then \
@@ -262,7 +262,7 @@ docker-run: ## Run Docker container
 	@docker run -p 8080:8080 --env-file .env kcs:latest
 
 create-data-dirs: ## Create data directories for host bind mounts
-	@echo "$(BLUE)Creating data directories...$(NC)"
+	@printf "$(BLUE)Creating data directories...$(NC)\n"
 	@if [ -f ".env" ]; then \
 		bash -c 'set -a; source .env; set +a; \
 		mkdir -p "$${POSTGRES_DATA_DIR:-./data/postgres/data}" && \
@@ -274,28 +274,28 @@ create-data-dirs: ## Create data directories for host bind mounts
 		mkdir -p "$${KCS_LOG_DIR:-./data/kcs/log}" && \
 		mkdir -p "$${POSTGRES_LOG_DIR:-./data/kcs/log/postgres}" && \
 		mkdir -p "$${REDIS_LOG_DIR:-./data/kcs/log/redis}" && \
-		echo "$(GREEN)✅ Data directories created$(NC)"'; \
+		printf "$(GREEN)✅ Data directories created$(NC)\n"'; \
 	else \
 		mkdir -p ./data/postgres/data ./data/redis/data ./data/grafana/data ./data/prometheus/data && \
 		mkdir -p ./data/kcs/{index,cache,log} && \
 		mkdir -p ./data/kcs/log/{postgres,redis} && \
-		echo "$(GREEN)✅ Default data directories created$(NC)"; \
+		printf "$(GREEN)✅ Default data directories created$(NC)\n"; \
 	fi
 
 docker-compose-up: create-data-dirs ## Start infrastructure services (PostgreSQL, Redis)
-	@echo "$(BLUE)Starting infrastructure services with docker compose...$(NC)"
+	@printf "$(BLUE)Starting infrastructure services with docker compose...$(NC)\n"
 	@docker compose up -d
-	@echo "$(GREEN)✅ Infrastructure services started$(NC)"
+	@printf "$(GREEN)✅ Infrastructure services started$(NC)\n"
 
 docker-compose-up-app: create-data-dirs ## Start all services including MCP server
-	@echo "$(BLUE)Starting all services including MCP server...$(NC)"
+	@printf "$(BLUE)Starting all services including MCP server...$(NC)\n"
 	@docker compose --profile app up -d
-	@echo "$(GREEN)✅ All services started$(NC)"
+	@printf "$(GREEN)✅ All services started$(NC)\n"
 
 docker-compose-up-all: create-data-dirs ## Start all services including monitoring
-	@echo "$(BLUE)Starting all services including monitoring...$(NC)"
+	@printf "$(BLUE)Starting all services including monitoring...$(NC)\n"
 	@docker compose --profile app --profile monitoring up -d
-	@echo "$(GREEN)✅ All services including monitoring started$(NC)"
+	@printf "$(GREEN)✅ All services including monitoring started$(NC)\n"
 
 docker-compose-down: ## Stop services with docker compose
 	@echo "$(BLUE)Stopping services with docker compose...$(NC)"
@@ -531,12 +531,12 @@ info: ## Show project information
 	@echo "Git status: $(shell git status --porcelain 2>/dev/null | wc -l | tr -d ' ') files changed"
 
 validate-env: ## Validate environment configuration
-	@echo "$(BLUE)Validating environment configuration...$(NC)"
+	@printf "$(BLUE)Validating environment configuration...$(NC)\n"
 	@if [ ! -f ".env" ]; then \
-		echo "$(YELLOW)⚠️  No .env file found. Creating from .env.example...$(NC)"; \
+		printf "$(YELLOW)⚠️  No .env file found. Creating from .env.example...$(NC)\n"; \
 		cp .env.example .env; \
 	fi
-	@echo "$(BLUE)Checking environment variables...$(NC)"
+	@printf "$(BLUE)Checking environment variables...$(NC)\n"
 	@if [ -f ".env" ]; then \
 		bash -c 'set -a; source .env; set +a; \
 		echo "Database: $${DATABASE_URL:-Not set}" && \
@@ -545,10 +545,10 @@ validate-env: ## Validate environment configuration
 		echo "Workers: $${KCS_WORKERS:-4}" && \
 		echo "Port: $${KCS_EXTERNAL_PORT:-8080}"'; \
 	fi
-	@echo "$(BLUE)Testing docker-compose configuration...$(NC)"
+	@printf "$(BLUE)Testing docker-compose configuration...$(NC)\n"
 	@docker compose config >/dev/null 2>&1 && \
-		echo "$(GREEN)✅ Docker compose configuration valid$(NC)" || \
-		echo "$(RED)❌ Docker compose configuration invalid$(NC)"
+		printf "$(GREEN)✅ Docker compose configuration valid$(NC)\n" || \
+		printf "$(RED)❌ Docker compose configuration invalid$(NC)\n"
 
 version: ## Show version information
 	@echo "$(BLUE)Version Information$(NC)"
