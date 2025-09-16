@@ -46,15 +46,15 @@
 
 ## Phase 3.1: Setup
 
-*No setup tasks needed - using existing project infrastructure*
+No setup tasks needed - using existing project infrastructure.
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
+CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
 
 ### Contract Tests
 
-- [ ] T001 [P] Contract test for who_calls endpoint in `tests/contract/test_mcp_who_calls_implementation.py`
+- [x] T001 [P] Contract test for who_calls endpoint in `tests/contract/test_mcp_who_calls_implementation.py`
   - Validate request/response schemas match `contracts/who_calls.yaml`
   - Test with empty DB (should return empty list)
   - Test with populated DB (should return actual callers)
@@ -148,7 +148,7 @@
 
 ## Phase 3.4: Integration
 
-*No integration tasks needed - existing infrastructure handles DB connections, logging, and middleware*
+No integration tasks needed - existing infrastructure handles DB connections, logging, and middleware.
 
 ## Phase 3.5: Polish
 
@@ -168,7 +168,8 @@
 
 ## Parallel Execution Examples
 
-### Launch all contract tests together:
+### Launch all contract tests together
+
 ```bash
 # Using Task agents or manual execution
 Task: "Contract test for who_calls endpoint in tests/contract/test_mcp_who_calls_implementation.py"
@@ -177,7 +178,8 @@ Task: "Contract test for entrypoint_flow endpoint in tests/contract/test_mcp_ent
 Task: "Contract test for impact_of endpoint in tests/contract/test_mcp_impact_of_implementation.py"
 ```
 
-### Launch all integration tests together:
+### Launch all integration tests together
+
 ```bash
 # These can run in parallel as they test different aspects
 Task: "Integration test for citation accuracy in tests/integration/test_mcp_citations.py"
