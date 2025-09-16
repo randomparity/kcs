@@ -23,10 +23,41 @@ impl GraphBuilder {
     }
 
     pub fn load_from_parser_output(&mut self, parser_output: &str) -> Result<()> {
-        let data: Value = serde_json::from_str(parser_output)?;
+        // Try parsing as NDJSON first (newline-delimited JSON), then fallback to single JSON
+        let lines: Vec<&str> = parser_output.lines().collect();
 
-        // Extract symbols from parser output
-        if let Some(symbols) = data.get("symbols").and_then(|s| s.as_array()) {
+        if lines.len() > 1 || (lines.len() == 1 && !parser_output.trim_start().starts_with('[')) {
+            // NDJSON format - each line is a separate file object
+            for line in lines {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+
+                let file_data: Value = serde_json::from_str(line)?;
+                self.process_file_data(&file_data)?;
+            }
+        } else {
+            // Single JSON array format (legacy)
+            let data: Value = serde_json::from_str(parser_output)?;
+
+            if let Some(files) = data.as_array() {
+                // Array of file objects
+                for file_data in files {
+                    self.process_file_data(file_data)?;
+                }
+            } else {
+                // Single file object
+                self.process_file_data(&data)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn process_file_data(&mut self, file_data: &Value) -> Result<()> {
+        // Extract symbols from file data
+        if let Some(symbols) = file_data.get("symbols").and_then(|s| s.as_array()) {
             for symbol_data in symbols {
                 if let Ok(symbol) = self.parse_symbol(symbol_data) {
                     self.graph.add_symbol(symbol);
@@ -35,7 +66,7 @@ impl GraphBuilder {
         }
 
         // Extract call relationships
-        if let Some(calls) = data.get("calls").and_then(|c| c.as_array()) {
+        if let Some(calls) = file_data.get("calls").and_then(|c| c.as_array()) {
             for call_data in calls {
                 if let Ok((caller, callee, edge)) = self.parse_call(call_data) {
                     if let Err(e) = self.graph.add_call(&caller, &callee, edge) {

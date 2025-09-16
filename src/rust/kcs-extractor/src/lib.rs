@@ -78,12 +78,101 @@ impl Extractor {
     }
 
     pub fn extract_from_index(&self, index_data: &str) -> Result<Vec<EntryPoint>> {
-        let _parsed_index: HashMap<String, serde_json::Value> = serde_json::from_str(index_data)?;
+        use regex::Regex;
 
-        let entry_points = Vec::new();
+        let mut entry_points = Vec::new();
 
-        // Extract from parsed index data
-        // This will be implemented based on the parser output format
+        // Try to parse as array first (current parser format)
+        let parsed_files: Vec<serde_json::Value> = match serde_json::from_str(index_data) {
+            Ok(array) => array,
+            Err(_) => {
+                // Fallback: try parsing as object
+                let parsed_index: HashMap<String, serde_json::Value> =
+                    serde_json::from_str(index_data)?;
+                // Convert object to array format if needed
+                parsed_index.into_values().collect()
+            }
+        };
+
+        if self.config.include_syscalls {
+            // Look for syscall functions by name patterns
+            let sys_pattern = Regex::new(r"^(?:__se_sys_|__do_sys_|sys_)(\w+)$")?;
+            let ksys_pattern = Regex::new(r"^ksys_(\w+)$")?;
+
+            for file_data in &parsed_files {
+                if let Some(file_path) = file_data.get("path").and_then(|p| p.as_str()) {
+                    if let Some(symbols) = file_data.get("symbols").and_then(|s| s.as_array()) {
+                        for symbol in symbols {
+                            if let Some(signature) =
+                                symbol.get("signature").and_then(|s| s.as_str())
+                            {
+                                if let Some(name) = symbol.get("name").and_then(|n| n.as_str()) {
+                                    let start_line = symbol
+                                        .get("start_line")
+                                        .and_then(|l| l.as_u64())
+                                        .unwrap_or(0)
+                                        as u32;
+
+                                    // Check for syscall function name patterns
+                                    if let Some(captures) = sys_pattern.captures(name) {
+                                        if let Some(syscall_name) = captures.get(1) {
+                                            entry_points.push(EntryPoint {
+                                                name: format!("sys_{}", syscall_name.as_str()),
+                                                entry_type: EntryType::Syscall,
+                                                file_path: file_path.to_string(),
+                                                line_number: start_line,
+                                                signature: signature.to_string(),
+                                                description: Some(format!(
+                                                    "System call: {}",
+                                                    syscall_name.as_str()
+                                                )),
+                                            });
+                                        }
+                                    }
+                                    // Check for ksys_ helper functions (often real syscall implementations)
+                                    else if let Some(captures) = ksys_pattern.captures(name) {
+                                        if let Some(syscall_name) = captures.get(1) {
+                                            entry_points.push(EntryPoint {
+                                                name: format!("ksys_{}", syscall_name.as_str()),
+                                                entry_type: EntryType::Syscall,
+                                                file_path: file_path.to_string(),
+                                                line_number: start_line,
+                                                signature: signature.to_string(),
+                                                description: Some(format!(
+                                                    "Kernel syscall helper: {}",
+                                                    syscall_name.as_str()
+                                                )),
+                                            });
+                                        }
+                                    }
+                                    // Check for direct sys_ function names (but not if already matched above)
+                                    else if name.starts_with("sys_")
+                                        && !name.starts_with("__se_sys_")
+                                        && !name.starts_with("__do_sys_")
+                                    {
+                                        entry_points.push(EntryPoint {
+                                            name: name.to_string(),
+                                            entry_type: EntryType::Syscall,
+                                            file_path: file_path.to_string(),
+                                            line_number: start_line,
+                                            signature: signature.to_string(),
+                                            description: Some(format!(
+                                                "Direct syscall: {}",
+                                                &name[4..]
+                                            )),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // TODO: Add other entry point types (ioctls, file_ops, etc.)
+        // if self.config.include_ioctls { ... }
+        // if self.config.include_file_ops { ... }
 
         Ok(entry_points)
     }
