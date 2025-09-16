@@ -66,7 +66,7 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
   - Test with populated DB (should return actual callees)
   - MUST FAIL initially (currently returns mock data)
 
-- [ ] T003 [P] Contract test for entrypoint_flow endpoint in `tests/contract/test_mcp_entrypoint_flow_implementation.py`
+- [x] T003 [P] Contract test for entrypoint_flow endpoint in `tests/contract/test_mcp_entrypoint_flow_implementation.py`
   - Validate request/response schemas match `contracts/entrypoint_flow.yaml`
   - Test syscall mapping (__NR_read → sys_read)
   - Test flow steps generation
