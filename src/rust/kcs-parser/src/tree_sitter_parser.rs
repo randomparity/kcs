@@ -18,6 +18,7 @@ pub struct TreeSitterResult {
     pub symbols: Vec<Symbol>,
     pub includes: Vec<String>,
     pub macros: Vec<Macro>,
+    pub tree: Tree,
 }
 
 impl TreeSitterParser {
@@ -110,6 +111,7 @@ impl TreeSitterParser {
             symbols,
             includes,
             macros,
+            tree,
         })
     }
 

@@ -146,6 +146,14 @@ impl CallExtractor {
               left: (identifier) @pointer.var
               right: (identifier) @pointer.target) @pointer.assignment
 
+            ; Function pointer declaration with initialization: int (*func_ptr)(args) = func;
+            (init_declarator
+              declarator: (function_declarator
+                declarator: (parenthesized_declarator
+                  (pointer_declarator
+                    declarator: (identifier) @pointer.var)))
+              value: (identifier) @pointer.target) @pointer.init
+
             ; Function pointer in struct initialization
             (initializer_list
               (initializer_pair
@@ -185,7 +193,13 @@ impl CallExtractor {
         let function_pointers = self.extract_function_pointers(&root_node, source)?;
 
         // Third pass: Extract call relationships
-        let call_edges = self.extract_call_edges(&root_node, source, file_path, &functions)?;
+        let call_edges = self.extract_call_edges(
+            &root_node,
+            source,
+            file_path,
+            &functions,
+            &function_pointers,
+        )?;
 
         Ok(CallExtractionResult {
             call_edges,
@@ -268,6 +282,7 @@ impl CallExtractor {
         source: &str,
         file_path: &str,
         functions: &[String],
+        function_pointers: &HashMap<String, Vec<String>>,
     ) -> Result<Vec<CallEdge>> {
         let mut call_edges = Vec::new();
         let mut query_cursor = QueryCursor::new();
@@ -278,9 +293,13 @@ impl CallExtractor {
         let matches = query_cursor.matches(&self.call_query, *root_node, source.as_bytes());
 
         for match_ in matches {
-            if let Some(call_edge) =
-                self.process_call_match(&match_, source, file_path, &function_contexts)?
-            {
+            if let Some(call_edge) = self.process_call_match(
+                &match_,
+                source,
+                file_path,
+                &function_contexts,
+                function_pointers,
+            )? {
                 call_edges.push(call_edge);
             }
         }
@@ -339,6 +358,7 @@ impl CallExtractor {
         source: &str,
         file_path: &str,
         function_contexts: &HashMap<(usize, usize), String>,
+        function_pointers: &HashMap<String, Vec<String>>,
     ) -> Result<Option<CallEdge>> {
         let mut call_function = None;
         let mut call_type = CallType::Direct;
@@ -385,6 +405,13 @@ impl CallExtractor {
         } else {
             None
         };
+
+        // Check if this is a function pointer call (override call_type if so)
+        if let Some(callee_name) = call_function {
+            if function_pointers.contains_key(callee_name) {
+                call_type = CallType::Indirect;
+            }
+        }
 
         // Create call edge if we have all required information
         if let (Some(callee), Some(caller), Some(node)) =

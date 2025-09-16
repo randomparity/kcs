@@ -272,8 +272,15 @@ impl Parser {
             })
             .collect();
 
-        // TODO: Extract call edges from AST
-        let call_edges = vec![];
+        // Extract call edges from AST using call extractor
+        let call_extractor =
+            call_extractor::CallExtractor::new().context("Failed to create call extractor")?;
+
+        let call_result = call_extractor
+            .extract_calls(&tree_sitter_result.tree, content, file_path)
+            .context("Failed to extract call edges")?;
+
+        let call_edges = call_result.call_edges;
 
         Ok(ParseResult {
             symbols,
