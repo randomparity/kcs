@@ -69,12 +69,12 @@
 
 - [x] T018 Update database schema to populate call_edges table in src/python/kcs_mcp/database.py
 - [x] T019 Modify who_calls MCP endpoint to use call graph data in src/python/kcs_mcp/tools.py
-- [ ] T020 Modify list_dependencies endpoint to use call graph data in src/python/kcs_mcp/endpoints/dependencies.py
-- [ ] T021 Update entrypoint_flow and impact_of endpoints in src/python/kcs_mcp/endpoints/
+- [x] T020 Modify list_dependencies endpoint to use call graph data in src/python/kcs_mcp/tools.py
+- [x] T021 Update entrypoint_flow and impact_of endpoints in src/python/kcs_mcp/tools.py
 
 ## Phase 3.5: Polish
 
-- [ ] T022 [P] Add performance benchmarks for call graph extraction in benches/call_graph_bench.rs
+- [x] T022 [P] Add performance benchmarks for call graph extraction in src/rust/kcs-parser/benches/call_graph_bench.rs
 
 ## Dependencies
 
