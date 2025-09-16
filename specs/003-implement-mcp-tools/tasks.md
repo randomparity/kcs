@@ -60,7 +60,7 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
   - Test with populated DB (should return actual callers)
   - MUST FAIL initially (currently returns mock data)
 
-- [ ] T002 [P] Contract test for list_dependencies endpoint in `tests/contract/test_mcp_list_dependencies_implementation.py`
+- [x] T002 [P] Contract test for list_dependencies endpoint in `tests/contract/test_mcp_list_dependencies_implementation.py`
   - Validate request/response schemas match `contracts/list_dependencies.yaml`
   - Test with empty DB (should return empty list)
   - Test with populated DB (should return actual callees)
