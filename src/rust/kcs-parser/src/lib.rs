@@ -52,6 +52,10 @@ pub mod clang_bridge;
 pub mod config;
 pub mod kernel_patterns;
 pub mod tree_sitter_parser;
+pub mod types;
+
+// Re-export key types for public API
+pub use types::{CallEdge, CallType};
 
 /// Represents a parsed source file
 #[derive(Debug, Clone, Serialize, Deserialize)]
