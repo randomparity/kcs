@@ -86,7 +86,7 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
   - Validate line numbers are positive
   - Test SHA values are present
 
-- [ ] T006 [P] Integration test for depth limiting in `tests/integration/test_mcp_depth_traversal.py`
+- [x] T006 [P] Integration test for depth limiting in `tests/integration/test_mcp_depth_traversal.py`
   - Test who_calls with depth=1, 3, 5
   - Test list_dependencies with depth=1, 3, 5
   - Verify results expand with depth
