@@ -80,7 +80,7 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
 
 ### Integration Tests
 
-- [ ] T005 [P] Integration test for citation accuracy in `tests/integration/test_mcp_citations.py`
+- [x] T005 [P] Integration test for citation accuracy in `tests/integration/test_mcp_citations.py`
   - Verify all responses include valid Span objects
   - Check file paths exist in test data
   - Validate line numbers are positive
