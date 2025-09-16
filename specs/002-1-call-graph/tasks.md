@@ -62,7 +62,7 @@
 - [x] T013 Add tree-sitter call detection in src/rust/kcs-parser/src/call_extractor.rs
 - [x] T014 Implement AST traversal for call_expression nodes in src/rust/kcs-parser/src/call_extractor.rs
 - [x] T015 Integrate call extraction with main parsing loop in src/rust/kcs-parser/src/lib.rs
-- [ ] T016 [P] Add CLI flag --include-calls to parser binary in src/rust/kcs-parser/src/main.rs
+- [x] T016 [P] Add CLI flag --include-calls to parser binary in src/rust/kcs-parser/src/main.rs
 - [ ] T017 [P] Update JSON output format to include call_edges in src/rust/kcs-parser/src/output.rs
 
 ## Phase 3.4: Integration
