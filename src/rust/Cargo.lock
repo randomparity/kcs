@@ -710,6 +710,7 @@ dependencies = [
  "chrono",
  "clap",
  "indexmap",
+ "kcs-parser",
  "petgraph",
  "rayon",
  "serde",

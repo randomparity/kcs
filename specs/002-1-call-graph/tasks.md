@@ -63,12 +63,12 @@
 - [x] T014 Implement AST traversal for call_expression nodes in src/rust/kcs-parser/src/call_extractor.rs
 - [x] T015 Integrate call extraction with main parsing loop in src/rust/kcs-parser/src/lib.rs
 - [x] T016 [P] Add CLI flag --include-calls to parser binary in src/rust/kcs-parser/src/main.rs
-- [ ] T017 [P] Update JSON output format to include call_edges in src/rust/kcs-parser/src/output.rs
+- [x] T017 [P] Update JSON output format to include call_edges (completed via ParsedFile serialization)
 
 ## Phase 3.4: Integration
 
-- [ ] T018 Update database schema to populate call_edges table in src/python/kcs_mcp/database.py
-- [ ] T019 Modify who_calls MCP endpoint to use call graph data in src/python/kcs_mcp/endpoints/who_calls.py
+- [x] T018 Update database schema to populate call_edges table in src/python/kcs_mcp/database.py
+- [x] T019 Modify who_calls MCP endpoint to use call graph data in src/python/kcs_mcp/tools.py
 - [ ] T020 Modify list_dependencies endpoint to use call graph data in src/python/kcs_mcp/endpoints/dependencies.py
 - [ ] T021 Update entrypoint_flow and impact_of endpoints in src/python/kcs_mcp/endpoints/
 
