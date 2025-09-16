@@ -61,7 +61,7 @@ analysis with ground-truth accuracy.
    ```bash
    # Ubuntu/Debian
    sudo apt-get update
-   sudo apt-get install -y docker.io docker-compose-v2 git curl
+   sudo apt-get install -y docker.io docker-compose-v2 git curl flex bison build-essential libssl-dev libelf-dev
 
    # macOS (with Homebrew)
    brew install docker docker-compose git
@@ -125,17 +125,17 @@ analysis with ground-truth accuracy.
    The Docker setup only runs the MCP server. For kernel indexing, you need additional tools:
 
    ```bash
-   # Install kernel build dependencies
-   sudo apt-get install -y flex bison build-essential libssl-dev libelf-dev
-
    # Build KCS analysis tools locally
    cargo build --release
 
-   # Add tools to PATH (add to ~/.bashrc for persistence)
-   export PATH="$PWD/target/release:$PATH"
+   # Install to default rust directory (~/.cargo/bin)
+   cp target/release/kcs-* ~/.cargo/bin/
+
+   # (or) Install to user local binary directory
+   cp target/release/kcs-* ~/.local/bin/
 
    # Verify tools are available
-   which kcs-parser kcs-extractor kcs-graph
+   which kcs-parser kcs-extractor kcs-graph kcs-impact
    ```
 
 7. **Index Your First Kernel**
