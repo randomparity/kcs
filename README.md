@@ -13,7 +13,7 @@ analysis with ground-truth accuracy.
 ## Features
 
 🔍 **Semantic Code Search** - Search kernel code by natural language or technical terms\
-📊 **Call Graph Analysis** - Understand function relationships and dependencies\
+📊 **Call Graph Analysis** - Real-time function relationships and dependencies using tree-sitter parsing\
 🔌 **Entry Point Detection** - Identify syscalls, ioctls, and kernel interfaces\
 💥 **Impact Analysis** - Assess blast radius of code changes\
 📖 **Auto-generated Summaries** - AI-powered documentation for complex kernel code\
@@ -378,7 +378,7 @@ curl -X POST http://localhost:8080/mcp/tools/impact_of \
 Index a complete kernel repository:
 
 ```bash
-# Basic indexing
+# Basic indexing with call graph extraction
 tools/index_kernel.sh ~/src/linux
 
 # With specific configuration
@@ -389,6 +389,9 @@ tools/index_kernel.sh --output /data/kcs-index --jobs 8 ~/src/linux
 
 # Incremental update (faster for git changes)
 tools/index_kernel.sh --incremental ~/src/linux
+
+# Use kcs-parser directly with call graph extraction
+kcs-parser --include-calls directory ~/src/linux/fs/
 ```
 
 ### Indexing Options
@@ -400,6 +403,7 @@ tools/index_kernel.sh --incremental ~/src/linux
 | `--jobs` | Parallel workers | `8` (default: 4) |
 | `--incremental` | Faster updates | For git changes |
 | `--no-clang` | Skip semantic analysis | Faster but less accurate |
+| `--include-calls` | Enable call graph extraction | Enhanced analysis with function relationships |
 | `--verbose` | Detailed logging | For debugging |
 | `--dry-run` | Show what would be done | Test configuration |
 
@@ -479,6 +483,7 @@ python tools/run_system_test.py
 
 # Performance testing
 make benchmark-k6    # Load testing with k6
+cargo bench --bench call_graph_bench  # Call graph extraction benchmarks
 ```
 
 ## Configuration
