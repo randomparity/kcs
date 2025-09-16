@@ -23,7 +23,7 @@ pub struct SymbolInfo {
 #[derive(Debug, Default)]
 pub struct ParseResult {
     pub symbols: Vec<SymbolInfo>,
-    pub call_edges: Vec<(String, String)>,
+    pub call_edges: Vec<CallEdge>,
     pub errors: Vec<String>,
 }
 
