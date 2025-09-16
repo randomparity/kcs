@@ -48,6 +48,7 @@ impl Default for ParserConfig {
 }
 
 pub mod ast;
+pub mod call_extractor;
 pub mod clang_bridge;
 pub mod config;
 pub mod kernel_patterns;
