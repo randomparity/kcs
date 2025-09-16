@@ -72,7 +72,7 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
   - Test flow steps generation
   - MUST FAIL initially (currently returns mock data)
 
-- [ ] T004 [P] Contract test for impact_of endpoint in `tests/contract/test_mcp_impact_of_implementation.py`
+- [x] T004 [P] Contract test for impact_of endpoint in `tests/contract/test_mcp_impact_of_implementation.py`
   - Validate request/response schemas match `contracts/impact_of.yaml`
   - Test with symbols, files, and diff inputs
   - Verify all required fields in response
