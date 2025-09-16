@@ -61,6 +61,10 @@ enum Commands {
         /// Preprocessor defines (KEY=VALUE)
         #[arg(long)]
         define: Vec<String>,
+
+        /// Include function call graphs in output
+        #[arg(long)]
+        include_calls: bool,
     },
 
     /// Parse a single file
@@ -75,6 +79,10 @@ enum Commands {
         /// Output file (default: stdout)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Include function call graphs in output
+        #[arg(long)]
+        include_calls: bool,
     },
 
     /// List available configurations
@@ -121,6 +129,7 @@ async fn main() -> Result<()> {
             compile_commands,
             include,
             define,
+            include_calls,
         } => {
             parse_repository(
                 repo,
@@ -130,6 +139,7 @@ async fn main() -> Result<()> {
                 compile_commands,
                 include,
                 define,
+                include_calls,
                 cli.format,
             )
             .await
@@ -138,7 +148,8 @@ async fn main() -> Result<()> {
             file,
             config,
             output,
-        } => parse_single_file(file, config, output, cli.format).await,
+            include_calls,
+        } => parse_single_file(file, config, output, include_calls, cli.format).await,
         Commands::ListConfigs { repo } => list_configs(repo).await,
     }
 }
@@ -152,6 +163,7 @@ async fn parse_repository(
     compile_commands: Option<PathBuf>,
     include_paths: Vec<PathBuf>,
     defines: Vec<String>,
+    include_calls: bool,
     format: OutputFormat,
 ) -> Result<()> {
     tracing::info!("Parsing repository: {}", repo.display());
@@ -171,6 +183,7 @@ async fn parse_repository(
         defines: defines_map,
         arch: arch.to_string(),
         config_name: config_name.to_string(),
+        include_call_graphs: include_calls,
     };
 
     // Create parser
@@ -193,6 +206,7 @@ async fn parse_single_file(
     file: PathBuf,
     config: String,
     output: Option<PathBuf>,
+    include_calls: bool,
     format: OutputFormat,
 ) -> Result<()> {
     tracing::debug!("Parsing file: {}", file.display());
@@ -202,6 +216,7 @@ async fn parse_single_file(
     let parser_config = ExtendedParserConfig {
         arch: arch.to_string(),
         config_name: config_name.to_string(),
+        include_call_graphs: include_calls,
         ..Default::default()
     };
 

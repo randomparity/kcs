@@ -1,0 +1,76 @@
+{
+  "title": "KCS Parser API - Call Graph Extension",
+  "version": "1.0.0",
+  "description": "Extended parser API contract for call graph extraction functionality",
+  "contracts": {
+    "parse_file": {
+      "description": "Parse a C source file to extract symbols and call relationships",
+      "request": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Absolute path to C source file",
+            "example": "/home/user/linux/fs/ext4/inode.c"
+          },
+          "include_call_graph": {
+            "type": "boolean",
+            "description": "Whether to extract function call relationships",
+            "default": true
+          }
+        },
+        "required": ["file_path"]
+      },
+      "response": {
+        "type": "object",
+        "properties": {
+          "symbols": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "kind": {"type": "string"},
+                "file_path": {"type": "string"},
+                "start_line": {"type": "integer"},
+                "end_line": {"type": "integer"},
+                "signature": {"type": "string", "nullable": true}
+              },
+              "required": ["name", "kind", "file_path", "start_line", "end_line"]
+            }
+          },
+          "call_edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "caller": {"type": "string"},
+                "callee": {"type": "string"},
+                "file_path": {"type": "string"},
+                "line_number": {"type": "integer"},
+                "call_type": {
+                  "type": "string",
+                  "enum": ["Direct", "Indirect", "Macro"]
+                }
+              },
+              "required": ["caller", "callee", "file_path", "line_number", "call_type"]
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message": {"type": "string"},
+                "file_path": {"type": "string"},
+                "line_number": {"type": "integer", "nullable": true}
+              },
+              "required": ["message", "file_path"]
+            }
+          }
+        },
+        "required": ["symbols", "call_edges", "errors"]
+      }
+    }
+  }
+}

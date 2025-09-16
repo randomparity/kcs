@@ -263,6 +263,164 @@ class Database:
                 for row in rows
             ]
 
+    async def insert_parsed_file(self, parsed_file: dict[str, Any], config: str) -> int:
+        """
+        Insert a parsed file and its symbols/call edges into the database.
+
+        Args:
+            parsed_file: Parsed file data from Rust parser
+            config: Configuration string (e.g., "x86_64:defconfig")
+
+        Returns:
+            File ID that was inserted/updated
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                # Insert/update file record
+                file_sql = """
+                INSERT INTO file (path, sha, config)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (path, config)
+                DO UPDATE SET
+                    sha = EXCLUDED.sha,
+                    indexed_at = NOW()
+                RETURNING id
+                """
+
+                file_row = await conn.fetchrow(
+                    file_sql, parsed_file["path"], parsed_file["sha"], config
+                )
+                file_id: int = file_row["id"]
+
+                # Clear existing symbols for this file/config to handle updates
+                await conn.execute(
+                    "DELETE FROM symbol WHERE file_id = $1 AND config = $2",
+                    file_id,
+                    config,
+                )
+
+                # Insert symbols and build caller/callee lookup
+                symbol_id_map = {}  # Map from symbol name to database ID
+
+                if "symbols" in parsed_file:
+                    symbol_batch = []
+                    for symbol in parsed_file["symbols"]:
+                        symbol_batch.append(
+                            (
+                                symbol["name"],
+                                symbol["kind"],
+                                file_id,
+                                symbol["start_line"],
+                                symbol["end_line"],
+                                symbol.get("start_col", 0),
+                                symbol.get("end_col", 0),
+                                config,
+                                symbol.get("signature", ""),
+                            )
+                        )
+
+                    if symbol_batch:
+                        symbol_sql = """
+                        INSERT INTO symbol (name, kind, file_id, start_line, end_line, start_col, end_col, config, signature)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                        RETURNING id, name
+                        """
+
+                        # Insert symbols one by one to get their IDs
+                        for symbol_data in symbol_batch:
+                            symbol_row = await conn.fetchrow(symbol_sql, *symbol_data)
+                            symbol_id_map[symbol_row["name"]] = symbol_row["id"]
+
+                # Insert call edges if present
+                call_edges = parsed_file.get("call_edges")
+                if call_edges:
+                    # Clear existing call edges for this file/config
+                    await conn.execute(
+                        """
+                        DELETE FROM call_edge
+                        WHERE caller_id IN (
+                            SELECT id FROM symbol
+                            WHERE file_id = $1 AND config = $2
+                        )
+                    """,
+                        file_id,
+                        config,
+                    )
+
+                    call_edge_batch = []
+                    for call_edge in call_edges:
+                        caller_name = call_edge.get("caller")
+                        callee_name = call_edge.get("callee")
+
+                        # Look up caller and callee IDs
+                        caller_id = symbol_id_map.get(caller_name)
+                        callee_id = None
+
+                        # Find callee_id - it might be in another file
+                        if callee_name and caller_id:
+                            callee_row = await conn.fetchrow(
+                                "SELECT id FROM symbol WHERE name = $1 AND config = $2 LIMIT 1",
+                                callee_name,
+                                config,
+                            )
+                            if callee_row:
+                                callee_id = callee_row["id"]
+
+                        if caller_id and callee_id:
+                            call_edge_batch.append(
+                                (
+                                    caller_id,
+                                    callee_id,
+                                    config,
+                                    call_edge.get("call_type", "direct"),
+                                    call_edge.get("is_indirect", False),
+                                    call_edge.get("call_site_line"),
+                                )
+                            )
+
+                    if call_edge_batch:
+                        call_edge_sql = """
+                        INSERT INTO call_edge (caller_id, callee_id, config, call_type, is_indirect, call_site_line)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (caller_id, callee_id, config) DO UPDATE SET
+                            call_type = EXCLUDED.call_type,
+                            is_indirect = EXCLUDED.is_indirect,
+                            call_site_line = EXCLUDED.call_site_line
+                        """
+                        await conn.executemany(call_edge_sql, call_edge_batch)
+
+                return file_id
+
+    async def insert_parsed_files_batch(
+        self, parsed_files: list[dict[str, Any]], config: str
+    ) -> int:
+        """
+        Insert multiple parsed files and their data into the database efficiently.
+
+        Args:
+            parsed_files: List of parsed file data from Rust parser
+            config: Configuration string (e.g., "x86_64:defconfig")
+
+        Returns:
+            Number of files processed
+        """
+        processed_count = 0
+
+        for parsed_file in parsed_files:
+            try:
+                await self.insert_parsed_file(parsed_file, config)
+                processed_count += 1
+            except Exception as e:
+                logger.error(
+                    "Failed to insert parsed file",
+                    path=parsed_file.get("path", "unknown"),
+                    error=str(e),
+                )
+                # Continue processing other files rather than failing completely
+                continue
+
+        return processed_count
+
 
 # Global database instance
 _database: Database | None = None
@@ -365,6 +523,17 @@ class MockDatabase(Database):
             ]
 
         return []
+
+    async def insert_parsed_file(self, parsed_file: dict[str, Any], config: str) -> int:
+        """Mock parsed file insertion."""
+        # Just return a mock file ID
+        return 1
+
+    async def insert_parsed_files_batch(
+        self, parsed_files: list[dict[str, Any]], config: str
+    ) -> int:
+        """Mock batch file insertion."""
+        return len(parsed_files)
 
 
 def set_database(database: Database) -> None:

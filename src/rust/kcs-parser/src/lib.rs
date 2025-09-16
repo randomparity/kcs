@@ -23,7 +23,7 @@ pub struct SymbolInfo {
 #[derive(Debug, Default)]
 pub struct ParseResult {
     pub symbols: Vec<SymbolInfo>,
-    pub call_edges: Vec<(String, String)>,
+    pub call_edges: Vec<CallEdge>,
     pub errors: Vec<String>,
 }
 
@@ -48,10 +48,15 @@ impl Default for ParserConfig {
 }
 
 pub mod ast;
+pub mod call_extractor;
 pub mod clang_bridge;
 pub mod config;
 pub mod kernel_patterns;
 pub mod tree_sitter_parser;
+pub mod types;
+
+// Re-export key types for public API
+pub use types::{CallEdge, CallType};
 
 /// Represents a parsed source file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +67,8 @@ pub struct ParsedFile {
     pub symbols: Vec<Symbol>,
     pub includes: Vec<String>,
     pub macros: Vec<Macro>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub call_edges: Vec<CallEdge>,
 }
 
 /// Represents a symbol in the kernel (function, struct, variable, etc.)
@@ -117,6 +124,7 @@ pub struct ExtendedParserConfig {
     pub defines: HashMap<String, String>,
     pub arch: String,
     pub config_name: String,
+    pub include_call_graphs: bool,
 }
 
 impl Default for ExtendedParserConfig {
@@ -128,6 +136,7 @@ impl Default for ExtendedParserConfig {
             defines: HashMap::new(),
             arch: "x86_64".to_string(),
             config_name: "defconfig".to_string(),
+            include_call_graphs: false,
         }
     }
 }
@@ -188,6 +197,24 @@ impl Parser {
             tree_sitter_result.symbols
         };
 
+        // Extract call edges if enabled
+        let call_edges = if self.config.include_call_graphs {
+            let call_extractor =
+                call_extractor::CallExtractor::new().context("Failed to create call extractor")?;
+
+            let call_result = call_extractor
+                .extract_calls(
+                    &tree_sitter_result.tree,
+                    &content,
+                    &file_path.to_string_lossy(),
+                )
+                .context("Failed to extract call edges")?;
+
+            call_result.call_edges
+        } else {
+            Vec::new()
+        };
+
         Ok(ParsedFile {
             path: file_path.to_path_buf(),
             sha,
@@ -195,6 +222,7 @@ impl Parser {
             symbols,
             includes: tree_sitter_result.includes,
             macros: tree_sitter_result.macros,
+            call_edges,
         })
     }
 
@@ -267,8 +295,19 @@ impl Parser {
             })
             .collect();
 
-        // TODO: Extract call edges from AST
-        let call_edges = vec![];
+        // Extract call edges from AST using call extractor (if enabled)
+        let call_edges = if self.config.include_call_graphs {
+            let call_extractor =
+                call_extractor::CallExtractor::new().context("Failed to create call extractor")?;
+
+            let call_result = call_extractor
+                .extract_calls(&tree_sitter_result.tree, content, file_path)
+                .context("Failed to extract call edges")?;
+
+            call_result.call_edges
+        } else {
+            Vec::new()
+        };
 
         Ok(ParseResult {
             symbols,

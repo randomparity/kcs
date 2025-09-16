@@ -267,7 +267,7 @@ config/secrets.yaml
 .env.production
 
 # Generated documentation
-docs/api/
+docs/api/generated/
 docs/generated/
 
 # Docker volumes and data
