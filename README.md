@@ -61,7 +61,7 @@ analysis with ground-truth accuracy.
    ```bash
    # Ubuntu/Debian
    sudo apt-get update
-   sudo apt-get install -y docker.io docker-compose-v2 git curl flex bison build-essential libssl-dev libelf-dev
+   sudo apt-get install -y docker.io docker-compose-v2 git curl flex bison build-essential libssl-dev libelf-dev bear
 
    # macOS (with Homebrew)
    brew install docker docker-compose git
