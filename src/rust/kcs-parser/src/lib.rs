@@ -295,15 +295,19 @@ impl Parser {
             })
             .collect();
 
-        // Extract call edges from AST using call extractor
-        let call_extractor =
-            call_extractor::CallExtractor::new().context("Failed to create call extractor")?;
+        // Extract call edges from AST using call extractor (if enabled)
+        let call_edges = if self.config.include_call_graphs {
+            let call_extractor =
+                call_extractor::CallExtractor::new().context("Failed to create call extractor")?;
 
-        let call_result = call_extractor
-            .extract_calls(&tree_sitter_result.tree, content, file_path)
-            .context("Failed to extract call edges")?;
+            let call_result = call_extractor
+                .extract_calls(&tree_sitter_result.tree, content, file_path)
+                .context("Failed to extract call edges")?;
 
-        let call_edges = call_result.call_edges;
+            call_result.call_edges
+        } else {
+            Vec::new()
+        };
 
         Ok(ParseResult {
             symbols,
