@@ -164,7 +164,7 @@ impl Parser {
     /// Parse a single file
     pub fn parse_file<P: AsRef<Path>>(&mut self, file_path: P) -> Result<ParsedFile> {
         let file_path = file_path.as_ref();
-        tracing::info!("Parsing file: {}", file_path.display());
+        tracing::debug!("Parsing file: {}", file_path.display());
 
         // Read file content
         let content = std::fs::read_to_string(file_path)
@@ -203,15 +203,49 @@ impl Parser {
         // Note: Simplified sequential implementation for now
         // Parallel processing with clang is complex due to state management
         let mut results = Vec::new();
-        for path in file_paths {
-            results.push(self.parse_file(path)?);
+        let total_files = file_paths.len();
+
+        for (index, path) in file_paths.iter().enumerate() {
+            let path_ref = path.as_ref();
+
+            // Show progress every 500 files for large batches, 50 for medium, or 10 for small
+            let should_show_progress = if total_files > 5000 {
+                index % 500 == 0 || index == total_files - 1
+            } else if total_files > 1000 {
+                index % 100 == 0 || index == total_files - 1
+            } else if total_files > 100 {
+                index % 50 == 0 || index == total_files - 1
+            } else {
+                index % 10 == 0 || index == total_files - 1
+            };
+
+            if should_show_progress {
+                let progress = ((index + 1) as f32 / total_files as f32 * 100.0) as u32;
+                tracing::info!(
+                    "📁 Progress: {}/{} files ({}%) - Currently: {}",
+                    index + 1,
+                    total_files,
+                    progress,
+                    path_ref.file_name().unwrap_or_default().to_string_lossy()
+                );
+            }
+
+            match self.parse_file(path) {
+                Ok(parsed_file) => results.push(parsed_file),
+                Err(e) => {
+                    tracing::warn!("Failed to parse {}: {}", path_ref.display(), e);
+                    // Continue processing other files instead of failing completely
+                }
+            }
         }
+
+        tracing::info!("Parsed {} files", results.len());
         Ok(results)
     }
 
     /// Parse files with content provided directly (for Python bridge)
     pub fn parse_file_content(&mut self, file_path: &str, content: &str) -> Result<ParseResult> {
-        tracing::info!("Parsing file content: {}", file_path);
+        tracing::debug!("Parsing file content: {}", file_path);
 
         // Parse with tree-sitter
         let tree_sitter_result = self

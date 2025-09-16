@@ -88,6 +88,7 @@ enum Commands {
 enum OutputFormat {
     Json,
     JsonPretty,
+    Ndjson,
     Csv,
 }
 
@@ -194,7 +195,7 @@ async fn parse_single_file(
     output: Option<PathBuf>,
     format: OutputFormat,
 ) -> Result<()> {
-    tracing::info!("Parsing file: {}", file.display());
+    tracing::debug!("Parsing file: {}", file.display());
 
     let (arch, config_name) = parse_config_string(&config)?;
 
@@ -266,6 +267,15 @@ fn output_results(
     let output_string = match format {
         OutputFormat::Json => serde_json::to_string(parsed_files)?,
         OutputFormat::JsonPretty => serde_json::to_string_pretty(parsed_files)?,
+        OutputFormat::Ndjson => {
+            // Output each file as a separate JSON line
+            parsed_files
+                .iter()
+                .map(serde_json::to_string)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| anyhow::anyhow!("JSON serialization error: {}", e))?
+                .join("\n")
+        }
         OutputFormat::Csv => {
             // Simple CSV output with symbol information
             let mut csv = String::new();

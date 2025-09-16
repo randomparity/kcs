@@ -1,4 +1,6 @@
-# CLAUDE.md - KCS Project Context
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -18,22 +20,31 @@ via MCP protocol for AI coding assistants.
 
 ```text
 src/
-├── rust/           # Performance-critical components
-│   ├── kcs-parser/     # Tree-sitter + clang
-│   ├── kcs-extractor/  # Entry point detection
-│   ├── kcs-graph/      # Graph algorithms
-│   ├── kcs-impact/     # Impact analysis
-│   └── kcs-drift/      # Drift detection
-├── python/         # API and integration
-│   ├── kcs_mcp/        # MCP protocol server
-│   └── kcs_summarizer/ # LLM summaries
-└── sql/           # Database schema
+├── rust/           # Performance-critical Rust components
+│   ├── kcs-parser/      # Tree-sitter + clang parsing
+│   ├── kcs-extractor/   # Entry point detection
+│   ├── kcs-graph/       # Call graph algorithms
+│   ├── kcs-impact/      # Impact analysis
+│   ├── kcs-drift/       # Drift detection
+│   └── kcs-python-bridge/ # Python bindings
+├── python/         # MCP server and Python components
+│   ├── kcs_mcp/         # FastAPI MCP protocol server
+│   ├── kcs_summarizer/  # LLM-powered summaries
+│   └── kcs_ci/          # CI utilities
+└── sql/           # Database schema and migrations
+    ├── migrations/      # Schema versioning
+    └── optimizations/   # Performance tuning
 
 tests/
 ├── contract/      # API contract tests
 ├── integration/   # Cross-component tests
-└── performance/   # Benchmarks
-```text
+├── performance/   # Benchmarks
+└── fixtures/      # Test data (mini-kernel)
+
+tools/             # Development and deployment scripts
+├── index_kernel.sh     # Main kernel indexing script
+└── setup/             # Installation helpers
+```
 
 ## Key Concepts
 
@@ -69,27 +80,85 @@ tests/
 - **Real Dependencies**: Use actual Postgres, kernel repos
 - **Performance**: k6 for load testing, benchmarks for critical paths
 
-## Common Commands
+## Development Commands
+
+### Setup and Build
 
 ```bash
-# Parse kernel
-kcs-parser --parse ~/linux --config x86_64:defconfig
+# Initial setup (creates venv, installs deps, builds Rust)
+make setup
 
-# Extract entry points
-kcs-extractor --extract syscalls --input index.json
+# Build Rust components only
+make build-rust
 
-# Query graph
-kcs-graph --query who_calls --symbol vfs_read
+# Activate development environment
+source .venv/bin/activate
+```
 
-# Start MCP server
-kcs-mcp --serve --port 8080 --auth-token TOKEN
+### Code Quality
 
-# Run impact analysis
-kcs-impact --diff changes.patch --depth 2
+```bash
+# Run all quality checks (lint + test)
+make check
 
-# Check drift
-kcs-drift --spec feature.yaml --code ~/linux
-```text
+# Linting only
+make lint                # All linting (Python, Rust, YAML, SQL)
+make lint-python         # Python only (ruff, mypy)
+make lint-rust           # Rust only (clippy)
+
+# Code formatting
+make format              # All formatting
+make format-python       # Python only
+make format-rust         # Rust only
+```
+
+### Testing
+
+```bash
+# Run all tests
+make test
+
+# Specific test types
+make test-unit           # Unit tests
+make test-integration    # Integration tests
+make test-contract       # API contract tests
+make test-performance    # Performance benchmarks
+```
+
+### Development Server
+
+```bash
+# Start MCP server (after building)
+kcs-mcp --host 0.0.0.0 --port 8080
+
+# Or via Python module
+python -m kcs_mcp.cli --host 0.0.0.0 --port 8080
+```
+
+### Docker Operations
+
+```bash
+# Start all services via Docker
+make docker-compose-up-app        # Core services only
+make docker-compose-up-all        # With monitoring
+
+# Check service health
+docker compose ps
+curl http://localhost:8080/health
+```
+
+### Kernel Indexing
+
+```bash
+# Index a kernel repository (requires tools built)
+tools/index_kernel.sh ~/src/linux
+
+# With specific configuration
+tools/index_kernel.sh --config arm64:defconfig ~/src/linux
+
+# Incremental update
+tools/index_kernel.sh --incremental ~/src/linux
+```
 
 ## Database Schema
 
@@ -106,11 +175,43 @@ kcs-drift --spec feature.yaml --code ~/linux
 - Graph size: <20GB for 6 configs
 - Scale: ~50k symbols, ~10k entry points
 
-## Recent Changes
+## Build System Architecture
 
-- Initial project setup and architecture design
-- MCP API contract definition
-- Database schema with pgvector integration
+- **Multi-language**: Rust workspace + Python package + SQL migrations
+- **Rust workspace**: All Rust crates under `src/rust/` with shared dependencies
+- **Python packaging**: Uses setuptools with `pyproject.toml`, installed as editable package
+- **Development environment**: Virtual environment via `uv` for fast dependency resolution
+- **Code quality**: Enforced via pre-commit hooks (ruff, mypy, clippy, detect-secrets)
+
+## Database Integration
+
+- **PostgreSQL**: Primary storage with pgvector extension for semantic search
+- **Migrations**: SQL scripts in `src/sql/migrations/`
+- **Connection**: Uses asyncpg for async Python database operations
+- **Performance**: Includes optimization scripts in `src/sql/optimizations/`
+
+## Key Dependencies
+
+### Rust Components
+
+- `tree-sitter`/`tree-sitter-c`: Fast syntactic parsing
+- `clang-sys`: Semantic analysis integration
+- `sqlx`: Type-safe database queries
+- `pyo3`: Python bindings for Rust components
+
+### Python Components
+
+- `fastapi`/`uvicorn`: MCP protocol server
+- `asyncpg`: PostgreSQL async driver
+- `pgvector`: Vector similarity search
+- `pydantic`: Data validation and serialization
+
+## Testing Approach
+
+- **Contract-first**: API contracts tested before implementation
+- **Real data**: Uses actual kernel repositories, not mocks
+- **Performance**: Includes benchmarks with k6 load testing
+- **Fixtures**: Mini-kernel test data for fast iteration
 
 ---
 
@@ -120,3 +221,5 @@ kcs-drift --spec feature.yaml --code ~/linux
 2. Respect read-only constraint
 3. Test with real kernel repositories
 4. Monitor performance against targets
+5. Use `make check` before committing
+6. Activate virtual environment: `source .venv/bin/activate`

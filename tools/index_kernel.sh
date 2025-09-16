@@ -66,6 +66,98 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Memory-efficient JSON counting functions
+count_json_array_streaming() {
+    local json_file="$1"
+    local timeout_seconds="${2:-10}"
+
+    if [ ! -f "$json_file" ]; then
+        echo "0"
+        return
+    fi
+
+    # Try jq with timeout first for smaller files
+    local count
+    count=$(timeout "$timeout_seconds" jq -r '. | length' "$json_file" 2>/dev/null || echo "")
+
+    if [ -n "$count" ] && [ "$count" != "null" ]; then
+        echo "$count"
+        return
+    fi
+
+    # Fallback: process file in chunks to avoid memory issues
+    local file_size=$(get_file_size_mb "$json_file")
+
+    if [ "$file_size" -gt 100 ]; then
+        # File is very large (>100MB), skip detailed counting
+        echo "many"
+        return
+    fi
+
+    # For medium files, try to count "path": occurrences
+    local path_count
+    path_count=$(timeout 30 grep -o '"path":' "$json_file" 2>/dev/null | wc -l || echo "0")
+
+    if [ "$path_count" -gt 0 ]; then
+        echo "$path_count"
+    elif [ "$file_size" -gt 0 ]; then
+        echo "many"  # Indicate content exists but count failed
+    else
+        echo "0"
+    fi
+}
+
+count_symbols_streaming() {
+    local json_file="$1"
+    local timeout_seconds="${2:-10}"
+
+    if [ ! -f "$json_file" ]; then
+        echo "0"
+        return
+    fi
+
+    # Try jq with timeout first
+    local count
+    count=$(timeout "$timeout_seconds" jq -r '[.[].symbols | length] | add' "$json_file" 2>/dev/null || echo "")
+
+    if [ -n "$count" ] && [ "$count" != "null" ]; then
+        echo "$count"
+        return
+    fi
+
+    # Fallback: use memory-efficient approach
+    local file_size=$(get_file_size_mb "$json_file")
+
+    if [ "$file_size" -gt 100 ]; then
+        # File is very large (>100MB), skip detailed counting
+        echo "many"
+        return
+    fi
+
+    # For medium files, try to count "name": occurrences
+    local symbol_count
+    symbol_count=$(timeout 30 grep -o '"name":' "$json_file" 2>/dev/null | wc -l || echo "0")
+
+    if [ "$symbol_count" -gt 0 ]; then
+        echo "$symbol_count"
+    elif [ "$file_size" -gt 0 ]; then
+        echo "many"  # Indicate content exists but count failed
+    else
+        echo "0"
+    fi
+}
+
+get_file_size_mb() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        local size_bytes
+        size_bytes=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
+        echo $((size_bytes / 1024 / 1024))
+    else
+        echo "0"
+    fi
+}
+
 get_kernel_version() {
     local kernel_path="$1"
     if [ -f "$kernel_path/Makefile" ]; then
@@ -116,10 +208,14 @@ check_prerequisites() {
         exit 1
     fi
 
-    # Check database connectivity
+    # Check database connectivity (optional for testing)
     if ! psql "$DATABASE_URL" -c "SELECT 1;" >/dev/null 2>&1; then
-        log_error "Cannot connect to database: $DATABASE_URL"
-        exit 1
+        log_warning "Cannot connect to database: $DATABASE_URL"
+        log_warning "Continuing without database. Database population will be skipped."
+        SKIP_DATABASE=true
+    else
+        log_success "Database connection verified"
+        SKIP_DATABASE=false
     fi
 
     # Check kernel path
@@ -144,7 +240,7 @@ setup_environment() {
 
     # Setup Python environment
     if [ -f "$KCS_ROOT/src/python/kcs_mcp/__init__.py" ]; then
-        export PYTHONPATH="$KCS_ROOT/src/python:$PYTHONPATH"
+        export PYTHONPATH="$KCS_ROOT/src/python:${PYTHONPATH:-}"
     fi
 
     log_success "Environment setup completed"
@@ -178,27 +274,47 @@ create_compile_commands() {
 }
 
 parse_kernel_sources() {
-    log "Parsing kernel sources..."
-
-    local start_time=$(date +%s)
     local parsed_output="$OUTPUT_DIR/parsed/kernel_symbols.json"
+
+    # Skip if output already exists and is large enough to be valid
+    if [ -f "$parsed_output" ]; then
+        local file_size=$(get_file_size_mb "$parsed_output")
+        if [ "$file_size" -gt 10 ]; then
+            log "Parsed output already exists (${file_size}MB), skipping parsing step"
+            local file_count=$(count_json_array_streaming "$parsed_output")
+            local symbol_count=$(count_symbols_streaming "$parsed_output")
+            if [ "$file_count" = "many" ] || [ "$symbol_count" = "many" ]; then
+                log_success "Using existing parsed data (large dataset, exact counts unavailable)"
+            else
+                log_success "Using existing parsed data: $file_count files, $symbol_count symbols"
+            fi
+            return 0
+        fi
+    fi
+
+    log "Parsing kernel sources..."
+    local start_time=$(date +%s)
 
     # Parse with kcs-parser
     local parser_cmd=(
-        kcs-parser parse
+        kcs-parser
+        --format ndjson
+        --workers "$PARALLEL_JOBS"
+    )
+
+    if [ "$VERBOSE" = "true" ]; then
+        parser_cmd+=(--verbose)
+    fi
+
+    parser_cmd+=(
+        parse
         --repo "$KERNEL_PATH"
         --config "$CONFIG"
         --output "$parsed_output"
-        --format json
-        --workers "$PARALLEL_JOBS"
     )
 
     if [ "$USE_CLANG" = "true" ] && [ -f "$OUTPUT_DIR/compile_commands.json" ]; then
         parser_cmd+=(--compile-commands "$OUTPUT_DIR/compile_commands.json")
-    fi
-
-    if [ "$VERBOSE" = "true" ]; then
-        parser_cmd+=(--verbose)
     fi
 
     log "Running: ${parser_cmd[*]}"
@@ -214,36 +330,78 @@ parse_kernel_sources() {
     local duration=$((end_time - start_time))
 
     if [ -f "$parsed_output" ]; then
-        local file_count=$(jq '. | length' "$parsed_output" 2>/dev/null || echo "0")
-        local symbol_count=$(jq '[.[].symbols | length] | add' "$parsed_output" 2>/dev/null || echo "0")
-        log_success "Parsed $file_count files, found $symbol_count symbols in ${duration}s"
+        local file_size_mb=$(get_file_size_mb "$parsed_output")
+        log "Output file size: ${file_size_mb}MB"
+
+        # Use streaming counters for large files
+        local file_count=$(count_json_array_streaming "$parsed_output")
+        local symbol_count=$(count_symbols_streaming "$parsed_output")
+
+        if [ "$file_count" = "0" ] && [ -s "$parsed_output" ]; then
+            log_warning "Counting failed for large files. File exists but appears empty via counting."
+            log_success "Parsed kernel sources (file counting failed, but output generated) in ${duration}s"
+        elif [ "$file_count" = "many" ] || [ "$symbol_count" = "many" ]; then
+            log_success "Parsed kernel sources (large dataset, exact counts unavailable) in ${duration}s"
+        else
+            log_success "Parsed $file_count files, found $symbol_count symbols in ${duration}s"
+        fi
+    else
+        log_error "No parsed output file generated"
+        return 1
     fi
 }
 
 extract_entry_points() {
+    local entry_points_output="$OUTPUT_DIR/extracted/entry_points.json"
+
+    # Skip if output already exists and is substantial
+    if [ -f "$entry_points_output" ]; then
+        local entry_count=$(count_json_array_streaming "$entry_points_output")
+        if [ "$entry_count" != "0" ] && [ "$entry_count" != "many" ]; then
+            log "Entry points already extracted ($entry_count entry points), skipping extraction"
+            return 0
+        fi
+    fi
+
     log "Extracting kernel entry points..."
 
     local start_time=$(date +%s)
-    local entry_points_output="$OUTPUT_DIR/extracted/entry_points.json"
+    local input_size=$(get_file_size_mb "$OUTPUT_DIR/parsed/kernel_symbols.json")
 
-    # Extract with kcs-extractor
-    local extractor_cmd=(
-        kcs-extractor extract
-        --input "$OUTPUT_DIR/parsed/kernel_symbols.json"
-        --output "$entry_points_output"
-        --format json
-        --type all
-    )
+    # Try rust extractor first for smaller files
+    if [ "$input_size" -le 500 ]; then
+        local extractor_cmd=(
+            kcs-extractor index
+            --input "$OUTPUT_DIR/parsed/kernel_symbols.json"
+            --output "$entry_points_output"
+            --types all
+        )
 
-    if [ "$VERBOSE" = "true" ]; then
-        extractor_cmd+=(--verbose)
+        if [ "$VERBOSE" = "true" ]; then
+            extractor_cmd+=(--verbose)
+        fi
+
+        log "Running: ${extractor_cmd[*]}"
+
+        if [ "$DRY_RUN" = "false" ]; then
+            "${extractor_cmd[@]}" && {
+                local end_time=$(date +%s)
+                local duration=$((end_time - start_time))
+                local entry_count=$(count_json_array_streaming "$entry_points_output")
+                log_success "Extracted $entry_count entry points in ${duration}s"
+                return 0
+            }
+        fi
     fi
 
-    log "Running: ${extractor_cmd[*]}"
+    # Fallback to streaming Python extractor for large files
+    log "Using streaming extractor for large file (${input_size}MB)..."
 
     if [ "$DRY_RUN" = "false" ]; then
-        "${extractor_cmd[@]}" || {
-            log_error "Entry point extraction failed"
+        python3 "$SCRIPT_DIR/extract_entry_points_streaming.py" \
+            "$OUTPUT_DIR/parsed/kernel_symbols.json" \
+            "$entry_points_output" || {
+            log_error "Streaming entry point extraction failed"
             return 1
         }
     fi
@@ -252,25 +410,42 @@ extract_entry_points() {
     local duration=$((end_time - start_time))
 
     if [ -f "$entry_points_output" ]; then
-        local entry_count=$(jq '. | length' "$entry_points_output" 2>/dev/null || echo "0")
+        local entry_count=$(count_json_array_streaming "$entry_points_output")
         log_success "Extracted $entry_count entry points in ${duration}s"
+    else
+        log_error "No entry points output file generated"
+        return 1
     fi
 }
 
 build_call_graph() {
+    local graph_output="$OUTPUT_DIR/graphs/call_graph.json"
+
+    # Skip if output already exists and is substantial
+    if [ -f "$graph_output" ]; then
+        local file_size=$(get_file_size_mb "$graph_output")
+        if [ "$file_size" -gt 1 ]; then
+            log "Call graph output already exists (${file_size}MB), skipping graph building"
+            return 0
+        fi
+    fi
+
     log "Building kernel call graph..."
 
     local start_time=$(date +%s)
-    local graph_output="$OUTPUT_DIR/graphs/call_graph.json"
+    local input_size=$(get_file_size_mb "$OUTPUT_DIR/parsed/kernel_symbols.json")
+
+    # Check if input is too large for memory-based processing
+    if [ "$input_size" -gt 1000 ]; then
+        log_warning "Input file is very large (${input_size}MB). Graph building may fail due to memory constraints."
+        log "Consider using --no-clang for smaller parser output, or adding more RAM."
+    fi
 
     # Build graph with kcs-graph
     local graph_cmd=(
         kcs-graph build
-        --symbols "$OUTPUT_DIR/parsed/kernel_symbols.json"
-        --entry-points "$OUTPUT_DIR/extracted/entry_points.json"
+        --input "$OUTPUT_DIR/parsed/kernel_symbols.json"
         --output "$graph_output"
-        --format json
-        --config "$CONFIG"
     )
 
     if [ "$VERBOSE" = "true" ]; then
@@ -280,8 +455,24 @@ build_call_graph() {
     log "Running: ${graph_cmd[*]}"
 
     if [ "$DRY_RUN" = "false" ]; then
-        "${graph_cmd[@]}" || {
-            log_error "Call graph building failed"
+        # Show progress message for graph building
+        log "This may take several minutes for large datasets..."
+        if [ "$input_size" -gt 500 ]; then
+            log "Large input detected. You can monitor progress with: tail -f $LOG_FILE"
+        fi
+
+        # Use timeout to prevent hanging and limit memory usage
+        timeout 300 "${graph_cmd[@]}" || {
+            local exit_code=$?
+            if [ $exit_code -eq 124 ]; then
+                log_error "Call graph building timed out (5 minutes). Consider using smaller input or more memory."
+                log "To continue indexing without graph: touch $graph_output"
+            elif [ $exit_code -eq 137 ]; then
+                log_error "Call graph building killed (likely out of memory). Try: tools/index_kernel.sh --no-clang"
+                log "To continue indexing without graph: touch $graph_output"
+            else
+                log_error "Call graph building failed with exit code $exit_code"
+            fi
             return 1
         }
     fi
@@ -290,9 +481,20 @@ build_call_graph() {
     local duration=$((end_time - start_time))
 
     if [ -f "$graph_output" ]; then
-        local node_count=$(jq '.nodes | length' "$graph_output" 2>/dev/null || echo "0")
-        local edge_count=$(jq '.edges | length' "$graph_output" 2>/dev/null || echo "0")
-        log_success "Built call graph with $node_count nodes, $edge_count edges in ${duration}s"
+        # For graph files, try jq with timeout, then fallback to size reporting
+        local node_count edge_count
+        node_count=$(timeout 30 jq -r '.nodes | length' "$graph_output" 2>/dev/null || echo "unknown")
+        edge_count=$(timeout 30 jq -r '.edges | length' "$graph_output" 2>/dev/null || echo "unknown")
+
+        if [ "$node_count" = "unknown" ] || [ "$edge_count" = "unknown" ]; then
+            local graph_size_mb=$(get_file_size_mb "$graph_output")
+            log_success "Built call graph (${graph_size_mb}MB output) in ${duration}s"
+        else
+            log_success "Built call graph with $node_count nodes, $edge_count edges in ${duration}s"
+        fi
+    else
+        log_error "No call graph output file generated"
+        return 1
     fi
 }
 
@@ -705,6 +907,29 @@ KERNEL_PATH=$(realpath "$KERNEL_PATH")
 OUTPUT_DIR=$(realpath "$OUTPUT_DIR")
 
 # Main pipeline execution
+show_pipeline_progress() {
+    local current_step="$1"
+    local total_steps=6
+    local step_number
+
+    case "$current_step" in
+        "setup") step_number=1 ;;
+        "compile") step_number=2 ;;
+        "parsing") step_number=3 ;;
+        "extraction") step_number=4 ;;
+        "graph") step_number=5 ;;
+        "database") step_number=6 ;;
+        *) step_number=0 ;;
+    esac
+
+    if [ "$step_number" -gt 0 ]; then
+        local progress=$((step_number * 100 / total_steps))
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log "🔄 Pipeline Progress: Step $step_number/$total_steps ($progress%) - $current_step"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    fi
+}
+
 main() {
     INDEX_START_TIME=$(date +%s)
 
@@ -715,17 +940,30 @@ main() {
     log "Database: $DATABASE_URL"
     log "Log: $LOG_FILE"
 
+    show_pipeline_progress "setup"
     check_prerequisites
     setup_environment
 
     if [ "$USE_CLANG" = "true" ]; then
+        show_pipeline_progress "compile"
         create_compile_commands "$KERNEL_PATH" "$CONFIG"
     fi
 
+    show_pipeline_progress "parsing"
     parse_kernel_sources
+
+    show_pipeline_progress "extraction"
     extract_entry_points
+
+    show_pipeline_progress "graph"
     build_call_graph
-    populate_database
+
+    if [ "${SKIP_DATABASE:-false}" != "true" ]; then
+        show_pipeline_progress "database"
+        populate_database
+    else
+        log "Skipping database population (no database connection)"
+    fi
 
     cleanup_temp_files
     generate_summary
