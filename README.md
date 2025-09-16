@@ -23,69 +23,139 @@ analysis with ground-truth accuracy.
 
 ## Quick Start
 
-### Prerequisites
+> **🚀 New to KCS?** Run our quick setup script: `bash tools/quick-setup.sh`
+>
+> **📖 Need detailed instructions?** See the complete [Installation Guide](docs/INSTALLATION.md)
 
-- **Docker & Docker Compose** (recommended)
-- **Python 3.11+** with `uv` package manager
-- **Rust 1.75+** (for building from source)
+### System Prerequisites
+
+**Required for all installation methods:**
+
+- **Linux or macOS** (Windows via WSL2)
+- **Git** for source code management
+- **4GB+ RAM** (8GB+ recommended for large kernels)
+- **10GB+ disk space** for data and indexes
+
+**For Docker installation (recommended):**
+
+- **Docker 20.10+** and **Docker Compose v2**
+- No other dependencies needed
+
+**For local development:**
+
+- **Python 3.11+** with `pip` and `venv`
+- **Rust 1.75+** with `cargo`
 - **PostgreSQL 15+** with pgvector extension
-- **Linux kernel source** (for indexing)
+- **Node.js 18+** (for some development tools)
+
+**For kernel indexing:**
+
+- **Linux kernel source code** (git clone of linux.git)
+- **Kernel build dependencies** (flex, bison, build-essential)
+- **Clang 15+** (optional, for enhanced semantic analysis)
 
 ### Option 1: Docker Compose (Recommended)
 
-1. **Clone and Setup Environment**
+1. **Install System Dependencies**
+
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get update
+   sudo apt-get install -y docker.io docker-compose-v2 git curl
+
+   # macOS (with Homebrew)
+   brew install docker docker-compose git
+
+   # Start Docker service (Linux only)
+   sudo systemctl enable --now docker
+   sudo usermod -aG docker $USER  # Re-login after this
+   ```
+
+2. **Clone and Setup Environment**
 
    ```bash
    git clone https://github.com/randomparity/kcs.git
    cd kcs
 
-   # Copy and customize environment variables
+   # Copy environment configuration (includes database passwords, ports, etc.)
    cp .env.example .env
-   # Edit .env with your preferred settings (optional for development)
 
-   # Create data directories for persistent storage
+   # Optional: Edit .env to customize settings
+   # Key settings: ports, data directories, authentication tokens
+   ```
+
+3. **Setup Data Persistence**
+
+   ```bash
+   # Create host directories for persistent data storage
    make create-data-dirs
+
+   # This creates: ./appdata/{postgres,redis,grafana,prometheus,kcs}
+   # Data persists across container restarts
    ```
 
-2. **Start Infrastructure**
+4. **Start Services**
 
    ```bash
-   make docker-compose-up  # Starts PostgreSQL and Redis
-   ```
+   # Start all application services (PostgreSQL, Redis, KCS MCP server)
+   make docker-compose-up-app
 
-3. **Start the MCP Server**
+   # Or with monitoring (adds Grafana, Prometheus)
+   make docker-compose-up-all
 
-   ```bash
-   # Option A: Use convenient make targets
-   make docker-compose-up-app      # Start MCP server + infrastructure
-   make docker-compose-up-all      # Start everything including monitoring
-
-   # Option B: Use docker compose directly
+   # Alternative: Use docker compose directly
    docker compose --profile app up -d
-   docker compose --profile app --profile monitoring up -d
    ```
 
-4. **Verify Services**
+5. **Verify Installation**
 
    ```bash
-   # Check all services are running
+   # Check all services are healthy
    docker compose ps
 
-   # Test MCP server health
+   # Test MCP server (should return {"status":"healthy"})
    curl http://localhost:8080/health
+
+   # Check logs if any issues
+   docker compose logs kcs-mcp
    ```
 
-5. **Index Your Kernel**
+6. **Install Kernel Analysis Tools** ⚠️
+
+   The Docker setup only runs the MCP server. For kernel indexing, you need additional tools:
 
    ```bash
-   # Index a Linux kernel repository
-   tools/index_kernel.sh ~/src/linux
+   # Install kernel build dependencies
+   sudo apt-get install -y flex bison build-essential libssl-dev libelf-dev
 
-   # Or with custom configuration
-   tools/index_kernel.sh -c arm64:defconfig ~/src/linux
+   # Build KCS analysis tools locally
+   cargo build --release
+
+   # Add tools to PATH (add to ~/.bashrc for persistence)
+   export PATH="$PWD/target/release:$PATH"
+
+   # Verify tools are available
+   which kcs-parser kcs-extractor kcs-graph
    ```
 
-6. **Test the API**
+7. **Index Your First Kernel**
+
+   ```bash
+   # Clone a Linux kernel (if you don't have one)
+   git clone --depth 1 https://github.com/torvalds/linux.git ~/src/linux
+
+   # Set environment for indexing tools
+   export DATABASE_URL="postgresql://kcs:postgres_i_hardly_knew_ya@localhost:5432/kcs"
+   export PYTHONPATH=""
+
+   # Index the kernel (takes 10-30 minutes depending on system)
+   tools/index_kernel.sh ~/src/linux
+
+   # For faster indexing without semantic analysis:
+   tools/index_kernel.sh --no-clang ~/src/linux
+   ```
+
+8. **Test the API**
 
    ```bash
    # Search for memory management code
@@ -103,24 +173,121 @@ analysis with ground-truth accuracy.
 
 ### Option 2: Local Development Setup
 
-1. **Setup Development Environment**
+Complete local installation without Docker.
+
+1. **Install System Dependencies**
 
    ```bash
-   make setup  # Creates venv, installs dependencies, builds Rust components
+   # Ubuntu/Debian
+   sudo apt-get update
+   sudo apt-get install -y \
+     git curl build-essential pkg-config libssl-dev \
+     python3 python3-pip python3-venv \
+     postgresql postgresql-contrib postgresql-15-pgvector \
+     flex bison libelf-dev \
+     clang
+
+   # macOS (with Homebrew)
+   brew install git curl pkg-config openssl python postgresql pgvector \
+     flex bison clang
+
+   # Install Rust
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source ~/.cargo/env
+   rustup component add clippy rustfmt
+   ```
+
+2. **Setup PostgreSQL Database**
+
+   ```bash
+   # Start PostgreSQL service
+   sudo systemctl enable --now postgresql  # Linux
+   # brew services start postgresql         # macOS
+
+   # Create KCS database and user
+   sudo -u postgres psql -c "CREATE DATABASE kcs;"
+   sudo -u postgres psql -c "CREATE USER kcs WITH PASSWORD 'kcs_password';"
+   sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE kcs TO kcs;"
+   sudo -u postgres psql -c "ALTER USER kcs CREATEDB;"
+
+   # Install pgvector extension
+   sudo -u postgres psql -d kcs -c "CREATE EXTENSION IF NOT EXISTS vector;"
+   ```
+
+3. **Clone and Build KCS**
+
+   ```bash
+   git clone https://github.com/randomparity/kcs.git
+   cd kcs
+
+   # Setup Python environment
+   python3 -m venv .venv
    source .venv/bin/activate
+   pip install --upgrade pip setuptools wheel
+
+   # Install Python dependencies and KCS
+   pip install -e .
+
+   # Build Rust components
+   cargo build --release
+
+   # Install tools to local bin (optional - adds to ~/.local/bin)
+   mkdir -p ~/.local/bin
+   cp target/release/kcs-* ~/.local/bin/
+   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+   source ~/.bashrc
    ```
 
-2. **Start Database**
+4. **Setup Configuration**
 
    ```bash
-   make db-start  # Starts PostgreSQL with pgvector
-   make db-migrate  # Runs database migrations
+   # Copy environment configuration
+   cp .env.example .env
+
+   # Edit .env to match your setup - key changes:
+   # POSTGRES_PASSWORD=kcs_password
+   # DATABASE_URL=postgresql://kcs:kcs_password@localhost:5432/kcs
+
+   # Create data directories
+   make create-data-dirs
    ```
 
-3. **Start KCS Server**
+5. **Run Database Migrations**
 
    ```bash
-   make dev  # Starts development server on port 8080
+   # Load environment variables
+   export $(grep -v '^#' .env | xargs)
+
+   # Run migrations (if migration script exists)
+   if [ -f "tools/setup/migrate.sh" ]; then
+     bash tools/setup/migrate.sh
+   fi
+   ```
+
+6. **Start KCS Server**
+
+   ```bash
+   # Activate environment
+   source .venv/bin/activate
+   export $(grep -v '^#' .env | xargs)
+
+   # Start development server
+   kcs-mcp --host 0.0.0.0 --port 8080 --log-level info
+
+   # Or use Python module directly
+   python -m kcs_mcp.cli --host 0.0.0.0 --port 8080
+   ```
+
+7. **Verify Installation**
+
+   ```bash
+   # Test server health
+   curl http://localhost:8080/health
+
+   # Test analysis tools
+   kcs-parser --version
+   kcs-extractor --help
+   kcs-graph --help
    ```
 
 ## Architecture
@@ -487,9 +654,289 @@ KCS adheres to strict constitutional requirements:
 
 ## Troubleshooting
 
-### Common Issues
+### Common Installation Issues
 
-#### Database Connection Issues
+#### Missing System Dependencies
+
+**Problem**: `flex: not found` or `bison: not found` during kernel indexing
+
+```bash
+# Solution: Install kernel build dependencies
+sudo apt-get install -y flex bison build-essential libssl-dev libelf-dev
+
+# Verify installation
+which flex bison gcc
+```
+
+**Problem**: `kcs-parser: command not found`
+
+```bash
+# Solution 1: Build and add to PATH
+cargo build --release
+export PATH="$PWD/target/release:$PATH"
+
+# Solution 2: Install to local bin
+mkdir -p ~/.local/bin
+cp target/release/kcs-* ~/.local/bin/
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# Verify installation
+which kcs-parser kcs-extractor kcs-graph
+```
+
+**Problem**: `psql: command not found`
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install postgresql-client
+
+# macOS
+brew install postgresql
+
+# Verify installation
+psql --version
+```
+
+#### Docker Issues
+
+**Problem**: Docker containers fail to start
+
+```bash
+# Check Docker is running
+sudo systemctl status docker
+
+# Check container status
+docker compose ps
+
+# View specific container logs
+docker compose logs postgres
+docker compose logs kcs-mcp
+
+# Restart services
+docker compose down && docker compose --profile app up -d
+```
+
+**Problem**: Port conflicts (port already in use)
+
+```bash
+# Check what's using the port
+sudo lsof -i :8080
+sudo lsof -i :5432
+
+# Edit .env to use different ports
+# KCS_EXTERNAL_PORT=8081
+# POSTGRES_EXTERNAL_PORT=5433
+
+# Restart with new ports
+docker compose down && docker compose --profile app up -d
+```
+
+#### Local Database Connection Issues
+
+**Problem**: Cannot connect to database
+
+```bash
+# Check PostgreSQL is running
+docker compose ps postgres
+# or for local install:
+sudo systemctl status postgresql
+
+# Test connection manually
+psql "postgresql://kcs:postgres_i_hardly_knew_ya@localhost:5432/kcs" -c "SELECT 1;"
+
+# Check .env database URL matches docker-compose.yml
+grep DATABASE_URL .env
+grep POSTGRES_PASSWORD .env
+```
+
+**Problem**: Database authentication failed
+
+```bash
+# Verify password in .env matches docker-compose.yml
+grep POSTGRES_PASSWORD .env
+grep POSTGRES_PASSWORD docker-compose.yml
+
+# Reset database (WARNING: destroys data)
+docker compose down -v
+make create-data-dirs
+docker compose --profile app up -d
+```
+
+### Runtime Issues
+
+#### Kernel Indexing Problems
+
+**Problem**: `PYTHONPATH: unbound variable`
+
+```bash
+# Solution: Set environment variables before indexing
+export PYTHONPATH=""
+export DATABASE_URL="postgresql://kcs:postgres_i_hardly_knew_ya@localhost:5432/kcs"
+export PATH="$PWD/target/release:$PATH"
+
+# Then run indexing
+tools/index_kernel.sh ~/src/linux
+```
+
+**Problem**: Kernel indexing fails with compilation errors
+
+```bash
+# Option 1: Use tree-sitter only (faster, less accurate)
+tools/index_kernel.sh --no-clang ~/src/linux
+
+# Option 2: Install full kernel build dependencies
+sudo apt-get install -y \
+  flex bison build-essential libssl-dev libelf-dev \
+  bc kmod cpio initramfs-tools
+
+# Option 3: Use pre-built compile_commands.json (if available)
+cp /path/to/existing/compile_commands.json ~/src/linux/
+tools/index_kernel.sh ~/src/linux
+```
+
+**Problem**: Out of memory during indexing
+
+```bash
+# Reduce parallel jobs
+tools/index_kernel.sh --jobs 2 ~/src/linux
+
+# Use incremental indexing for updates
+tools/index_kernel.sh --incremental ~/src/linux
+
+# Monitor memory usage
+htop  # or top
+```
+
+#### API/Server Issues
+
+**Problem**: MCP server returns 401 Unauthorized
+
+```bash
+# Check authentication token
+curl -H "Authorization: Bearer dev_jwt_secret_change_in_production" \
+  http://localhost:8080/health
+
+# Verify JWT_SECRET in .env
+grep JWT_SECRET .env
+
+# Use development token for testing
+AUTH_TOKEN="dev-token"  # This always works in dev mode
+```
+
+**Problem**: Slow query responses
+
+```bash
+# Check database indexes
+docker compose exec postgres psql -U kcs -d kcs -c "
+SELECT schemaname,tablename,attname,n_distinct,correlation
+FROM pg_stats WHERE tablename IN ('symbols', 'call_edges', 'files');"
+
+# Check query performance
+curl http://localhost:8080/metrics | grep query_duration
+
+# Optimize database
+docker compose exec postgres psql -U kcs -d kcs -c "
+ANALYZE;
+REINDEX DATABASE kcs;"
+```
+
+### Development Issues
+
+#### Build Problems
+
+**Problem**: Rust compilation fails
+
+```bash
+# Update Rust to latest stable
+rustup update stable
+rustup default stable
+
+# Clean and rebuild
+cargo clean
+cargo build --release
+
+# Check for specific errors
+cargo check --all-targets
+```
+
+**Problem**: Python package installation fails
+
+```bash
+# Ensure using correct Python version
+python3 --version  # Should be 3.11+
+
+# Upgrade pip and build tools
+pip install --upgrade pip setuptools wheel
+
+# Install with verbose output
+pip install -e . -v
+
+# Clear pip cache if needed
+pip cache purge
+```
+
+#### Test Failures
+
+**Problem**: Tests fail with database errors
+
+```bash
+# Ensure test database is clean
+make test-db-reset
+
+# Run tests with verbose output
+python -m pytest tests/ -v -s
+
+# Run specific failing test
+python -m pytest tests/contract/test_search_code.py -v
+```
+
+### Debugging Commands
+
+#### Useful Debug Commands
+
+```bash
+# Check all service health
+make health-check
+
+# Verify environment configuration
+export $(grep -v '^#' .env | xargs)
+echo "Database: $DATABASE_URL"
+echo "JWT Secret: ${JWT_SECRET:0:10}..."  # Show first 10 chars only
+
+# Test with different .env files
+cp .env.example .env.test
+# Edit .env.test with test settings
+docker compose --env-file .env.test config
+```
+
+#### Debug Parsing Failures
+
+```bash
+# Check Rust tools are built
+make build-rust
+
+# Test with single file
+./target/debug/kcs-parser file ~/src/linux/kernel/fork.c
+
+# Enable verbose logging
+tools/index_kernel.sh --verbose ~/src/linux
+```
+
+#### Debug Performance Issues
+
+```bash
+# Check database indexes
+psql $DATABASE_URL -c "SELECT * FROM pg_stat_user_indexes WHERE idx_scan < 100;"
+
+# Monitor query performance
+curl http://localhost:8080/metrics | grep query_duration
+
+# Run performance optimization
+python tools/performance_optimization.py --analyze
+```
+
+#### Docker Database Connection Issues
 
 ```bash
 # Check database is running
@@ -546,7 +993,7 @@ cp .env.example .env.test
 docker compose --env-file .env.test config
 ```
 
-#### Parsing Failures
+#### Kernel Parsing Failures
 
 ```bash
 # Check Rust tools are built
@@ -559,7 +1006,7 @@ make build-rust
 tools/index_kernel.sh --verbose ~/src/linux
 ```
 
-#### Performance Issues
+#### Query Performance Issues
 
 ```bash
 # Check database indexes
@@ -574,6 +1021,8 @@ python tools/performance_optimization.py --analyze
 
 ### Getting Help
 
+- **Installation Issues**: See [Installation Guide](docs/INSTALLATION.md) for platform-specific instructions
+- **Runtime Problems**: Check the comprehensive [Troubleshooting](#troubleshooting) section above
 - **GitHub Issues**: [Report bugs and feature requests](https://github.com/your-org/kcs/issues)
 - **Documentation**: [Complete API docs](docs/)
 - **Contributing**: [Contribution guidelines](CONTRIBUTING.md)
