@@ -15,6 +15,8 @@ pub struct EntryPoint {
     pub line_number: u32,
     pub signature: String,
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +27,8 @@ pub enum EntryType {
     Sysfs,
     ProcFs,
     DebugFs,
+    Netlink,
+    Interrupt,
     ModuleInit,
     ModuleExit,
 }
@@ -37,6 +41,8 @@ pub struct ExtractionConfig {
     pub include_sysfs: bool,
     pub include_procfs: bool,
     pub include_debugfs: bool,
+    pub include_netlink: bool,
+    pub include_interrupts: bool,
     pub include_modules: bool,
 }
 
@@ -49,6 +55,8 @@ impl Default for ExtractionConfig {
             include_sysfs: true,
             include_procfs: true,
             include_debugfs: true,
+            include_netlink: true,
+            include_interrupts: true,
             include_modules: true,
         }
     }
@@ -72,6 +80,36 @@ impl Extractor {
 
         if self.config.include_ioctls {
             entry_points.extend(ioctls::extract_ioctls(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_file_ops {
+            entry_points.extend(entry_points::extract_file_operations(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_sysfs {
+            entry_points.extend(entry_points::extract_sysfs_entries(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_procfs {
+            entry_points.extend(entry_points::extract_procfs_entries(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_debugfs {
+            entry_points.extend(entry_points::extract_debugfs_entries(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_netlink {
+            entry_points.extend(entry_points::extract_netlink_handlers(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_interrupts {
+            entry_points.extend(entry_points::extract_interrupt_handlers(
+                kernel_dir.as_ref(),
+            )?);
+        }
+
+        if self.config.include_modules {
+            entry_points.extend(entry_points::extract_module_entries(kernel_dir.as_ref())?);
         }
 
         Ok(entry_points)
@@ -126,6 +164,7 @@ impl Extractor {
                                                     "System call: {}",
                                                     syscall_name.as_str()
                                                 )),
+                                                metadata: None,
                                             });
                                         }
                                     }
@@ -142,6 +181,7 @@ impl Extractor {
                                                     "Kernel syscall helper: {}",
                                                     syscall_name.as_str()
                                                 )),
+                                                metadata: None,
                                             });
                                         }
                                     }
@@ -160,6 +200,7 @@ impl Extractor {
                                                 "Direct syscall: {}",
                                                 &name[4..]
                                             )),
+                                            metadata: None,
                                         });
                                     }
                                 }

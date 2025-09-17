@@ -7,109 +7,75 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis
 via MCP protocol for AI coding assistants.
 
-## Tech Stack
+## Architecture Overview
 
-- **Rust 1.75**: Parser, extractor, graph algorithms (performance-critical)
-- **Python 3.11**: MCP server, API layer (FastAPI)
-- **PostgreSQL 15+**: Graph storage with pgvector for semantic search
-- **Tree-sitter**: Fast structural parsing
-- **Clang**: Semantic analysis via compile_commands.json
-- **Aya/libbpf-rs**: Optional eBPF tracing
+### Multi-Language Pipeline
 
-## Project Structure
+KCS uses a three-stage pipeline architecture:
 
-```text
-src/
-├── rust/           # Performance-critical Rust components
-│   ├── kcs-parser/      # Tree-sitter + clang parsing
-│   ├── kcs-extractor/   # Entry point detection
-│   ├── kcs-graph/       # Call graph algorithms
-│   ├── kcs-impact/      # Impact analysis
-│   ├── kcs-drift/       # Drift detection
-│   └── kcs-python-bridge/ # Python bindings
-├── python/         # MCP server and Python components
-│   ├── kcs_mcp/         # FastAPI MCP protocol server
-│   ├── kcs_summarizer/  # LLM-powered summaries
-│   └── kcs_ci/          # CI utilities
-└── sql/           # Database schema and migrations
-    ├── migrations/      # Schema versioning
-    └── optimizations/   # Performance tuning
+1. **Rust Components** (Performance-critical parsing/analysis)
+   - `kcs-parser`: Tree-sitter + Clang for syntactic/semantic parsing
+   - `kcs-extractor`: Entry point detection (syscalls, ioctls, file_ops, sysfs)
+   - `kcs-graph`: Call graph algorithms with cycle detection
+   - `kcs-impact`: Change impact analysis
+   - `kcs-drift`: Spec vs implementation comparison
+   - `kcs-python-bridge`: PyO3 bindings for Python integration
 
-tests/
-├── contract/      # API contract tests
-├── integration/   # Cross-component tests
-├── performance/   # Benchmarks
-└── fixtures/      # Test data (mini-kernel)
+2. **Python MCP Server** (API and orchestration)
+   - FastAPI server exposing MCP protocol endpoints
+   - Async PostgreSQL queries via asyncpg
+   - Connection pooling with 2-10 connections
+   - Structured logging with structlog
 
-tools/             # Development and deployment scripts
-├── index_kernel.sh     # Main kernel indexing script
-└── setup/             # Installation helpers
+3. **PostgreSQL Database** (Graph storage)
+   - pgvector extension for semantic search
+   - JSONB metadata columns for extensibility
+   - Recursive CTEs for graph traversal with depth limiting
+
+### Data Flow
+
+```
+Kernel Source → Rust Parser → Entry Points/Symbols → PostgreSQL
+                     ↓
+              Clang Enhancement
+                     ↓
+              Python Bridge → MCP Server → AI Assistant
 ```
 
-## Key Concepts
+### Key Design Patterns
 
-- **Entry Points**: Kernel boundaries (syscalls, ioctls, file_ops, sysfs, etc.)
-- **Call Graph**: Function relationships with config awareness
-- **Citations**: Every claim has file:line references
-- **Impact Analysis**: Blast radius of changes
-- **Drift Detection**: Spec vs implementation mismatches
-
-## Constitutional Requirements
-
-1. **Read-Only**: Never modify kernel source
-2. **Citations Required**: All results include file:line spans
-3. **MCP-First**: All features via Model Context Protocol
-4. **Config-Aware**: Results tagged with kernel configuration
-5. **Performance**: Index ≤20min, queries p95 ≤600ms
-
-## MCP API Endpoints
-
-- `search_code`: Semantic/lexical code search
-- `get_symbol`: Symbol information with summary
-- `who_calls`: Find callers of a function
-- `list_dependencies`: Find callees
-- `entrypoint_flow`: Trace from entry to implementation
-- `impact_of`: Analyze change blast radius
-- `diff_spec_vs_code`: Detect drift
-- `owners_for`: Find maintainers
-
-## Testing Strategy
-
-- **TDD Required**: Tests before implementation
-- **Order**: Contract → Integration → E2E → Unit
-- **Real Dependencies**: Use actual Postgres, kernel repos
-- **Performance**: k6 for load testing, benchmarks for critical paths
+- **Streaming Processing**: Tools output newline-delimited JSON for memory efficiency
+- **Progressive Enhancement**: Basic parsing works without Clang, enriched when available
+- **Configuration Awareness**: All data tagged with kernel config (x86_64:defconfig, etc.)
+- **Citation-First**: Every result includes file:line:sha references
 
 ## Development Commands
 
-### Setup and Build
+### Quick Start
 
 ```bash
-# Initial setup (creates venv, installs deps, builds Rust)
-make setup
+# One-time setup
+make setup              # Creates venv, installs deps, builds Rust, installs hooks
 
-# Build Rust components only
-make build-rust
-
-# Activate development environment
+# Activate environment (required for all Python commands)
 source .venv/bin/activate
+
+# Development cycle
+make check              # Runs lint + test (use before committing)
+make format             # Auto-format all code
 ```
 
-### Code Quality
+### Building Components
 
 ```bash
-# Run all quality checks (lint + test)
-make check
+# Build all Rust crates
+cd src/rust && cargo build --release --workspace
 
-# Linting only
-make lint                # All linting (Python, Rust, YAML, SQL)
-make lint-python         # Python only (ruff, mypy)
-make lint-rust           # Rust only (clippy)
+# Build specific crate
+cd src/rust/kcs-parser && cargo build --release
 
-# Code formatting
-make format              # All formatting
-make format-python       # Python only
-make format-rust         # Rust only
+# Install Python package in development mode (after activating venv)
+pip install -e ".[dev,performance]"
 ```
 
 ### Testing
@@ -118,108 +84,200 @@ make format-rust         # Rust only
 # Run all tests
 make test
 
-# Specific test types
-make test-unit           # Unit tests
-make test-integration    # Integration tests
-make test-contract       # API contract tests
-make test-performance    # Performance benchmarks
+# Run specific test suites
+make test-unit          # Fast unit tests
+make test-integration   # Integration tests (requires DB)
+make test-contract      # API contract validation
+make test-performance   # Performance benchmarks
+
+# Run single Python test
+pytest tests/contract/test_mcp_who_calls.py::test_who_calls_basic -v
+
+# Run single Rust test
+cd src/rust/kcs-parser && cargo test test_parse_function -- --nocapture
+
+# Run tests with coverage
+pytest --cov=src/python/kcs_mcp --cov-report=html tests/
 ```
 
-### Development Server
+### Code Quality
 
 ```bash
-# Start MCP server (after building)
+# Python linting
+ruff check src/python/ tests/ tools/    # Fast Python linter
+mypy src/python/                        # Type checking
+
+# Rust linting
+cd src/rust && cargo clippy --all-targets --all-features -- -D warnings
+
+# Format code
+ruff format src/python/ tests/          # Python formatting
+cd src/rust && cargo fmt --all          # Rust formatting
+
+# SQL linting
+sqlfluff lint src/sql/                  # SQL style checking
+```
+
+### Running the Server
+
+```bash
+# Start MCP server locally (requires activated venv)
 kcs-mcp --host 0.0.0.0 --port 8080
 
-# Or via Python module
-python -m kcs_mcp.cli --host 0.0.0.0 --port 8080
-```
+# With custom database URL
+DATABASE_URL=postgresql://user:pass@localhost/kcs kcs-mcp
 
-### Docker Operations
+# Docker compose (full stack)
+make docker-compose-up-app              # Core services only
+make docker-compose-up-all              # With monitoring (Grafana, Prometheus)
 
-```bash
-# Start all services via Docker
-make docker-compose-up-app        # Core services only
-make docker-compose-up-all        # With monitoring
-
-# Check service health
-docker compose ps
+# Check health
 curl http://localhost:8080/health
 ```
 
-### Kernel Indexing
+### Indexing Kernels
 
 ```bash
-# Index a kernel repository (requires tools built)
+# Full kernel indexing
 tools/index_kernel.sh ~/src/linux
 
-# With specific configuration
+# Subsystem only (faster for testing)
+tools/index_kernel.sh --subsystem fs/ext4 ~/src/linux
+
+# With specific config
 tools/index_kernel.sh --config arm64:defconfig ~/src/linux
 
 # Incremental update
 tools/index_kernel.sh --incremental ~/src/linux
+
+# Extract entry points only (streaming)
+tools/extract_entry_points_streaming.py ~/src/linux | head -20
 ```
 
-## Database Schema
+### Database Operations
 
-- **Nodes**: File, Symbol, EntryPoint, KconfigOption
-- **Edges**: CallEdge, DependsOn, ModuleSymbol
-- **Aggregates**: Summary, DriftReport, TestCoverage
-- **Config Bitmap**: Efficient multi-config tagging
+```bash
+# Connect to database
+psql -d kcs -U kcs -h localhost
 
-## Performance Targets
+# Apply migrations
+for f in src/sql/migrations/*.sql; do psql -d kcs -f "$f"; done
 
-- Full index: ≤20 minutes
-- Incremental: ≤3 minutes
-- Query p95: ≤600ms
-- Graph size: <20GB for 6 configs
-- Scale: ~50k symbols, ~10k entry points
+# Common queries for debugging
+psql -d kcs -c "SELECT COUNT(*) FROM entry_point GROUP BY entry_type;"
+psql -d kcs -c "SELECT name, file_path FROM symbol WHERE name LIKE 'vfs_%' LIMIT 10;"
 
-## Build System Architecture
+# Check recursive CTE performance
+psql -d kcs -c "EXPLAIN ANALYZE WITH RECURSIVE ..."
+```
 
-- **Multi-language**: Rust workspace + Python package + SQL migrations
-- **Rust workspace**: All Rust crates under `src/rust/` with shared dependencies
-- **Python packaging**: Uses setuptools with `pyproject.toml`, installed as editable package
-- **Development environment**: Virtual environment via `uv` for fast dependency resolution
-- **Code quality**: Enforced via pre-commit hooks (ruff, mypy, clippy, detect-secrets)
+## Project Structure
 
-## Database Integration
+```text
+src/
+├── rust/               # Performance-critical Rust components
+│   ├── kcs-*/             # Individual crates with Cargo.toml
+│   └── Cargo.toml         # Workspace configuration
+├── python/             # MCP server and Python components
+│   └── kcs_mcp/           # FastAPI application
+│       ├── __init__.py
+│       ├── cli.py         # Entry point
+│       ├── database.py    # Connection pooling and queries
+│       ├── models.py      # Pydantic models
+│       ├── tools.py       # MCP endpoint implementations
+│       └── server.py      # FastAPI app setup
+└── sql/                # Database schema
+    └── migrations/        # Numbered migration files
 
-- **PostgreSQL**: Primary storage with pgvector extension for semantic search
-- **Migrations**: SQL scripts in `src/sql/migrations/`
-- **Connection**: Uses asyncpg for async Python database operations
-- **Performance**: Includes optimization scripts in `src/sql/optimizations/`
+tests/
+├── contract/           # API contract tests (OpenAPI validation)
+├── integration/        # Cross-component tests
+├── performance/        # k6 and benchmark tests
+└── fixtures/          # Test kernel code samples
 
-## Key Dependencies
+tools/                  # Shell and Python scripts
+├── index_kernel.sh       # Main indexing orchestrator
+└── extract_entry_points_streaming.py  # Streaming parser wrapper
+```
 
-### Rust Components
+## Constitutional Requirements
 
-- `tree-sitter`/`tree-sitter-c`: Fast syntactic parsing
-- `clang-sys`: Semantic analysis integration
-- `sqlx`: Type-safe database queries
-- `pyo3`: Python bindings for Rust components
+1. **Read-Only**: Never modify kernel source - all operations are analysis only
+2. **Citations Required**: All results include `Span(file, line, sha)` objects
+3. **MCP-First**: All features exposed via `/mcp/tools/*` endpoints
+4. **Config-Aware**: Results tagged with kernel configuration context
+5. **Performance**: Index ≤20min, queries p95 ≤600ms (enforced by tests)
 
-### Python Components
+## Key Implementation Details
 
-- `fastapi`/`uvicorn`: MCP protocol server
-- `asyncpg`: PostgreSQL async driver
-- `pgvector`: Vector similarity search
-- `pydantic`: Data validation and serialization
+### Database Schema
+
+- **Recursive CTEs**: Used for call graph traversal with cycle detection
+
+  ```sql
+  WITH RECURSIVE callers_tree AS (
+    -- Base case
+    SELECT caller_id, 1 as depth, ARRAY[caller_id] as visited
+    -- Recursive case with cycle check
+    WHERE depth < $2 AND NOT (caller_id = ANY(visited))
+  )
+  ```
+
+- **JSONB Metadata**: Extensible without schema changes
+
+  ```sql
+  metadata->>'export_type' = 'GPL'  -- Indexed for performance
+  ```
+
+### Entry Point Detection
+
+Current implementation in `src/rust/kcs-extractor/src/entry_points.rs`:
+
+- Syscalls: Mapped from `__NR_*` to `sys_*` functions
+- File ops: Regex patterns for `file_operations` structs
+- Sysfs: `DEVICE_ATTR` macro patterns
+- Ioctls: Partially implemented, needs magic number extraction
+
+### MCP Endpoint Pattern
+
+All endpoints in `src/python/kcs_mcp/tools.py` follow:
+
+1. Validate request with Pydantic model
+2. Build SQL query with depth/config parameters
+3. Execute with connection pool
+4. Include citations in response
+5. Handle empty results gracefully
+
+### Performance Optimization
+
+- **Parallel Processing**: Rust crates use rayon for file-level parallelism
+- **Streaming**: Python tools yield results as they're produced
+- **Connection Pooling**: 2-10 PostgreSQL connections
+- **Query Limits**: LIMIT 100 on recursive queries to prevent explosion
+- **Depth Limits**: Maximum depth 5 for graph traversal
 
 ## Testing Approach
 
-- **Contract-first**: API contracts tested before implementation
-- **Real data**: Uses actual kernel repositories, not mocks
-- **Performance**: Includes benchmarks with k6 load testing
-- **Fixtures**: Mini-kernel test data for fast iteration
+- **TDD Required**: Tests must fail before implementation (RED-GREEN-Refactor)
+- **Contract Tests**: Validate OpenAPI schemas before implementation
+- **Real Data**: Use actual kernel code in `tests/fixtures/kernel/`
+- **Performance Tests**: `tests/performance/test_mcp_performance.py` validates p95 targets
+
+## Common Pitfalls
+
+1. **Missing Virtual Environment**: Always `source .venv/bin/activate` before Python work
+2. **Rust Not Built**: Run `make build-rust` after Rust changes
+3. **Database Not Running**: Use `docker compose up postgres` or local PostgreSQL
+4. **Migrations Not Applied**: Check `src/sql/migrations/` are applied
+5. **Clang Not Found**: Clang integration gracefully degrades if unavailable
 
 ---
 
 *When working on KCS:*
 
-1. Always include citations in responses
-2. Respect read-only constraint
-3. Test with real kernel repositories
-4. Monitor performance against targets
+1. Always include citations in responses (file:line references)
+2. Respect read-only constraint on kernel source
+3. Test with real kernel repositories when possible
+4. Monitor performance against constitutional targets
 5. Use `make check` before committing
 6. Activate virtual environment: `source .venv/bin/activate`

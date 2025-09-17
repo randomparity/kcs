@@ -1,0 +1,114 @@
+openapi: 3.0.0
+info:
+  title: Kernel Pattern Detection API
+  version: 0.2.0
+paths:
+  /detect/patterns:
+    post:
+      summary: Detect kernel-specific patterns (EXPORT_SYMBOL, module_param, etc)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - file_paths
+              properties:
+                file_paths:
+                  type: array
+                  description: List of kernel source files to analyze
+                  items:
+                    type: string
+                pattern_types:
+                  type: array
+                  description: Filter specific pattern types (default all)
+                  items:
+                    type: string
+                    enum:
+                      - export_symbol
+                      - export_symbol_gpl
+                      - export_symbol_ns
+                      - module_param
+                      - module_param_array
+                      - module_parm_desc
+                      - early_param
+                      - core_param
+                      - setup_param
+                include_context:
+                  type: boolean
+                  description: Include surrounding code context
+                  default: false
+      responses:
+        '200':
+          description: Patterns detected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patterns:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - pattern_type
+                        - file_path
+                        - line_number
+                        - raw_text
+                      properties:
+                        pattern_type:
+                          type: string
+                          example: "export_symbol_gpl"
+                        file_path:
+                          type: string
+                          example: "kernel/sched/core.c"
+                        line_number:
+                          type: integer
+                          example: 1234
+                        raw_text:
+                          type: string
+                          example: "EXPORT_SYMBOL_GPL(schedule)"
+                        symbol_name:
+                          type: string
+                          example: "schedule"
+                          description: Associated symbol if applicable
+                        metadata:
+                          type: object
+                          properties:
+                            export_type:
+                              type: string
+                            namespace:
+                              type: string
+                            param_type:
+                              type: string
+                            param_desc:
+                              type: string
+                            default_value:
+                              type: string
+                        context:
+                          type: object
+                          properties:
+                            before:
+                              type: array
+                              items:
+                                type: string
+                            after:
+                              type: array
+                              items:
+                                type: string
+                  statistics:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      by_type:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                      files_processed:
+                        type: integer
+        '400':
+          description: Invalid request
+        '404':
+          description: Files not found

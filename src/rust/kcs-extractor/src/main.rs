@@ -131,6 +131,8 @@ fn build_extraction_config(types: Option<Vec<String>>) -> ExtractionConfig {
         include_sysfs: false,
         include_procfs: false,
         include_debugfs: false,
+        include_netlink: false,
+        include_interrupts: false,
         include_modules: false,
     };
 
@@ -143,6 +145,8 @@ fn build_extraction_config(types: Option<Vec<String>>) -> ExtractionConfig {
                 "sysfs" => config.include_sysfs = true,
                 "procfs" => config.include_procfs = true,
                 "debugfs" => config.include_debugfs = true,
+                "netlink" => config.include_netlink = true,
+                "interrupts" | "interrupt" | "irq" => config.include_interrupts = true,
                 "modules" | "module" => config.include_modules = true,
                 "all" => return ExtractionConfig::default(),
                 _ => eprintln!("Warning: Unknown entry point type: {}", type_str),

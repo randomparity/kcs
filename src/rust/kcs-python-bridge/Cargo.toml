@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 kcs-parser = { path = "../kcs-parser" }
+kcs-extractor = { path = "../kcs-extractor" }
 pyo3 = { version = "0.21", features = ["extension-module"] }
 serde.workspace = true
 serde_json.workspace = true

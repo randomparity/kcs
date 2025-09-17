@@ -172,6 +172,7 @@ impl TreeSitterParser {
                     signature: signature.trim().to_string(),
                     visibility,
                     attributes: self.extract_attributes(&signature),
+                    metadata: None,
                 });
             }
         }

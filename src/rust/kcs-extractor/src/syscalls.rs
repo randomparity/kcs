@@ -37,6 +37,7 @@ pub fn extract_syscalls<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>
                         line_number: (line_num + 1) as u32,
                         signature: line.trim().to_string(),
                         description: Some(format!("System call: {}", name.as_str())),
+                        metadata: None,
                     });
                 }
             }
@@ -51,6 +52,7 @@ pub fn extract_syscalls<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>
                         line_number: (line_num + 1) as u32,
                         signature: line.trim().to_string(),
                         description: Some(format!("System call: {}", name.as_str())),
+                        metadata: None,
                     });
                 }
             }

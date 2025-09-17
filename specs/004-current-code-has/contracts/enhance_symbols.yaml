@@ -1,0 +1,135 @@
+openapi: 3.0.0
+info:
+  title: Symbol Enhancement API
+  version: 0.2.0
+paths:
+  /enhance/symbols:
+    post:
+      summary: Enhance symbols with Clang semantic analysis and pattern metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - symbols
+              properties:
+                symbols:
+                  type: array
+                  description: Symbols to enhance
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - file_path
+                    properties:
+                      name:
+                        type: string
+                      file_path:
+                        type: string
+                      line_number:
+                        type: integer
+                compile_commands:
+                  type: string
+                  description: Path to compile_commands.json for Clang
+                enable_clang:
+                  type: boolean
+                  default: true
+                detect_exports:
+                  type: boolean
+                  description: Detect EXPORT_SYMBOL patterns
+                  default: true
+                extract_docs:
+                  type: boolean
+                  description: Extract documentation from comments
+                  default: true
+      responses:
+        '200':
+          description: Symbols enhanced successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enhanced_symbols:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - name
+                        - file_path
+                        - symbol_type
+                      properties:
+                        name:
+                          type: string
+                          example: "vfs_read"
+                        file_path:
+                          type: string
+                          example: "fs/read_write.c"
+                        symbol_type:
+                          type: string
+                          enum: ["function", "struct", "enum", "typedef", "macro", "variable"]
+                        signature:
+                          type: string
+                          example: "ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)"
+                        metadata:
+                          type: object
+                          properties:
+                            export_status:
+                              type: string
+                              enum: ["exported", "static", "global"]
+                            export_type:
+                              type: string
+                              enum: ["GPL", "non-GPL", "NS"]
+                            clang_type:
+                              type: string
+                              description: Full type from Clang
+                            return_type:
+                              type: string
+                              example: "ssize_t"
+                            parameters:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                                  type:
+                                    type: string
+                            attributes:
+                              type: array
+                              items:
+                                type: string
+                              example: ["__init", "__must_check"]
+                            config_deps:
+                              type: array
+                              items:
+                                type: string
+                              example: ["CONFIG_BLOCK", "CONFIG_FS"]
+                            documentation:
+                              type: string
+                              description: Extracted from kernel-doc comments
+                        enhancement_source:
+                          type: array
+                          description: Which enhancements were applied
+                          items:
+                            type: string
+                            enum: ["tree-sitter", "clang", "patterns", "documentation"]
+                  statistics:
+                    type: object
+                    properties:
+                      total_symbols:
+                        type: integer
+                      enhanced_count:
+                        type: integer
+                      clang_enhanced:
+                        type: integer
+                      export_detected:
+                        type: integer
+                      docs_extracted:
+                        type: integer
+        '400':
+          description: Invalid request
+        '404':
+          description: Symbol or file not found

@@ -1,0 +1,109 @@
+openapi: 3.0.0
+info:
+  title: Enhanced Entry Point Extraction API
+  version: 0.2.0
+paths:
+  /extract/entry_points:
+    post:
+      summary: Extract kernel entry points with pattern recognition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - kernel_path
+              properties:
+                kernel_path:
+                  type: string
+                  description: Path to kernel source tree
+                entry_types:
+                  type: array
+                  description: Filter specific entry types (default all)
+                  items:
+                    type: string
+                    enum:
+                      - syscall
+                      - ioctl
+                      - file_ops
+                      - sysfs
+                      - procfs
+                      - debugfs
+                      - netlink
+                      - notification_chain
+                      - interrupt_handler
+                      - boot_param
+                enable_clang:
+                  type: boolean
+                  description: Enable Clang semantic analysis
+                  default: false
+                compile_commands:
+                  type: string
+                  description: Path to compile_commands.json
+      responses:
+        '200':
+          description: Entry points extracted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entry_points:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - name
+                        - entry_type
+                        - file_path
+                        - line_number
+                      properties:
+                        name:
+                          type: string
+                          example: "sys_read"
+                        entry_type:
+                          type: string
+                          example: "syscall"
+                        file_path:
+                          type: string
+                          example: "fs/read_write.c"
+                        line_number:
+                          type: integer
+                          example: 450
+                        signature:
+                          type: string
+                          example: "ssize_t sys_read(unsigned int fd, char __user *buf, size_t count)"
+                        description:
+                          type: string
+                          example: "Read from a file descriptor"
+                        metadata:
+                          type: object
+                          properties:
+                            export_type:
+                              type: string
+                              enum: ["GPL", "non-GPL", "NS"]
+                            module:
+                              type: string
+                            subsystem:
+                              type: string
+                              enum: ["fs", "mm", "net", "driver", "arch", "kernel"]
+                            ioctl_cmd:
+                              type: string
+                            param_type:
+                              type: string
+                  statistics:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      by_type:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                      processing_time_ms:
+                        type: number
+        '400':
+          description: Invalid request
+        '404':
+          description: Kernel path not found
