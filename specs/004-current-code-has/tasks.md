@@ -159,7 +159,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Get parameter names and types
   - Extract attributes (__init,__exit, etc.)
 
-- [ ] T020 Implement documentation extraction in `src/rust/kcs-parser/src/clang_bridge.rs`
+- [x] T020 Implement documentation extraction in `src/rust/kcs-parser/src/clang_bridge.rs`
   - Extract kernel-doc comments
   - Parse function descriptions
   - Associate docs with symbols

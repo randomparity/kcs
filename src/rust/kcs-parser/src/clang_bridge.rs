@@ -342,6 +342,94 @@ impl ClangBridge {
         }
     }
 
+    /// Extract documentation comment from a cursor
+    #[cfg(feature = "clang")]
+    fn extract_documentation(cursor: CXCursor) -> Option<String> {
+        unsafe {
+            let raw_comment = clang_Cursor_getRawCommentText(cursor);
+            let comment_str = Self::cxstring_to_string(raw_comment);
+
+            if comment_str.is_empty() {
+                return None;
+            }
+
+            // Process kernel-doc style comments
+            let processed = Self::process_kernel_doc(&comment_str);
+            if !processed.is_empty() {
+                Some(processed)
+            } else {
+                None
+            }
+        }
+    }
+
+    /// Process kernel-doc style comments
+    #[cfg(feature = "clang")]
+    fn process_kernel_doc(comment: &str) -> String {
+        let mut in_kernel_doc = false;
+        let mut lines = Vec::new();
+
+        for line in comment.lines() {
+            let trimmed = line.trim();
+
+            // Check for kernel-doc start (/**)
+            if trimmed.starts_with("/**") && !trimmed.starts_with("/***") {
+                in_kernel_doc = true;
+                // Check if there's content on the same line as /**
+                let content = trimmed.strip_prefix("/**").unwrap_or("").trim();
+                if !content.is_empty() && !content.starts_with("*") {
+                    lines.push(content.to_string());
+                }
+            } else if in_kernel_doc {
+                if trimmed == "*/" {
+                    // End of comment
+                    break;
+                } else if let Some(content) = trimmed.strip_prefix("* ") {
+                    lines.push(content.to_string());
+                } else if let Some(content) = trimmed.strip_prefix("*") {
+                    // Handle lines with just * or *text (no space)
+                    let content = content.trim();
+                    if !content.is_empty() {
+                        lines.push(content.to_string());
+                    } else if !lines.is_empty() {
+                        // Empty line for paragraph separation
+                        lines.push(String::new());
+                    }
+                }
+            }
+        }
+
+        // Join lines, preserving paragraph breaks
+        let mut paragraphs = Vec::new();
+        let mut current_paragraph = Vec::new();
+
+        for line in lines {
+            if line.is_empty() {
+                if !current_paragraph.is_empty() {
+                    paragraphs.push(current_paragraph.join(" "));
+                    current_paragraph.clear();
+                }
+            } else {
+                current_paragraph.push(line);
+            }
+        }
+
+        if !current_paragraph.is_empty() {
+            paragraphs.push(current_paragraph.join(" "));
+        }
+
+        let mut result = paragraphs.join("\n\n");
+
+        // Clean up common patterns
+        result = result.replace("@brief ", "");
+        result = result.replace("@param ", "Parameter: ");
+        result = result.replace("@return ", "Returns: ");
+        result = result.replace("@note ", "Note: ");
+        result = result.replace("@warning ", "Warning: ");
+
+        result.trim().to_string()
+    }
+
     /// Find a cursor at a specific location
     #[cfg(feature = "clang")]
     fn find_cursor_at_location(
@@ -427,6 +515,21 @@ impl ClangBridge {
                             for (key, value) in type_info {
                                 metadata.insert(key, value);
                             }
+                        }
+                    }
+
+                    // Extract documentation
+                    if let Some(doc) = Self::extract_documentation(cursor) {
+                        // Initialize metadata if needed
+                        if enhanced.metadata.is_none() {
+                            enhanced.metadata = Some(serde_json::Map::new());
+                        }
+
+                        if let Some(ref mut metadata) = enhanced.metadata {
+                            metadata.insert(
+                                "documentation".to_string(),
+                                serde_json::Value::String(doc),
+                            );
                         }
                     }
 
@@ -677,6 +780,133 @@ int multiply(int x, int y) {{
                     );
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "clang")]
+    #[test]
+    fn test_documentation_extraction() -> Result<()> {
+        let config = ExtendedParserConfig {
+            use_clang: true,
+            ..Default::default()
+        };
+
+        // Create a temporary C file with documented functions
+        let temp_dir = tempdir()?;
+        let test_file = temp_dir.path().join("test.c");
+        let mut file = File::create(&test_file)?;
+        writeln!(
+            file,
+            r#"
+/**
+ * calculate_sum - Add two integers
+ * @a: first integer
+ * @b: second integer
+ *
+ * This function adds two integers and returns the result.
+ * It handles overflow by wrapping around.
+ *
+ * Return: sum of a and b
+ */
+int calculate_sum(int a, int b) {{
+    return a + b;
+}}
+
+/* Regular comment, not kernel-doc */
+int no_doc_function(void) {{
+    return 42;
+}}
+
+/**
+ * Simple one-line kernel doc
+ */
+void simple_doc(void) {{
+    // Empty function
+}}
+"#
+        )?;
+
+        let mut bridge = ClangBridge::new(&config)?;
+
+        let symbols = vec![
+            Symbol {
+                name: "calculate_sum".to_string(),
+                kind: crate::SymbolKind::Function,
+                start_line: 11,
+                end_line: 13,
+                start_col: 0,
+                end_col: 0,
+                signature: "int calculate_sum(int a, int b)".to_string(),
+                visibility: crate::Visibility::Global,
+                attributes: vec![],
+                metadata: None,
+            },
+            Symbol {
+                name: "no_doc_function".to_string(),
+                kind: crate::SymbolKind::Function,
+                start_line: 17,
+                end_line: 19,
+                start_col: 0,
+                end_col: 0,
+                signature: "int no_doc_function(void)".to_string(),
+                visibility: crate::Visibility::Global,
+                attributes: vec![],
+                metadata: None,
+            },
+            Symbol {
+                name: "simple_doc".to_string(),
+                kind: crate::SymbolKind::Function,
+                start_line: 24,
+                end_line: 26,
+                start_col: 0,
+                end_col: 0,
+                signature: "void simple_doc(void)".to_string(),
+                visibility: crate::Visibility::Global,
+                attributes: vec![],
+                metadata: None,
+            },
+        ];
+
+        let enhanced = bridge.enhance_symbols(&test_file, &symbols)?;
+        assert_eq!(enhanced.len(), symbols.len());
+
+        // Check documentation was extracted for calculate_sum
+        let calc_sum = enhanced
+            .iter()
+            .find(|s| s.name == "calculate_sum")
+            .expect("Should find calculate_sum");
+
+        if let Some(ref metadata) = calc_sum.metadata {
+            if let Some(doc) = metadata.get("documentation") {
+                let doc_str = doc.as_str().unwrap_or("");
+                assert!(
+                    doc_str.contains("Add two integers"),
+                    "Should contain function brief"
+                );
+                assert!(
+                    doc_str.contains("Parameter: a"),
+                    "Should contain parameter documentation"
+                );
+                assert!(
+                    doc_str.contains("Returns:"),
+                    "Should contain return documentation"
+                );
+            }
+        }
+
+        // Check that no_doc_function has no documentation
+        let no_doc = enhanced
+            .iter()
+            .find(|s| s.name == "no_doc_function")
+            .expect("Should find no_doc_function");
+
+        if let Some(ref metadata) = no_doc.metadata {
+            assert!(
+                !metadata.contains_key("documentation"),
+                "Function without kernel-doc should not have documentation"
+            );
         }
 
         Ok(())
