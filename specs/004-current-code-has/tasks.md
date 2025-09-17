@@ -122,7 +122,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Entry Point Extraction (Rust)
 
-- [ ] T013 Enhance ioctl detection in `src/rust/kcs-extractor/src/ioctls.rs`
+- [x] T013 Enhance ioctl detection in `src/rust/kcs-extractor/src/ioctls.rs`
   - Implement ioctl command extraction
   - Detect _IO/_IOR/_IOW/_IOWR macros
   - Extract magic numbers and command codes
