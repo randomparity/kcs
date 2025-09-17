@@ -44,7 +44,7 @@
 
 ## Phase 3.1: Setup
 
-- [ ] T001 Create database migration for metadata columns in `src/sql/migrations/004_metadata_columns.sql`
+- [x] T001 Create database migration for metadata columns in `src/sql/migrations/005_metadata_columns.sql`
   - Add metadata JSONB to entry_point and symbol tables
   - Create kernel_pattern table
   - Add performance indexes
