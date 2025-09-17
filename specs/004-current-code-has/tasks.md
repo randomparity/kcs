@@ -69,7 +69,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Verify EXPORT_SYMBOL, module_param detection
   - MUST FAIL initially (patterns not implemented)
 
-- [ ] T004 [P] Contract test for enhance_symbols endpoint in `tests/contract/test_enhance_symbols.py`
+- [x] T004 [P] Contract test for enhance_symbols endpoint in `tests/contract/test_enhance_symbols.py`
   - Validate request/response schemas match `contracts/enhance_symbols.yaml`
   - Test symbol enhancement with and without Clang
   - Verify metadata enrichment
