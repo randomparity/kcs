@@ -357,18 +357,68 @@ async def entrypoint_flow(
             "__NR_openat": "sys_openat",
             "__NR_open": "sys_open",
             "__NR_close": "sys_close",
+            "__NR_lseek": "sys_lseek",
+            "__NR_mmap": "sys_mmap",
+            "__NR_mprotect": "sys_mprotect",
+            "__NR_munmap": "sys_munmap",
+            "__NR_ioctl": "sys_ioctl",
+            "__NR_pread64": "sys_pread64",
+            "__NR_pwrite64": "sys_pwrite64",
+            "__NR_readv": "sys_readv",
+            "__NR_writev": "sys_writev",
+            "__NR_access": "sys_access",
+            "__NR_pipe": "sys_pipe",
+            "__NR_select": "sys_select",
+            "__NR_dup": "sys_dup",
+            "__NR_dup2": "sys_dup2",
+            "__NR_socket": "sys_socket",
+            "__NR_connect": "sys_connect",
+            "__NR_accept": "sys_accept",
+            "__NR_sendto": "sys_sendto",
+            "__NR_recvfrom": "sys_recvfrom",
+            "__NR_bind": "sys_bind",
+            "__NR_listen": "sys_listen",
+            "__NR_getsockname": "sys_getsockname",
+            "__NR_getpeername": "sys_getpeername",
+            "__NR_clone": "sys_clone",
+            "__NR_fork": "sys_fork",
+            "__NR_vfork": "sys_vfork",
+            "__NR_execve": "sys_execve",
+            "__NR_exit": "sys_exit",
+            "__NR_wait4": "sys_wait4",
+            "__NR_kill": "sys_kill",
+            "__NR_getpid": "sys_getpid",
+            "__NR_getppid": "sys_getppid",
+            "__NR_getuid": "sys_getuid",
+            "__NR_getgid": "sys_getgid",
+            "__NR_setuid": "sys_setuid",
+            "__NR_setgid": "sys_setgid",
+            "__NR_gettimeofday": "sys_gettimeofday",
+            "__NR_settimeofday": "sys_settimeofday",
         }
 
         syscall_func = entry_to_syscall.get(request.entry)
+
+        # Handle ioctl and file_ops entry points
         if not syscall_func:
-            # Fall back to mock data for unknown entries
-            return EntrypointFlowResponse(steps=[])
+            # Check if it's an ioctl command
+            if request.entry.startswith("IOCTL_") or request.entry.startswith("_IO"):
+                syscall_func = "sys_ioctl"
+            # Check if it's a file operation
+            elif request.entry.endswith("_fops") or request.entry.endswith(
+                "_operations"
+            ):
+                # Try to extract the operation name
+                syscall_func = request.entry
+            else:
+                # Unknown entry point
+                return EntrypointFlowResponse(steps=[])
 
         # Build call flow using call graph data
         steps = []
         visited = set()
         current_symbol = syscall_func
-        max_depth = 3  # Limit depth to avoid infinite loops
+        max_depth = 5  # Increase depth for better flow tracing
 
         # Add initial syscall entry step
         steps.append(
@@ -419,26 +469,6 @@ async def entrypoint_flow(
             )
 
             current_symbol = callee["symbol"]
-
-        # Fall back to mock data if no call graph data available
-        if len(steps) == 1 and request.entry in ["__NR_read", "__NR_openat"]:
-            steps.append(
-                FlowStep(
-                    edge="function_call",
-                    **{"from": syscall_func},
-                    to=("vfs_read" if "read" in request.entry else "do_sys_openat2"),
-                    span=Span(
-                        path=(
-                            "fs/read_write.c"
-                            if "read" in request.entry
-                            else "fs/open.c"
-                        ),
-                        sha="a1b2c3d4e5f6789012345678901234567890abcd",
-                        start=451,
-                        end=465,
-                    ),
-                )
-            )
 
         return EntrypointFlowResponse(steps=steps)
 
@@ -491,11 +521,22 @@ async def impact_of(
 
         # Extract symbols from diff content
         if request.diff:
-            # Simple heuristic to extract function names from diff
+            # Enhanced symbol extraction from diff
             import re
 
+            # Extract function definitions and declarations
             func_pattern = r"(?:^|\s)([a-zA-Z_][a-zA-Z0-9_]*)\s*\("
             for match in re.finditer(func_pattern, request.diff):
+                symbols_to_analyze.add(match.group(1))
+
+            # Extract struct/enum/typedef names
+            struct_pattern = r"(?:struct|enum|typedef)\s+([a-zA-Z_][a-zA-Z0-9_]*)"
+            for match in re.finditer(struct_pattern, request.diff):
+                symbols_to_analyze.add(match.group(1))
+
+            # Extract macro definitions
+            macro_pattern = r"#define\s+([A-Z_][A-Z0-9_]*)"
+            for match in re.finditer(macro_pattern, request.diff):
                 symbols_to_analyze.add(match.group(1))
 
         # For each symbol, find all callers and callees to determine blast radius
@@ -532,24 +573,64 @@ async def impact_of(
                     "Failed to analyze symbol impact", symbol=symbol, error=str(e)
                 )
 
-        # Determine risks based on call graph analysis
-        if len(affected_symbols) > 10:
+        # Enhanced risk calculation based on blast radius
+        blast_radius = len(affected_symbols)
+
+        # Calculate risk level based on affected symbols count
+        if blast_radius <= 5:
+            pass  # Low risk, no special risk factors
+        elif blast_radius <= 20:
+            risks.append("moderate_impact_change")
+        elif blast_radius <= 50:
             risks.append("high_impact_change")
+        else:
+            risks.append("critical_impact_change")
+
+        # Check for specific risk patterns
         if any("sys_" in sym for sym in affected_symbols):
             risks.append("syscall_interface_affected")
+        if any("__" in sym for sym in affected_symbols):
+            risks.append("internal_api_affected")
+        if any("init_" in sym for sym in affected_symbols):
+            risks.append("initialization_affected")
 
-        # Mock additional analysis based on symbol patterns
+        # Enhanced subsystem detection from symbol patterns
+        subsystem_patterns = {
+            "vfs_": ("vfs", "vfs@kernel.org", "fs/"),
+            "ext4_": ("ext4", "ext4@kernel.org", "fs/ext4/"),
+            "ext3_": ("ext3", "ext3@kernel.org", "fs/ext3/"),
+            "xfs_": ("xfs", "xfs@kernel.org", "fs/xfs/"),
+            "btrfs_": ("btrfs", "btrfs@kernel.org", "fs/btrfs/"),
+            "nfs_": ("nfs", "nfs@kernel.org", "fs/nfs/"),
+            "net_": ("networking", "netdev@kernel.org", "net/"),
+            "eth_": ("ethernet", "netdev@kernel.org", "drivers/net/"),
+            "tcp_": ("tcp", "netdev@kernel.org", "net/ipv4/"),
+            "udp_": ("udp", "netdev@kernel.org", "net/ipv4/"),
+            "ipv6_": ("ipv6", "netdev@kernel.org", "net/ipv6/"),
+            "mm_": ("memory", "linux-mm@kernel.org", "mm/"),
+            "sched_": ("scheduler", "scheduler@kernel.org", "kernel/sched/"),
+            "irq_": ("interrupt", "irq@kernel.org", "kernel/irq/"),
+            "usb_": ("usb", "linux-usb@kernel.org", "drivers/usb/"),
+            "pci_": ("pci", "linux-pci@kernel.org", "drivers/pci/"),
+            "block_": ("block", "linux-block@kernel.org", "block/"),
+            "crypto_": ("crypto", "linux-crypto@kernel.org", "crypto/"),
+            "security_": ("security", "linux-security@kernel.org", "security/"),
+        }
+
+        detected_subsystems = set()
         for symbol in affected_symbols:
-            if "vfs_" in symbol:
-                owners.append("vfs@kernel.org")
-                tests.append("fs/vfs_test.c")
-                configs.append("x86_64:allmodconfig")
-            elif "ext4_" in symbol:
-                modules.append("ext4")
-                owners.append("ext4@kernel.org")
-            elif "net_" in symbol or "eth_" in symbol:
-                modules.append("networking")
-                owners.append("netdev@kernel.org")
+            for prefix, (subsystem, owner, path) in subsystem_patterns.items():
+                if prefix in symbol:
+                    detected_subsystems.add(subsystem)
+                    if subsystem not in modules:
+                        modules.append(subsystem)
+                    if owner not in owners:
+                        owners.append(owner)
+                    # Add potential test locations
+                    test_file = f"{path}test_{subsystem}.c"
+                    if test_file not in tests:
+                        tests.append(test_file)
+                    break
 
         # Analyze file-based impact
         if request.files:

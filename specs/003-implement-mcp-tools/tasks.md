@@ -134,13 +134,13 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
   - Ensure all results have citations
   - Handle empty results gracefully
 
-- [ ] T013 Implement entrypoint_flow endpoint in `src/python/kcs_mcp/tools.py:entrypoint_flow()`
+- [x] T013 Implement entrypoint_flow endpoint in `src/python/kcs_mcp/tools.py:entrypoint_flow()`
   - Extend entry_to_syscall mapping (add more syscalls)
   - Implement proper flow tracing with visited set
   - Remove mock data fallback (lines 464-482)
   - Add support for ioctl and file_ops entry points
 
-- [ ] T014 Implement impact_of endpoint in `src/python/kcs_mcp/tools.py:impact_of()`
+- [x] T014 Implement impact_of endpoint in `src/python/kcs_mcp/tools.py:impact_of()`
   - Enhance symbol extraction from diff
   - Implement bidirectional traversal (callers + callees)
   - Add subsystem detection from symbol patterns
