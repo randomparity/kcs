@@ -6,20 +6,20 @@ Multi-threaded for better performance on large datasets.
 """
 
 import json
+import os
 import re
 import sys
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
 from threading import Lock
+from typing import Any
 
 # Global progress tracking
 progress_lock = Lock()
 total_entry_points = 0
 processed_files = 0
 
-def extract_syscalls_from_chunk(file_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def extract_syscalls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract syscall entry points from a single file's data."""
     entry_points = []
 
@@ -82,7 +82,7 @@ def extract_syscalls_from_chunk(file_data: Dict[str, Any]) -> List[Dict[str, Any
     return entry_points
 
 
-def process_files_batch(files_batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def process_files_batch(files_batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Process a batch of files in a single thread."""
     global total_entry_points, processed_files
 
@@ -99,7 +99,7 @@ def process_files_batch(files_batch: List[Dict[str, Any]]) -> List[Dict[str, Any
     return all_entry_points
 
 
-def process_large_json_streaming(input_file: str, output_file: str, max_workers: int = None):
+def process_large_json_streaming(input_file: str, output_file: str, max_workers: int | None = None):
     """Process large JSON file in streaming fashion with multi-threading."""
     global total_entry_points, processed_files
 
@@ -124,7 +124,7 @@ def process_large_json_streaming(input_file: str, output_file: str, max_workers:
     batch_size = 50
     files_batch = []
 
-    with open(input_file, 'r', encoding='utf-8') as f:
+    with open(input_file, encoding='utf-8') as f:
         # Skip opening bracket
         f.read(1)
         bytes_read += 1

@@ -92,7 +92,7 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
   - Verify results expand with depth
   - Ensure depth=5 is enforced as maximum
 
-- [ ] T007 [P] Integration test for cycle detection in `tests/integration/test_mcp_cycle_handling.py`
+- [x] T007 [P] Integration test for cycle detection in `tests/integration/test_mcp_cycle_handling.py`
   - Create test data with circular dependencies
   - Verify traversal doesn't infinite loop
   - Check visited tracking works correctly
