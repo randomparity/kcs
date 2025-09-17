@@ -27,7 +27,7 @@
 
 - [x] **T012**: Create kcs-config crate structure with Cargo.toml
 - [x] **T013**: Implement KernelConfig parser in kcs-config/src/parser.rs
-- [ ] **T014**: Add CLI interface in kcs-config/src/main.rs with --help/--version/--format
+- [x] **T014**: Add CLI interface in kcs-config/src/main.rs with --help/--version/--format
 - [x] **T015**: Write unit tests for kcs-config parser
 - [ ] **T016**: Create integration test for kcs-config with sample configs
 
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 14
+- **Completed**: 15
 - **In Progress**: 0
 - **Blocked**: 0
 
