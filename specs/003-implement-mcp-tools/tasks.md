@@ -98,7 +98,7 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
   - Check visited tracking works correctly
   - Test both who_calls and list_dependencies
 
-- [ ] T008 [P] Integration test for empty results handling in `tests/integration/test_mcp_empty_results.py`
+- [x] T008 [P] Integration test for empty results handling in `tests/integration/test_mcp_empty_results.py`
   - Test with non-existent symbols
   - Test with empty database
   - Verify graceful degradation (empty lists, not errors)
