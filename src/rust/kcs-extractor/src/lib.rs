@@ -76,6 +76,22 @@ impl Extractor {
             entry_points.extend(ioctls::extract_ioctls(kernel_dir.as_ref())?);
         }
 
+        if self.config.include_file_ops {
+            entry_points.extend(entry_points::extract_file_operations(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_sysfs {
+            entry_points.extend(entry_points::extract_sysfs_entries(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_procfs {
+            entry_points.extend(entry_points::extract_procfs_entries(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_modules {
+            entry_points.extend(entry_points::extract_module_entries(kernel_dir.as_ref())?);
+        }
+
         Ok(entry_points)
     }
 

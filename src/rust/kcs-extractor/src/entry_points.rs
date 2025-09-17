@@ -92,6 +92,145 @@ pub fn extract_sysfs_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryP
     Ok(sysfs_entries)
 }
 
+pub fn extract_procfs_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>> {
+    let mut procfs_entries = Vec::new();
+
+    // Patterns for proc_create and related functions
+    let proc_create_patterns = [
+        // proc_create("name", mode, parent, proc_ops)
+        Regex::new(r#"proc_create\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#)?,
+        // proc_create_data("name", mode, parent, proc_ops, data)
+        Regex::new(
+            r#"proc_create_data\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*,\s*[^)]+\s*\)"#,
+        )?,
+        // proc_create_single("name", mode, parent, show_func)
+        Regex::new(
+            r#"proc_create_single\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*(\w+)\s*\)"#,
+        )?,
+        // proc_create_single_data("name", mode, parent, show_func, data)
+        Regex::new(
+            r#"proc_create_single_data\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*(\w+)\s*,\s*[^)]+\s*\)"#,
+        )?,
+        // proc_create_seq("name", mode, parent, seq_ops)
+        Regex::new(
+            r#"proc_create_seq\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#,
+        )?,
+        // proc_create_seq_data("name", mode, parent, seq_ops, data)
+        Regex::new(
+            r#"proc_create_seq_data\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*,\s*[^)]+\s*\)"#,
+        )?,
+    ];
+
+    // Pattern to match proc_ops structure definitions
+    let proc_ops_pattern =
+        Regex::new(r"(?s)(?:static\s+)?(?:const\s+)?struct\s+proc_ops\s+(\w+)\s*=\s*\{([^}]+)\}")?;
+
+    // Pattern to extract fields from proc_ops
+    let proc_field_pattern = Regex::new(r"\.proc_(\w+)\s*=\s*(\w+)")?;
+
+    search_kernel_files(
+        kernel_dir.as_ref(),
+        &[".c", ".h"],
+        |_file_path, relative_path, content| {
+            let lines: Vec<&str> = content.lines().collect();
+
+            // First, find all proc_ops structures and their handlers
+            let mut proc_ops_handlers = std::collections::HashMap::new();
+            for proc_ops_match in proc_ops_pattern.find_iter(content) {
+                if let Some(captures) = proc_ops_pattern.captures(proc_ops_match.as_str()) {
+                    let ops_name = captures.get(1).unwrap().as_str();
+                    let struct_content = captures.get(2).unwrap().as_str();
+                    let line_num = content[..proc_ops_match.start()].lines().count();
+
+                    // Extract handlers from proc_ops
+                    for field_match in proc_field_pattern.captures_iter(struct_content) {
+                        let field_name = field_match.get(1).unwrap().as_str();
+                        let function_name = field_match.get(2).unwrap().as_str();
+
+                        // Skip NULL assignments
+                        if function_name == "NULL"
+                            || function_name == "seq_read"
+                            || function_name == "seq_lseek"
+                            || function_name == "single_release"
+                        {
+                            continue;
+                        }
+
+                        proc_ops_handlers.insert(
+                            function_name.to_string(),
+                            (ops_name.to_string(), field_name.to_string(), line_num),
+                        );
+
+                        procfs_entries.push(EntryPoint {
+                            name: function_name.to_string(),
+                            entry_type: EntryType::ProcFs,
+                            file_path: relative_path.clone(),
+                            line_number: (line_num + 1) as u32,
+                            signature: format!(".proc_{} = {}", field_name, function_name),
+                            description: Some(format!(
+                                "ProcFS handler: {} in {}",
+                                field_name, ops_name
+                            )),
+                            metadata: Some({
+                                let mut map = serde_json::Map::new();
+                                map.insert(
+                                    "proc_ops".to_string(),
+                                    serde_json::Value::String(ops_name.to_string()),
+                                );
+                                map.insert(
+                                    "handler_type".to_string(),
+                                    serde_json::Value::String(field_name.to_string()),
+                                );
+                                map
+                            }),
+                        });
+                    }
+                }
+            }
+
+            // Now find proc_create calls
+            for (line_num, line) in lines.iter().enumerate() {
+                for pattern in &proc_create_patterns {
+                    if let Some(captures) = pattern.captures(line) {
+                        let proc_path = captures.get(1).unwrap().as_str();
+                        let ops_or_handler = captures.get(2).unwrap().as_str();
+
+                        // Create metadata
+                        let mut metadata = serde_json::Map::new();
+                        metadata.insert(
+                            "proc_path".to_string(),
+                            serde_json::Value::String(proc_path.to_string()),
+                        );
+
+                        // Check if this references a known proc_ops structure
+                        if let Some((ops_name, _, _)) = proc_ops_handlers.get(ops_or_handler) {
+                            metadata.insert(
+                                "proc_ops".to_string(),
+                                serde_json::Value::String(ops_name.clone()),
+                            );
+                        }
+
+                        procfs_entries.push(EntryPoint {
+                            name: format!("procfs_{}", proc_path.replace('/', "_")),
+                            entry_type: EntryType::ProcFs,
+                            file_path: relative_path.clone(),
+                            line_number: (line_num + 1) as u32,
+                            signature: line.trim().to_string(),
+                            description: Some(format!("ProcFS entry: {}", proc_path)),
+                            metadata: Some(metadata),
+                        });
+
+                        break; // Only match the first pattern that matches
+                    }
+                }
+            }
+            Ok(())
+        },
+    )?;
+
+    Ok(procfs_entries)
+}
+
 pub fn extract_module_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>> {
     let mut module_entries = Vec::new();
 
@@ -202,7 +341,8 @@ where
                     }
                     visit_dir(&path, kernel_root, extensions, callback)?;
                 } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                    if extensions.contains(&ext) {
+                    let ext_with_dot = format!(".{}", ext);
+                    if extensions.contains(&ext_with_dot.as_str()) {
                         let relative_path = path
                             .strip_prefix(kernel_root)
                             .unwrap_or(&path)
@@ -225,4 +365,85 @@ where
         extensions,
         &mut callback,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_extract_procfs_entries() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let kernel_dir = temp_dir.path();
+
+        // Create a sample file with proc_ops and proc_create
+        let fs_dir = kernel_dir.join("fs");
+        fs::create_dir_all(&fs_dir)?;
+
+        let mut test_file = File::create(fs_dir.join("test_proc.c"))?;
+        writeln!(
+            test_file,
+            r#"
+#include <linux/proc_fs.h>
+
+static int test_proc_open(struct inode *inode, struct file *file) {{
+    return single_open(file, test_proc_show, NULL);
+}}
+
+static int test_proc_show(struct seq_file *m, void *v) {{
+    seq_printf(m, "Test proc file\n");
+    return 0;
+}}
+
+static const struct proc_ops test_proc_ops = {{
+    .proc_open      = test_proc_open,
+    .proc_read      = seq_read,
+    .proc_lseek     = seq_lseek,
+    .proc_release   = single_release,
+}};
+
+static int __init test_init(void) {{
+    proc_create("test_entry", 0, NULL, &test_proc_ops);
+    proc_create("test/nested", 0644, NULL, &test_proc_ops);
+    return 0;
+}}
+        "#
+        )?;
+
+        let entries = extract_procfs_entries(kernel_dir)?;
+
+        // Should find both the proc_ops handlers and the proc_create calls
+        assert!(
+            entries.len() >= 3,
+            "Should find at least 3 procfs entries, found {}",
+            entries.len()
+        );
+
+        // Check that we found the proc_ops handler
+        let handler = entries.iter().find(|e| e.name == "test_proc_open");
+        assert!(handler.is_some(), "Should find test_proc_open handler");
+
+        // Check that we found the proc_create entries
+        let test_entry = entries.iter().find(|e| e.name == "procfs_test_entry");
+        assert!(test_entry.is_some(), "Should find procfs_test_entry");
+
+        let nested_entry = entries.iter().find(|e| e.name == "procfs_test_nested");
+        assert!(nested_entry.is_some(), "Should find procfs_test_nested");
+
+        // Verify metadata
+        if let Some(entry) = test_entry {
+            assert!(entry.metadata.is_some(), "Should have metadata");
+            if let Some(ref metadata) = entry.metadata {
+                assert!(
+                    metadata.contains_key("proc_path"),
+                    "Should have proc_path in metadata"
+                );
+            }
+        }
+
+        Ok(())
+    }
 }

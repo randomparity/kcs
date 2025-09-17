@@ -127,7 +127,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Detect _IO/_IOR/_IOW/_IOWR macros
   - Extract magic numbers and command codes
 
-- [ ] T014 Implement procfs entry point detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T014 Implement procfs entry point detection in `src/rust/kcs-extractor/src/entry_points.rs`
   - Add patterns for proc_create variants
   - Extract proc_ops structures
   - Identify show/write handlers
