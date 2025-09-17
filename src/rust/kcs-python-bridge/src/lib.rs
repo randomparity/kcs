@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
 
-use kcs_parser::{ParsedFile, Parser, ExtendedParserConfig, ParseResult};
+use kcs_parser::{ExtendedParserConfig, ParseResult, ParsedFile, Parser};
 
 /// Python wrapper for the Rust Parser
 #[pyclass]
