@@ -82,7 +82,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Verify counts match expected ranges
   - Check metadata population
 
-- [ ] T006 [P] Integration test for pattern detection accuracy in `tests/integration/test_pattern_detection.py`
+- [x] T006 [P] Integration test for pattern detection accuracy in `tests/integration/test_pattern_detection.py`
   - Test EXPORT_SYMBOL variants detection
   - Test module_param detection with descriptions
   - Verify false positive rate <1%
