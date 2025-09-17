@@ -499,6 +499,224 @@ where
     )
 }
 
+/// Extract interrupt handler entry points from kernel source
+pub fn extract_interrupt_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>> {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let kernel_dir = kernel_dir.as_ref();
+    let entry_points = Rc::new(RefCell::new(Vec::new()));
+
+    // Patterns for request_irq and related functions
+    let request_irq_patterns = [
+        // request_irq(irq, handler, flags, name, dev)
+        Regex::new(
+            r#"request_irq\s*\(\s*([^,]+)\s*,\s*(\w+)\s*,\s*([^,]+)\s*,\s*"([^"]+)"\s*,\s*[^)]+\s*\)"#,
+        )?,
+        // request_threaded_irq(irq, handler, thread_fn, flags, name, dev)
+        Regex::new(
+            r#"request_threaded_irq\s*\(\s*([^,]+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*([^,]+)\s*,\s*"([^"]+)"\s*,\s*[^)]+\s*\)"#,
+        )?,
+        // devm_request_irq(dev, irq, handler, flags, name, dev_id)
+        Regex::new(
+            r#"devm_request_irq\s*\(\s*[^,]+\s*,\s*([^,]+)\s*,\s*(\w+)\s*,\s*([^,]+)\s*,\s*"([^"]+)"\s*,\s*[^)]+\s*\)"#,
+        )?,
+        // devm_request_threaded_irq(dev, irq, handler, thread_fn, flags, name, dev_id)
+        Regex::new(
+            r#"devm_request_threaded_irq\s*\(\s*[^,]+\s*,\s*([^,]+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*([^,]+)\s*,\s*"([^"]+)"\s*,\s*[^)]+\s*\)"#,
+        )?,
+        // request_any_context_irq(irq, handler, flags, name, dev)
+        Regex::new(
+            r#"request_any_context_irq\s*\(\s*([^,]+)\s*,\s*(\w+)\s*,\s*([^,]+)\s*,\s*"([^"]+)"\s*,\s*[^)]+\s*\)"#,
+        )?,
+    ];
+
+    // Pattern to detect IRQ flag constants
+    let irq_flags_pattern = Regex::new(r#"(IRQF_\w+)"#)?;
+
+    // Pattern to extract numeric IRQ values
+    let irq_number_pattern = Regex::new(r#"^\d+$"#)?;
+
+    let entry_points_clone = entry_points.clone();
+
+    // Search for C source files
+    search_kernel_files(
+        kernel_dir,
+        &[".c"],
+        move |_file_path, file_path_str, content| {
+            // Process the entire content for multiline patterns
+            for (pattern_idx, pattern) in request_irq_patterns.iter().enumerate() {
+                for captures in pattern.captures_iter(content) {
+                    // Calculate line number for the match
+                    let match_start = captures.get(0).unwrap().start();
+                    let line_num = content[..match_start].lines().count();
+                    let mut metadata = serde_json::Map::new();
+
+                    // Extract components based on pattern type
+                    let (irq_source, handler_name, irq_name) = match pattern_idx {
+                        0 | 4 => {
+                            // request_irq or request_any_context_irq
+                            let irq = captures.get(1).unwrap().as_str().trim();
+                            let handler = captures.get(2).unwrap().as_str();
+                            let flags = captures.get(3).unwrap().as_str().trim();
+                            let name = captures.get(4).unwrap().as_str();
+
+                            // Extract IRQ flags
+                            let mut flags_list = Vec::new();
+                            for flag_match in irq_flags_pattern.find_iter(flags) {
+                                flags_list.push(flag_match.as_str().to_string());
+                            }
+                            if !flags_list.is_empty() {
+                                metadata.insert(
+                                    "irq_flags".to_string(),
+                                    serde_json::Value::Array(
+                                        flags_list
+                                            .into_iter()
+                                            .map(serde_json::Value::String)
+                                            .collect(),
+                                    ),
+                                );
+                            }
+
+                            (irq.to_string(), handler.to_string(), name.to_string())
+                        }
+                        1 | 3 => {
+                            // request_threaded_irq or devm_request_threaded_irq
+                            let irq = captures.get(1).unwrap().as_str().trim();
+                            let primary_handler = captures.get(2).unwrap().as_str();
+                            let thread_handler = captures.get(3).unwrap().as_str();
+                            let flags = captures.get(4).unwrap().as_str().trim();
+                            let name = captures.get(5).unwrap().as_str();
+
+                            // Store both handlers
+                            if primary_handler != "NULL" {
+                                metadata.insert(
+                                    "primary_handler".to_string(),
+                                    serde_json::Value::String(primary_handler.to_string()),
+                                );
+                            }
+                            if thread_handler != "NULL" {
+                                metadata.insert(
+                                    "thread_handler".to_string(),
+                                    serde_json::Value::String(thread_handler.to_string()),
+                                );
+                            }
+
+                            // Extract IRQ flags
+                            let mut flags_list = Vec::new();
+                            for flag_match in irq_flags_pattern.find_iter(flags) {
+                                flags_list.push(flag_match.as_str().to_string());
+                            }
+                            if !flags_list.is_empty() {
+                                metadata.insert(
+                                    "irq_flags".to_string(),
+                                    serde_json::Value::Array(
+                                        flags_list
+                                            .into_iter()
+                                            .map(serde_json::Value::String)
+                                            .collect(),
+                                    ),
+                                );
+                            }
+
+                            // For threaded IRQs, use the thread handler if primary is NULL
+                            let main_handler = if primary_handler != "NULL" {
+                                primary_handler
+                            } else {
+                                thread_handler
+                            };
+
+                            (irq.to_string(), main_handler.to_string(), name.to_string())
+                        }
+                        2 => {
+                            // devm_request_irq
+                            let irq = captures.get(1).unwrap().as_str().trim();
+                            let handler = captures.get(2).unwrap().as_str();
+                            let flags = captures.get(3).unwrap().as_str().trim();
+                            let name = captures.get(4).unwrap().as_str();
+
+                            metadata.insert("managed".to_string(), serde_json::Value::Bool(true));
+
+                            // Extract IRQ flags
+                            let mut flags_list = Vec::new();
+                            for flag_match in irq_flags_pattern.find_iter(flags) {
+                                flags_list.push(flag_match.as_str().to_string());
+                            }
+                            if !flags_list.is_empty() {
+                                metadata.insert(
+                                    "irq_flags".to_string(),
+                                    serde_json::Value::Array(
+                                        flags_list
+                                            .into_iter()
+                                            .map(serde_json::Value::String)
+                                            .collect(),
+                                    ),
+                                );
+                            }
+
+                            (irq.to_string(), handler.to_string(), name.to_string())
+                        }
+                        _ => continue,
+                    };
+
+                    // Store IRQ source (number or symbolic name)
+                    metadata.insert(
+                        "irq_source".to_string(),
+                        serde_json::Value::String(irq_source.clone()),
+                    );
+
+                    // Check if IRQ is a numeric value
+                    if irq_number_pattern.is_match(&irq_source) {
+                        metadata.insert(
+                            "irq_number".to_string(),
+                            serde_json::Value::Number(serde_json::Number::from(
+                                irq_source.parse::<u64>().unwrap_or(0),
+                            )),
+                        );
+                    }
+
+                    metadata.insert(
+                        "irq_name".to_string(),
+                        serde_json::Value::String(irq_name.clone()),
+                    );
+
+                    // Determine interrupt type based on function used
+                    let irq_type = match pattern_idx {
+                        1 => "threaded",
+                        2 => "managed",
+                        3 => "managed_threaded",
+                        4 => "any_context",
+                        _ => "standard",
+                    };
+                    metadata.insert(
+                        "irq_type".to_string(),
+                        serde_json::Value::String(irq_type.to_string()),
+                    );
+
+                    entry_points_clone.borrow_mut().push(EntryPoint {
+                        name: handler_name.clone(),
+                        entry_type: EntryType::Interrupt,
+                        file_path: file_path_str.clone(),
+                        line_number: (line_num + 1) as u32,
+                        signature: captures.get(0).unwrap().as_str().to_string(),
+                        description: Some(format!(
+                            "Interrupt handler: {} for '{}'",
+                            handler_name, irq_name
+                        )),
+                        metadata: Some(metadata),
+                    });
+                }
+            }
+
+            Ok(())
+        },
+    )?;
+
+    Ok(Rc::try_unwrap(entry_points)
+        .unwrap_or_else(|_| panic!("Failed to unwrap Rc"))
+        .into_inner())
+}
+
 /// Extract netlink handler entry points from kernel source
 pub fn extract_netlink_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>> {
     use std::cell::RefCell;
@@ -810,6 +1028,131 @@ static int __init test_init(void) {{
                 );
             }
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_interrupt_handlers() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let kernel_dir = temp_dir.path();
+
+        // Create a sample driver with interrupt handlers
+        let drivers_dir = kernel_dir.join("drivers");
+        fs::create_dir_all(&drivers_dir)?;
+
+        let mut test_file = File::create(drivers_dir.join("test_irq.c"))?;
+        writeln!(
+            test_file,
+            r#"
+#include <linux/interrupt.h>
+#include <linux/irq.h>
+
+static irqreturn_t test_irq_handler(int irq, void *dev_id) {{
+    /* Handle interrupt */
+    return IRQ_HANDLED;
+}}
+
+static irqreturn_t test_primary_handler(int irq, void *dev_id) {{
+    return IRQ_WAKE_THREAD;
+}}
+
+static irqreturn_t test_thread_handler(int irq, void *dev_id) {{
+    /* Handle in thread context */
+    return IRQ_HANDLED;
+}}
+
+static int test_probe(struct platform_device *pdev) {{
+    int irq = platform_get_irq(pdev, 0);
+    int ret;
+
+    /* Standard IRQ request */
+    ret = request_irq(irq, test_irq_handler, IRQF_SHARED, "test_device", pdev);
+
+    /* Threaded IRQ request */
+    ret = request_threaded_irq(irq, test_primary_handler, test_thread_handler,
+                               IRQF_ONESHOT | IRQF_TRIGGER_HIGH, "test_threaded", pdev);
+
+    /* Managed IRQ (auto-cleanup on driver removal) */
+    ret = devm_request_irq(&pdev->dev, irq, test_irq_handler,
+                           IRQF_SHARED | IRQF_TRIGGER_FALLING, "test_managed", pdev);
+
+    /* Managed threaded IRQ */
+    ret = devm_request_threaded_irq(&pdev->dev, irq, NULL, test_thread_handler,
+                                    IRQF_ONESHOT, "test_managed_thread", pdev);
+
+    /* Any context IRQ */
+    ret = request_any_context_irq(42, test_irq_handler, IRQF_TRIGGER_LOW,
+                                  "test_any_context", pdev);
+
+    return 0;
+}}
+        "#
+        )?;
+
+        let entries = extract_interrupt_handlers(kernel_dir)?;
+
+        // Should find multiple interrupt handler registrations
+        assert!(
+            entries.len() >= 5,
+            "Should find at least 5 interrupt entries, found {}",
+            entries.len()
+        );
+
+        // Verify all entries are interrupt type
+        for entry in &entries {
+            assert!(
+                matches!(entry.entry_type, EntryType::Interrupt),
+                "Should be Interrupt entry type"
+            );
+            assert!(entry.metadata.is_some(), "Should have metadata");
+        }
+
+        // Check for specific handlers
+        let standard_irq = entries
+            .iter()
+            .find(|e| e.description.as_ref().unwrap().contains("test_device"));
+        assert!(standard_irq.is_some(), "Should find standard IRQ handler");
+
+        let threaded_irq = entries
+            .iter()
+            .find(|e| e.description.as_ref().unwrap().contains("test_threaded"));
+        assert!(threaded_irq.is_some(), "Should find threaded IRQ handler");
+
+        let managed_irq = entries
+            .iter()
+            .find(|e| e.description.as_ref().unwrap().contains("test_managed"));
+        assert!(managed_irq.is_some(), "Should find managed IRQ handler");
+
+        // Verify metadata contains expected fields
+        if let Some(entry) = standard_irq {
+            if let Some(ref metadata) = entry.metadata {
+                assert!(
+                    metadata.contains_key("irq_source"),
+                    "Should have irq_source in metadata"
+                );
+                assert!(
+                    metadata.contains_key("irq_name"),
+                    "Should have irq_name in metadata"
+                );
+                assert!(
+                    metadata.contains_key("irq_type"),
+                    "Should have irq_type in metadata"
+                );
+            }
+        }
+
+        // Check for IRQ flags extraction
+        let entry_with_flags = entries.iter().find(|e| {
+            e.metadata
+                .as_ref()
+                .and_then(|m| m.get("irq_flags"))
+                .is_some()
+        });
+        assert!(
+            entry_with_flags.is_some(),
+            "Should find at least one entry with IRQ flags"
+        );
 
         Ok(())
     }

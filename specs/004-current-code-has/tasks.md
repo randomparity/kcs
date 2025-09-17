@@ -142,7 +142,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Extract message handlers
   - Identify protocol families
 
-- [ ] T017 Implement interrupt handler detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T017 Implement interrupt handler detection in `src/rust/kcs-extractor/src/entry_points.rs`
   - Add patterns for request_irq variants
   - Extract IRQ numbers and handlers
   - Identify interrupt types

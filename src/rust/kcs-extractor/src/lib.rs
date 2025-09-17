@@ -28,6 +28,7 @@ pub enum EntryType {
     ProcFs,
     DebugFs,
     Netlink,
+    Interrupt,
     ModuleInit,
     ModuleExit,
 }
@@ -41,6 +42,7 @@ pub struct ExtractionConfig {
     pub include_procfs: bool,
     pub include_debugfs: bool,
     pub include_netlink: bool,
+    pub include_interrupts: bool,
     pub include_modules: bool,
 }
 
@@ -54,6 +56,7 @@ impl Default for ExtractionConfig {
             include_procfs: true,
             include_debugfs: true,
             include_netlink: true,
+            include_interrupts: true,
             include_modules: true,
         }
     }
@@ -97,6 +100,12 @@ impl Extractor {
 
         if self.config.include_netlink {
             entry_points.extend(entry_points::extract_netlink_handlers(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_interrupts {
+            entry_points.extend(entry_points::extract_interrupt_handlers(
+                kernel_dir.as_ref(),
+            )?);
         }
 
         if self.config.include_modules {
