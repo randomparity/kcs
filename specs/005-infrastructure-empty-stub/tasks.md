@@ -12,7 +12,7 @@
 - [x] **T002**: Create migration 007_specification.sql for specification table
 - [x] **T003**: Create migration 008_drift_report.sql for drift_report table
 - [x] **T004**: Create migration 009_semantic_query_log.sql for semantic_query_log table
-- [ ] **T005**: Create migration 009_graph_export.sql for graph_export table
+- [x] **T005**: Create migration 010_graph_export.sql for graph_export table
 - [ ] **T006**: Create migration 010_existing_table_updates.sql for config awareness columns
 
 ### Phase 2: Contract Tests (Must Fail First)
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 4
+- **Completed**: 5
 - **In Progress**: 0
 - **Blocked**: 0
 
