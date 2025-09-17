@@ -21,7 +21,7 @@
 - [x] **T008**: Write failing test for validate_spec endpoint in tests/contract/test_validate_spec.py
 - [x] **T009**: Write failing test for semantic_search endpoint in tests/contract/test_semantic_search.py
 - [x] **T010**: Write failing test for traverse_call_graph endpoint in tests/contract/test_traverse_call_graph.py
-- [ ] **T011**: Write failing test for export_graph endpoint in tests/contract/test_export_graph.py
+- [x] **T011**: Write failing test for export_graph endpoint in tests/contract/test_export_graph.py
 
 ### Phase 3A: kcs-config Crate Implementation
 
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 10
+- **Completed**: 11
 - **In Progress**: 0
 - **Blocked**: 0
 
