@@ -88,6 +88,10 @@ impl Extractor {
             entry_points.extend(entry_points::extract_procfs_entries(kernel_dir.as_ref())?);
         }
 
+        if self.config.include_debugfs {
+            entry_points.extend(entry_points::extract_debugfs_entries(kernel_dir.as_ref())?);
+        }
+
         if self.config.include_modules {
             entry_points.extend(entry_points::extract_module_entries(kernel_dir.as_ref())?);
         }

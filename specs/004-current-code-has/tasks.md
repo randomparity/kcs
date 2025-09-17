@@ -132,7 +132,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Extract proc_ops structures
   - Identify show/write handlers
 
-- [ ] T015 Implement debugfs entry point detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T015 Implement debugfs entry point detection in `src/rust/kcs-extractor/src/entry_points.rs`
   - Add patterns for debugfs_create functions
   - Extract file operations
   - Identify debugfs attributes

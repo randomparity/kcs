@@ -231,6 +231,137 @@ pub fn extract_procfs_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Entry
     Ok(procfs_entries)
 }
 
+pub fn extract_debugfs_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>> {
+    let mut debugfs_entries = Vec::new();
+
+    // Patterns for debugfs_create functions
+    let debugfs_create_patterns = [
+        // debugfs_create_file("name", mode, parent, data, fops)
+        Regex::new(
+            r#"debugfs_create_file\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#,
+        )?,
+        // debugfs_create_file_unsafe("name", mode, parent, data, fops)
+        Regex::new(
+            r#"debugfs_create_file_unsafe\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#,
+        )?,
+        // debugfs_create_dir("name", parent)
+        Regex::new(r#"debugfs_create_dir\s*\(\s*"([^"]+)"\s*,\s*[^)]+\s*\)"#)?,
+        // debugfs_create_u8/u16/u32/u64("name", mode, parent, value)
+        Regex::new(
+            r#"debugfs_create_u(?:8|16|32|64)\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#,
+        )?,
+        // debugfs_create_x8/x16/x32/x64("name", mode, parent, value) for hex display
+        Regex::new(
+            r#"debugfs_create_x(?:8|16|32|64)\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#,
+        )?,
+        // debugfs_create_bool("name", mode, parent, value)
+        Regex::new(
+            r#"debugfs_create_bool\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#,
+        )?,
+        // debugfs_create_blob("name", mode, parent, blob)
+        Regex::new(
+            r#"debugfs_create_blob\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^)]+\s*\)"#,
+        )?,
+        // debugfs_create_regset32("name", mode, parent, regset)
+        Regex::new(
+            r#"debugfs_create_regset32\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*\)"#,
+        )?,
+        // debugfs_create_file_size("name", mode, parent, data, fops, size)
+        Regex::new(
+            r#"debugfs_create_file_size\s*\(\s*"([^"]+)"\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*&?(\w+)\s*,\s*[^)]+\s*\)"#,
+        )?,
+    ];
+
+    // Pattern to match file_operations structures that might be used with debugfs
+    let file_ops_pattern = Regex::new(
+        r"(?s)(?:static\s+)?(?:const\s+)?struct\s+file_operations\s+(\w+_debugfs_\w+|debugfs_\w+|\w+_dbg_\w+)\s*=\s*\{([^}]+)\}",
+    )?;
+
+    search_kernel_files(
+        kernel_dir.as_ref(),
+        &[".c", ".h"],
+        |_file_path, relative_path, content| {
+            let lines: Vec<&str> = content.lines().collect();
+
+            // Track debugfs file_operations
+            let mut debugfs_fops = std::collections::HashSet::new();
+            for fops_match in file_ops_pattern.find_iter(content) {
+                if let Some(captures) = file_ops_pattern.captures(fops_match.as_str()) {
+                    let ops_name = captures.get(1).unwrap().as_str();
+                    debugfs_fops.insert(ops_name.to_string());
+                }
+            }
+
+            // Find debugfs_create calls
+            for (line_num, line) in lines.iter().enumerate() {
+                for (pattern_idx, pattern) in debugfs_create_patterns.iter().enumerate() {
+                    if let Some(captures) = pattern.captures(line) {
+                        let debugfs_path = captures.get(1).unwrap().as_str();
+
+                        // Create metadata based on the type of debugfs entry
+                        let mut metadata = serde_json::Map::new();
+                        metadata.insert(
+                            "debugfs_path".to_string(),
+                            serde_json::Value::String(debugfs_path.to_string()),
+                        );
+
+                        // Determine the debugfs type based on pattern index
+                        let debugfs_type = match pattern_idx {
+                            0 | 1 => "file",
+                            2 => "directory",
+                            3 => "u32",
+                            4 => "x32",
+                            5 => "bool",
+                            6 => "blob",
+                            7 => "regset32",
+                            8 => "file_size",
+                            _ => "unknown",
+                        };
+                        metadata.insert(
+                            "debugfs_type".to_string(),
+                            serde_json::Value::String(debugfs_type.to_string()),
+                        );
+
+                        // If there's a second capture group (fops or value name), include it
+                        if let Some(second_param) = captures.get(2) {
+                            let param_name = second_param.as_str();
+                            if debugfs_fops.contains(param_name) {
+                                metadata.insert(
+                                    "file_operations".to_string(),
+                                    serde_json::Value::String(param_name.to_string()),
+                                );
+                            } else if debugfs_type != "directory" && debugfs_type != "blob" {
+                                metadata.insert(
+                                    "value_name".to_string(),
+                                    serde_json::Value::String(param_name.to_string()),
+                                );
+                            }
+                        }
+
+                        debugfs_entries.push(EntryPoint {
+                            name: format!("debugfs_{}", debugfs_path.replace('/', "_")),
+                            entry_type: EntryType::DebugFs,
+                            file_path: relative_path.clone(),
+                            line_number: (line_num + 1) as u32,
+                            signature: line.trim().to_string(),
+                            description: Some(format!(
+                                "DebugFS {}: {}",
+                                debugfs_type, debugfs_path
+                            )),
+                            metadata: Some(metadata),
+                        });
+
+                        break; // Only match the first pattern that matches
+                    }
+                }
+            }
+            Ok(())
+        },
+    )?;
+
+    Ok(debugfs_entries)
+}
+
 pub fn extract_module_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>> {
     let mut module_entries = Vec::new();
 
@@ -440,6 +571,99 @@ static int __init test_init(void) {{
                 assert!(
                     metadata.contains_key("proc_path"),
                     "Should have proc_path in metadata"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_debugfs_entries() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let kernel_dir = temp_dir.path();
+
+        // Create a sample file with debugfs entries
+        let drivers_dir = kernel_dir.join("drivers");
+        fs::create_dir_all(&drivers_dir)?;
+
+        let mut test_file = File::create(drivers_dir.join("test_debugfs.c"))?;
+        writeln!(
+            test_file,
+            r#"
+#include <linux/debugfs.h>
+
+static struct dentry *test_debugfs_dir;
+
+static int test_debugfs_show(struct seq_file *m, void *v) {{
+    seq_printf(m, "Test content\n");
+    return 0;
+}}
+
+static int test_debugfs_open(struct inode *inode, struct file *file) {{
+    return single_open(file, test_debugfs_show, NULL);
+}}
+
+static const struct file_operations test_debugfs_fops = {{
+    .open = test_debugfs_open,
+    .read = seq_read,
+    .llseek = seq_lseek,
+    .release = single_release,
+}};
+
+static int test_value = 42;
+static bool test_enabled = true;
+
+static int __init test_init(void) {{
+    test_debugfs_dir = debugfs_create_dir("test_driver", NULL);
+    debugfs_create_file("status", 0444, test_debugfs_dir, NULL, &test_debugfs_fops);
+    debugfs_create_u32("test_value", 0644, test_debugfs_dir, &test_value);
+    debugfs_create_bool("enabled", 0644, test_debugfs_dir, &test_enabled);
+    debugfs_create_x32("test_hex", 0444, test_debugfs_dir, &test_value);
+    debugfs_create_blob("test_blob", 0444, test_debugfs_dir, NULL);
+    return 0;
+}}
+        "#
+        )?;
+
+        let entries = extract_debugfs_entries(kernel_dir)?;
+
+        // Should find multiple debugfs entries
+        assert!(
+            entries.len() >= 6,
+            "Should find at least 6 debugfs entries, found {}",
+            entries.len()
+        );
+
+        // Check that we found the directory
+        let dir_entry = entries.iter().find(|e| e.name == "debugfs_test_driver");
+        assert!(
+            dir_entry.is_some(),
+            "Should find debugfs_test_driver directory"
+        );
+
+        // Check that we found the file with fops
+        let status_entry = entries.iter().find(|e| e.name == "debugfs_status");
+        assert!(status_entry.is_some(), "Should find debugfs_status file");
+
+        // Check for simple value entries
+        let value_entry = entries.iter().find(|e| e.name == "debugfs_test_value");
+        assert!(value_entry.is_some(), "Should find debugfs_test_value");
+
+        let bool_entry = entries.iter().find(|e| e.name == "debugfs_enabled");
+        assert!(bool_entry.is_some(), "Should find debugfs_enabled");
+
+        // Verify metadata
+        if let Some(entry) = status_entry {
+            assert!(entry.metadata.is_some(), "Should have metadata");
+            if let Some(ref metadata) = entry.metadata {
+                assert!(
+                    metadata.contains_key("debugfs_path"),
+                    "Should have debugfs_path in metadata"
+                );
+                assert!(
+                    metadata.contains_key("debugfs_type"),
+                    "Should have debugfs_type in metadata"
                 );
             }
         }
