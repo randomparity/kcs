@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+pub mod drift_detector;
 pub mod spec_parser;
-// pub mod drift_detector;  // TODO: Implement
 // pub mod report_generator;  // TODO: Implement
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

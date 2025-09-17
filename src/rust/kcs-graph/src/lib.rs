@@ -20,7 +20,7 @@ pub struct Symbol {
     pub config_dependencies: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SymbolType {
     Function,
     Variable,
