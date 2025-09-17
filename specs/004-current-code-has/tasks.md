@@ -57,7 +57,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Contract Tests
 
-- [ ] T002 [P] Contract test for extract_entry_points endpoint in `tests/contract/test_extract_entry_points.py`
+- [x] T002 [P] Contract test for extract_entry_points endpoint in `tests/contract/test_extract_entry_points.py`
   - Validate request/response schemas match `contracts/extract_entry_points.yaml`
   - Test with kernel fixture data
   - Verify new entry types returned (procfs, debugfs, netlink, etc.)
