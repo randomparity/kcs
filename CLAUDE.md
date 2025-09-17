@@ -4,8 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis
-via MCP protocol for AI coding assistants.
+Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis via MCP protocol for AI coding assistants.
 
 ## Architecture Overview
 
@@ -19,6 +18,9 @@ KCS uses a three-stage pipeline architecture:
    - `kcs-graph`: Call graph algorithms with cycle detection
    - `kcs-impact`: Change impact analysis
    - `kcs-drift`: Spec vs implementation comparison
+   - `kcs-config`: Kernel configuration parsing (planned)
+   - `kcs-search`: Semantic search with pgvector (planned)
+   - `kcs-serializer`: Graph export to JSON/GraphML (planned)
    - `kcs-python-bridge`: PyO3 bindings for Python integration
 
 2. **Python MCP Server** (API and orchestration)
@@ -54,7 +56,7 @@ Kernel Source → Rust Parser → Entry Points/Symbols → PostgreSQL
 ### Quick Start
 
 ```bash
-# One-time setup
+# One-time setup (uses uv for fast Python dependency management)
 make setup              # Creates venv, installs deps, builds Rust, installs hooks
 
 # Activate environment (required for all Python commands)
@@ -63,6 +65,7 @@ source .venv/bin/activate
 # Development cycle
 make check              # Runs lint + test (use before committing)
 make format             # Auto-format all code
+make ci                 # Run full CI pipeline locally
 ```
 
 ### Building Components
@@ -263,6 +266,21 @@ All endpoints in `src/python/kcs_mcp/tools.py` follow:
 - **Real Data**: Use actual kernel code in `tests/fixtures/kernel/`
 - **Performance Tests**: `tests/performance/test_mcp_performance.py` validates p95 targets
 
+## Current Development Status
+
+### Infrastructure Components (Branch: 005-infrastructure-empty-stub)
+- **kcs-config**: Empty stub - kernel config parsing not implemented
+- **kcs-drift**: Module exists but `drift_detector` and `report_generator` commented out
+- **kcs-search**: Semantic search DB schema ready, implementation pending
+- **kcs-graph**: Path reconstruction and cycle detection marked as TODO
+- **kcs-serializer**: Graph export placeholder only
+
+### Working Features
+- Basic tree-sitter parsing with call graph extraction (use `--include-calls` flag)
+- Entry point detection for syscalls and file_ops
+- PostgreSQL with pgvector configured
+- MCP endpoints for basic queries
+
 ## Common Pitfalls
 
 1. **Missing Virtual Environment**: Always `source .venv/bin/activate` before Python work
@@ -270,6 +288,7 @@ All endpoints in `src/python/kcs_mcp/tools.py` follow:
 3. **Database Not Running**: Use `docker compose up postgres` or local PostgreSQL
 4. **Migrations Not Applied**: Check `src/sql/migrations/` are applied
 5. **Clang Not Found**: Clang integration gracefully degrades if unavailable
+6. **Call Graph Extraction**: Must use `--include-calls` flag with kcs-parser for relationships
 
 ---
 

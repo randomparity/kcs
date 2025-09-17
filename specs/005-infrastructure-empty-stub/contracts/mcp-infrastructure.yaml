@@ -1,0 +1,431 @@
+openapi: 3.0.3
+info:
+  title: KCS Infrastructure MCP Extensions
+  version: 1.0.0
+  description: MCP contract extensions for infrastructure components
+
+paths:
+  /mcp/tools/parse_kernel_config:
+    post:
+      summary: Parse kernel configuration
+      description: Parse and store kernel configuration for multi-architecture support
+      operationId: parseKernelConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - config_path
+                - kernel_root
+                - architecture
+              properties:
+                config_path:
+                  type: string
+                  description: Path to .config or defconfig file
+                kernel_root:
+                  type: string
+                  description: Path to kernel source root
+                architecture:
+                  type: string
+                  enum: [x86, x86_64, arm64, riscv, powerpc]
+                config_type:
+                  type: string
+                  enum: [defconfig, allmodconfig, custom]
+                  default: custom
+      responses:
+        '200':
+          description: Configuration parsed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  config_name:
+                    type: string
+                  features_enabled:
+                    type: integer
+                  features_disabled:
+                    type: integer
+                  features_module:
+                    type: integer
+                  dependencies_resolved:
+                    type: integer
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+
+  /mcp/tools/validate_spec:
+    post:
+      summary: Validate implementation against specification
+      description: Check if kernel implementation conforms to specification
+      operationId: validateSpec
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - spec_content
+                - kernel_commit
+              properties:
+                spec_content:
+                  type: string
+                  description: Specification document content
+                spec_format:
+                  type: string
+                  enum: [markdown, yaml, json]
+                  default: markdown
+                kernel_commit:
+                  type: string
+                  description: Git commit SHA to validate
+                config_name:
+                  type: string
+                  description: Configuration to use for analysis
+                  default: x86_64:defconfig
+                focus_areas:
+                  type: array
+                  items:
+                    type: string
+                  description: Specific subsystems to focus on
+      responses:
+        '200':
+          description: Validation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:
+                    type: string
+                    format: uuid
+                  total_requirements:
+                    type: integer
+                  passed:
+                    type: integer
+                  failed:
+                    type: integer
+                  unknown:
+                    type: integer
+                  severity:
+                    type: string
+                    enum: [critical, major, minor, info]
+                  violations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        requirement:
+                          type: string
+                        expected:
+                          type: string
+                        actual:
+                          type: string
+                        location:
+                          $ref: '#/components/schemas/Span'
+                        severity:
+                          type: string
+                        fix_suggestion:
+                          type: string
+
+  /mcp/tools/semantic_search:
+    post:
+      summary: Semantic code search
+      description: Search code using natural language and semantic understanding
+      operationId: semanticSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Natural language search query
+                query_type:
+                  type: string
+                  enum: [concept, similar_to, explains, implements]
+                  default: concept
+                context:
+                  type: string
+                  description: Kernel subsystem or area to focus on
+                config_filter:
+                  type: string
+                  description: Configuration to filter results by
+                limit:
+                  type: integer
+                  default: 10
+                  maximum: 100
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query_id:
+                    type: string
+                    format: uuid
+                  total_results:
+                    type: integer
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        symbol:
+                          type: string
+                        file_path:
+                          type: string
+                        line:
+                          type: integer
+                        similarity_score:
+                          type: number
+                          format: float
+                          minimum: 0
+                          maximum: 1
+                        context:
+                          type: string
+                        span:
+                          $ref: '#/components/schemas/Span'
+
+  /mcp/tools/traverse_call_graph:
+    post:
+      summary: Traverse call graph with cycle detection
+      description: Find paths between functions with cycle awareness
+      operationId: traverseCallGraph
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source
+              properties:
+                source:
+                  type: string
+                  description: Source function name or entry point
+                target:
+                  type: string
+                  description: Target function name (optional for full traversal)
+                direction:
+                  type: string
+                  enum: [forward, backward, both]
+                  default: forward
+                max_depth:
+                  type: integer
+                  default: 5
+                  maximum: 10
+                config_name:
+                  type: string
+                  description: Configuration context
+                  default: x86_64:defconfig
+                detect_cycles:
+                  type: boolean
+                  default: true
+                include_indirect:
+                  type: boolean
+                  default: false
+                  description: Include indirect calls via function pointers
+      responses:
+        '200':
+          description: Graph traversal results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  source_node:
+                    type: string
+                  target_node:
+                    type: string
+                  paths_found:
+                    type: integer
+                  shortest_path_length:
+                    type: integer
+                  has_cycles:
+                    type: boolean
+                  cycle_nodes:
+                    type: array
+                    items:
+                      type: string
+                  paths:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        depth:
+                          type: integer
+                        nodes:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              function:
+                                type: string
+                              file:
+                                type: string
+                              line:
+                                type: integer
+                        edges:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              caller:
+                                type: string
+                              callee:
+                                type: string
+                              call_type:
+                                type: string
+                              location:
+                                $ref: '#/components/schemas/Span'
+
+  /mcp/tools/export_graph:
+    post:
+      summary: Export call graph in various formats
+      description: Serialize call graph for external analysis tools
+      operationId: exportGraph
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - format
+              properties:
+                format:
+                  type: string
+                  enum: [json_graph, graphml, dot, gexf]
+                scope:
+                  type: string
+                  enum: [full, subgraph, paths_only]
+                  default: subgraph
+                root_function:
+                  type: string
+                  description: Root for subgraph extraction
+                max_depth:
+                  type: integer
+                  default: 5
+                  description: Depth limit for subgraph
+                config_name:
+                  type: string
+                  default: x86_64:defconfig
+                chunk_size_mb:
+                  type: integer
+                  default: 100
+                  maximum: 1000
+                  description: Maximum chunk size in MB
+                compression:
+                  type: string
+                  enum: [none, gzip, brotli]
+                  default: none
+      responses:
+        '200':
+          description: Graph export complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  export_id:
+                    type: string
+                    format: uuid
+                  format:
+                    type: string
+                  node_count:
+                    type: integer
+                  edge_count:
+                    type: integer
+                  file_size_bytes:
+                    type: integer
+                  chunk_count:
+                    type: integer
+                  chunks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        chunk_index:
+                          type: integer
+                        chunk_url:
+                          type: string
+                          format: uri
+                        size_bytes:
+                          type: integer
+                  metadata:
+                    type: object
+                    properties:
+                      export_time_ms:
+                        type: integer
+                      memory_used_mb:
+                        type: integer
+
+components:
+  schemas:
+    Span:
+      type: object
+      required:
+        - file
+        - line
+        - sha
+      properties:
+        file:
+          type: string
+          description: File path relative to kernel root
+        line:
+          type: integer
+          description: Line number in file
+        sha:
+          type: string
+          description: Git commit SHA
+        column:
+          type: integer
+          description: Optional column number
+        end_line:
+          type: integer
+          description: Optional end line for ranges
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
