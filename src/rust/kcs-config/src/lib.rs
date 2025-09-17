@@ -1,3 +1,3 @@
 pub mod parser;
 
-pub use parser::{ConfigOption, ConfigType, KernelConfig};
+pub use parser::{ConfigOption, ConfigType, ConfigValue, KernelConfig};
