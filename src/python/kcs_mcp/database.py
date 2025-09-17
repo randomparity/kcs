@@ -181,26 +181,54 @@ class Database:
             List of caller information
         """
         async with self.acquire() as conn:
-            # TODO: Implement actual call graph traversal
-            # This would use the call_edge table for graph queries
+            # Enforce maximum depth to prevent excessive traversal
+            depth = min(depth, 5)
 
+            # Use recursive CTE for depth traversal with cycle detection
             sql = """
-            SELECT
+            WITH RECURSIVE callers_tree AS (
+                -- Base case: direct callers (depth 1)
+                SELECT
+                    ce.caller_id,
+                    ce.callee_id,
+                    ce.call_type,
+                    1 as depth_level,
+                    ARRAY[ce.caller_id] as visited_path
+                FROM call_edge ce
+                JOIN symbol callee_s ON ce.callee_id = callee_s.id
+                WHERE callee_s.name = $1
+
+                UNION
+
+                -- Recursive case: traverse up the call graph
+                SELECT
+                    ce.caller_id,
+                    ce.callee_id,
+                    ce.call_type,
+                    ct.depth_level + 1,
+                    ct.visited_path || ce.caller_id
+                FROM call_edge ce
+                JOIN callers_tree ct ON ce.callee_id = ct.caller_id
+                WHERE
+                    ct.depth_level < $2
+                    AND NOT (ce.caller_id = ANY(ct.visited_path))  -- Cycle detection
+            )
+            SELECT DISTINCT
                 caller_s.name as caller_symbol,
                 caller_f.path as caller_path,
                 caller_f.sha as caller_sha,
                 caller_s.start_line as caller_start,
                 caller_s.end_line as caller_end,
-                ce.call_type
-            FROM call_edge ce
-            JOIN symbol callee_s ON ce.callee_id = callee_s.id
-            JOIN symbol caller_s ON ce.caller_id = caller_s.id
+                ct.call_type,
+                ct.depth_level
+            FROM callers_tree ct
+            JOIN symbol caller_s ON ct.caller_id = caller_s.id
             JOIN file caller_f ON caller_s.file_id = caller_f.id
-            WHERE callee_s.name = $1
+            ORDER BY ct.depth_level, caller_s.name
             LIMIT 100
             """
 
-            rows = await conn.fetch(sql, symbol_name)
+            rows = await conn.fetch(sql, symbol_name, depth)
 
             return [
                 {
@@ -231,23 +259,54 @@ class Database:
             List of callee information
         """
         async with self.acquire() as conn:
+            # Enforce maximum depth to prevent excessive traversal
+            depth = min(depth, 5)
+
+            # Use recursive CTE for depth traversal with cycle detection
             sql = """
-            SELECT
+            WITH RECURSIVE callees_tree AS (
+                -- Base case: direct callees (depth 1)
+                SELECT
+                    ce.caller_id,
+                    ce.callee_id,
+                    ce.call_type,
+                    1 as depth_level,
+                    ARRAY[ce.callee_id] as visited_path
+                FROM call_edge ce
+                JOIN symbol caller_s ON ce.caller_id = caller_s.id
+                WHERE caller_s.name = $1
+
+                UNION
+
+                -- Recursive case: traverse down the call graph
+                SELECT
+                    ce.caller_id,
+                    ce.callee_id,
+                    ce.call_type,
+                    ct.depth_level + 1,
+                    ct.visited_path || ce.callee_id
+                FROM call_edge ce
+                JOIN callees_tree ct ON ce.caller_id = ct.callee_id
+                WHERE
+                    ct.depth_level < $2
+                    AND NOT (ce.callee_id = ANY(ct.visited_path))  -- Cycle detection
+            )
+            SELECT DISTINCT
                 callee_s.name as callee_symbol,
                 callee_f.path as callee_path,
                 callee_f.sha as callee_sha,
                 callee_s.start_line as callee_start,
                 callee_s.end_line as callee_end,
-                ce.call_type
-            FROM call_edge ce
-            JOIN symbol caller_s ON ce.caller_id = caller_s.id
-            JOIN symbol callee_s ON ce.callee_id = callee_s.id
+                ct.call_type,
+                ct.depth_level
+            FROM callees_tree ct
+            JOIN symbol callee_s ON ct.callee_id = callee_s.id
             JOIN file callee_f ON callee_s.file_id = callee_f.id
-            WHERE caller_s.name = $1
+            ORDER BY ct.depth_level, callee_s.name
             LIMIT 100
             """
 
-            rows = await conn.fetch(sql, symbol_name)
+            rows = await conn.fetch(sql, symbol_name, depth)
 
             return [
                 {

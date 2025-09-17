@@ -108,13 +108,13 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
 
 ### Database Enhancements
 
-- [ ] T009 Enhance find_callers() method in `src/python/kcs_mcp/database.py`
+- [x] T009 Enhance find_callers() method in `src/python/kcs_mcp/database.py`
   - Add recursive CTE for depth traversal (currently depth ignored)
   - Add visited tracking to prevent cycles
   - Implement depth parameter properly
   - Keep LIMIT 100 for performance
 
-- [ ] T010 Enhance find_callees() method in `src/python/kcs_mcp/database.py`
+- [x] T010 Enhance find_callees() method in `src/python/kcs_mcp/database.py`
   - Add recursive CTE for depth traversal (currently depth ignored)
   - Add visited tracking to prevent cycles
   - Implement depth parameter properly
