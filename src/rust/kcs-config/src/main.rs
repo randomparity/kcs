@@ -4,7 +4,7 @@ use kcs_config::{ConfigOption, KernelConfig};
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
-use tracing::info;
+use tracing::debug;
 
 #[derive(Parser)]
 #[clap(version, about = "Linux kernel configuration parser")]
@@ -44,10 +44,6 @@ fn main() -> Result<()> {
         tracing_subscriber::fmt()
             .with_env_filter("kcs_config=debug")
             .init();
-    } else {
-        tracing_subscriber::fmt()
-            .with_env_filter("kcs_config=info")
-            .init();
     }
 
     let content = read_input(&args.config_path)?;
@@ -74,17 +70,17 @@ fn main() -> Result<()> {
 fn read_input(path: &Option<PathBuf>) -> Result<String> {
     match path {
         Some(p) if p.to_str() == Some("-") => {
-            info!("Reading from stdin");
+            debug!("Reading from stdin");
             let mut buffer = String::new();
             io::stdin().read_to_string(&mut buffer)?;
             Ok(buffer)
         }
         Some(p) => {
-            info!("Reading from file: {:?}", p);
+            debug!("Reading from file: {:?}", p);
             fs::read_to_string(p).with_context(|| format!("Failed to read file: {:?}", p))
         }
         None => {
-            info!("Reading from stdin (no path specified)");
+            debug!("Reading from stdin (no path specified)");
             let mut buffer = String::new();
             io::stdin().read_to_string(&mut buffer)?;
             Ok(buffer)
