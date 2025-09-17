@@ -77,7 +77,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Integration Tests
 
-- [ ] T005 [P] Integration test for complete entry point extraction in `tests/integration/test_entry_point_extraction.py`
+- [x] T005 [P] Integration test for complete entry point extraction in `tests/integration/test_entry_point_extraction.py`
   - Test all entry point types on kernel fixtures
   - Verify counts match expected ranges
   - Check metadata population
