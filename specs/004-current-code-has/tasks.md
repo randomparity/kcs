@@ -149,7 +149,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Clang Integration (Rust)
 
-- [ ] T018 Initialize Clang index in `src/rust/kcs-parser/src/clang_bridge.rs`
+- [x] T018 Initialize Clang index in `src/rust/kcs-parser/src/clang_bridge.rs`
   - Implement ClangBridge::new() with index creation
   - Parse compile_commands.json
   - Handle missing compilation database gracefully
