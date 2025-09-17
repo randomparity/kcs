@@ -106,7 +106,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Pattern Detection (Rust)
 
-- [ ] T010 Implement EXPORT_SYMBOL pattern detection in `src/rust/kcs-parser/src/kernel_patterns.rs`
+- [x] T010 Implement EXPORT_SYMBOL pattern detection in `src/rust/kcs-parser/src/kernel_patterns.rs`
   - Add regex patterns for EXPORT_SYMBOL/GPL/NS
   - Extract symbol name and export type
   - Handle preprocessor conditionals
