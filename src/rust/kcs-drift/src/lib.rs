@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 pub mod drift_detector;
+pub mod report_generator;
 pub mod spec_parser;
-// pub mod report_generator;  // TODO: Implement
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DriftReport {
@@ -70,7 +70,7 @@ pub struct DriftFinding {
     pub remediation_suggestion: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DriftType {
     MissingSymbol,
     UnexpectedSymbol,
@@ -82,7 +82,7 @@ pub enum DriftType {
     ConfigMismatch,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DriftSeverity {
     Critical,
     High,
