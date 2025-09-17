@@ -765,6 +765,7 @@ name = "kcs-python-bridge"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "kcs-extractor",
  "kcs-parser",
  "pyo3",
  "serde",

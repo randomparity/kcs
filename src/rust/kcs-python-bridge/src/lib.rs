@@ -7,6 +7,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
 
+use kcs_extractor::{EntryType, ExtractionConfig, Extractor};
+use kcs_parser::kernel_patterns::{PatternDetector, PatternType};
 use kcs_parser::{ExtendedParserConfig, ParseResult, ParsedFile, Parser};
 
 /// Python wrapper for the Rust Parser
@@ -44,6 +46,42 @@ struct PyParseResult {
     errors: Vec<String>,
 }
 
+/// Python representation of an entry point
+#[pyclass]
+#[derive(Clone)]
+struct PyEntryPoint {
+    #[pyo3(get)]
+    name: String,
+    #[pyo3(get)]
+    entry_type: String,
+    #[pyo3(get)]
+    file_path: String,
+    #[pyo3(get)]
+    line_number: u32,
+    #[pyo3(get)]
+    signature: String,
+    #[pyo3(get)]
+    description: Option<String>,
+    #[pyo3(get)]
+    metadata: Option<HashMap<String, String>>,
+}
+
+/// Python representation of a kernel pattern
+#[pyclass]
+#[derive(Clone)]
+struct PyKernelPattern {
+    #[pyo3(get)]
+    pattern_type: String,
+    #[pyo3(get)]
+    name: String,
+    #[pyo3(get)]
+    file_path: String,
+    #[pyo3(get)]
+    line_number: u32,
+    #[pyo3(get)]
+    metadata: HashMap<String, String>,
+}
+
 #[pymethods]
 impl PyParser {
     #[new]
@@ -53,15 +91,14 @@ impl PyParser {
         target_arch: Option<String>,
         config_name: Option<String>,
     ) -> PyResult<Self> {
-        use std::path::PathBuf;
-
         let config = ExtendedParserConfig {
             use_clang: use_clang.unwrap_or(false),
-            compile_commands_path: compile_commands_path.map(PathBuf::from),
+            compile_commands_path: compile_commands_path.map(std::path::PathBuf::from),
             include_paths: Vec::new(),
             defines: HashMap::new(),
             arch: target_arch.unwrap_or_else(|| "x86_64".to_string()),
             config_name: config_name.unwrap_or_else(|| "defconfig".to_string()),
+            include_call_graphs: false,
         };
 
         let parser = Parser::new(config).map_err(|e| {
@@ -152,7 +189,7 @@ fn convert_parse_result(result: ParseResult) -> PyParseResult {
     let call_edges = result
         .call_edges
         .into_iter()
-        .map(|(caller, callee)| (caller, callee))
+        .map(|edge| (edge.caller.clone(), edge.callee.clone()))
         .collect();
 
     PyParseResult {
@@ -174,6 +211,7 @@ fn parse_c_file(_file_path: &str, content: &str, arch: Option<&str>) -> PyResult
         defines: HashMap::new(),
         arch: arch.unwrap_or("x86_64").to_string(),
         config_name: "defconfig".to_string(),
+        include_call_graphs: false,
     };
 
     let mut parser = Parser::new(config).map_err(|e| {
@@ -196,27 +234,88 @@ fn parse_c_file(_file_path: &str, content: &str, arch: Option<&str>) -> PyResult
     Ok(convert_parsed_file(result))
 }
 
-/// Utility function to analyze kernel patterns in code
+/// Detect kernel patterns in source code
 #[pyfunction]
-fn analyze_kernel_patterns(content: &str) -> PyResult<Vec<String>> {
-    // TODO: Implement actual kernel pattern analysis
-    // This would detect EXPORT_SYMBOL, module_param, etc.
+fn detect_patterns(file_path: &str, content: &str) -> PyResult<Vec<PyKernelPattern>> {
+    let detector = PatternDetector::new();
+    let patterns = detector.detect_patterns(content, file_path);
 
-    let patterns = vec![
-        "EXPORT_SYMBOL".to_string(),
-        "module_param".to_string(),
-        "MODULE_LICENSE".to_string(),
-        "subsys_initcall".to_string(),
-    ];
+    Ok(patterns
+        .into_iter()
+        .map(|p| PyKernelPattern {
+            pattern_type: match p.pattern_type {
+                PatternType::ExportSymbol => "export_symbol".to_string(),
+                PatternType::ModuleParam => "module_param".to_string(),
+                PatternType::BootParam => "boot_param".to_string(),
+            },
+            name: p.name,
+            file_path: p.file_path,
+            line_number: p.line_number,
+            metadata: p.metadata,
+        })
+        .collect())
+}
 
-    let mut found_patterns = Vec::new();
-    for pattern in patterns {
-        if content.contains(&pattern) {
-            found_patterns.push(pattern);
-        }
-    }
+/// Extract entry points from a kernel directory
+#[pyfunction]
+fn extract_entry_points(
+    kernel_dir: &str,
+    include_syscalls: Option<bool>,
+    include_ioctls: Option<bool>,
+    include_file_ops: Option<bool>,
+    include_sysfs: Option<bool>,
+    include_procfs: Option<bool>,
+    include_debugfs: Option<bool>,
+    include_netlink: Option<bool>,
+    include_interrupts: Option<bool>,
+    include_modules: Option<bool>,
+) -> PyResult<Vec<PyEntryPoint>> {
+    let config = ExtractionConfig {
+        include_syscalls: include_syscalls.unwrap_or(true),
+        include_ioctls: include_ioctls.unwrap_or(true),
+        include_file_ops: include_file_ops.unwrap_or(true),
+        include_sysfs: include_sysfs.unwrap_or(true),
+        include_procfs: include_procfs.unwrap_or(true),
+        include_debugfs: include_debugfs.unwrap_or(true),
+        include_netlink: include_netlink.unwrap_or(true),
+        include_interrupts: include_interrupts.unwrap_or(true),
+        include_modules: include_modules.unwrap_or(true),
+    };
 
-    Ok(found_patterns)
+    let extractor = Extractor::new(config);
+    let entry_points = extractor
+        .extract_from_directory(kernel_dir)
+        .map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("Entry point extraction failed: {}", e))
+        })?;
+
+    Ok(entry_points
+        .into_iter()
+        .map(|ep| PyEntryPoint {
+            name: ep.name,
+            entry_type: match ep.entry_type {
+                EntryType::Syscall => "syscall".to_string(),
+                EntryType::Ioctl => "ioctl".to_string(),
+                EntryType::FileOps => "file_ops".to_string(),
+                EntryType::Sysfs => "sysfs".to_string(),
+                EntryType::ProcFs => "procfs".to_string(),
+                EntryType::DebugFs => "debugfs".to_string(),
+                EntryType::Netlink => "netlink".to_string(),
+                EntryType::Interrupt => "interrupt".to_string(),
+                EntryType::ModuleInit => "module_init".to_string(),
+                EntryType::ModuleExit => "module_exit".to_string(),
+            },
+            file_path: ep.file_path,
+            line_number: ep.line_number,
+            signature: ep.signature,
+            description: ep.description,
+            metadata: ep.metadata.map(|m| {
+                m.into_iter()
+                    .map(|(k, v)| (k, v.to_string()))
+                    .collect()
+            }),
+        })
+        .collect())
 }
 
 /// Python module definition
@@ -225,7 +324,10 @@ fn kcs_python_bridge(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyParser>()?;
     m.add_class::<PySymbolInfo>()?;
     m.add_class::<PyParseResult>()?;
+    m.add_class::<PyEntryPoint>()?;
+    m.add_class::<PyKernelPattern>()?;
     m.add_function(wrap_pyfunction!(parse_c_file, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_kernel_patterns, m)?)?;
+    m.add_function(wrap_pyfunction!(detect_patterns, m)?)?;
+    m.add_function(wrap_pyfunction!(extract_entry_points, m)?)?;
     Ok(())
 }
