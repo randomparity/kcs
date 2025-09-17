@@ -1,7 +1,7 @@
 -- Migration 005: Add metadata columns for enhanced kernel pattern detection
 --
 -- This migration extends the existing schema to support:
--- 1. JSONB metadata columns for entry_point and symbol tables
+-- 1. JSONB metadata columns for entrypoint and symbol tables
 -- 2. New kernel_pattern table for pattern detection results
 -- 3. Performance indexes for metadata queries
 --
@@ -14,11 +14,11 @@ BEGIN;
 -- 1. Add metadata columns to existing tables (non-breaking)
 -- ============================================================================
 
--- Add metadata column to entry_point table
-ALTER TABLE entry_point
+-- Add metadata column to entrypoint table (note: table name is 'entrypoint' not 'entry_point')
+ALTER TABLE entrypoint
 ADD COLUMN IF NOT EXISTS metadata JSONB;
 
-COMMENT ON COLUMN entry_point.metadata IS
+COMMENT ON COLUMN entrypoint.metadata IS
 'Extended metadata for entry points including export type, module, subsystem, etc.';
 
 -- Add metadata column to symbol table
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS kernel_pattern (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pattern_type VARCHAR(50) NOT NULL,
     symbol_id UUID REFERENCES symbol (id) ON DELETE CASCADE,
-    entry_point_id UUID REFERENCES entry_point (id) ON DELETE CASCADE,
+    entrypoint_id UUID REFERENCES entrypoint (id) ON DELETE CASCADE,
     file_id UUID NOT NULL REFERENCES file (id) ON DELETE CASCADE,
     line_number INTEGER NOT NULL CHECK (line_number > 0),
     raw_text TEXT NOT NULL,
@@ -46,9 +46,9 @@ CREATE TABLE IF NOT EXISTS kernel_pattern (
 
     -- Ensure pattern references either a symbol, an entry point, or neither (but not both)
     CONSTRAINT pattern_reference CHECK (
-        (symbol_id IS NOT NULL AND entry_point_id IS NULL)
-        OR (symbol_id IS NULL AND entry_point_id IS NOT NULL)
-        OR (symbol_id IS NULL AND entry_point_id IS NULL)
+        (symbol_id IS NOT NULL AND entrypoint_id IS NULL)
+        OR (symbol_id IS NULL AND entrypoint_id IS NOT NULL)
+        OR (symbol_id IS NULL AND entrypoint_id IS NULL)
     )
 );
 
@@ -69,17 +69,17 @@ COMMENT ON COLUMN kernel_pattern.metadata IS
 -- 3. Create performance indexes
 -- ============================================================================
 
--- Indexes for entry_point metadata queries
-CREATE INDEX IF NOT EXISTS idx_entry_point_export_type
-ON entry_point ((metadata ->> 'export_type'))
+-- Indexes for entrypoint metadata queries
+CREATE INDEX IF NOT EXISTS idx_entrypoint_export_type
+ON entrypoint ((metadata ->> 'export_type'))
 WHERE metadata IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_entry_point_subsystem
-ON entry_point ((metadata ->> 'subsystem'))
+CREATE INDEX IF NOT EXISTS idx_entrypoint_subsystem
+ON entrypoint ((metadata ->> 'subsystem'))
 WHERE metadata IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_entry_point_module
-ON entry_point ((metadata ->> 'module'))
+CREATE INDEX IF NOT EXISTS idx_entrypoint_module
+ON entrypoint ((metadata ->> 'module'))
 WHERE metadata IS NOT NULL;
 
 -- Indexes for symbol metadata queries
@@ -106,9 +106,9 @@ CREATE INDEX IF NOT EXISTS idx_kernel_pattern_symbol
 ON kernel_pattern (symbol_id)
 WHERE symbol_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_kernel_pattern_entry_point
-ON kernel_pattern (entry_point_id)
-WHERE entry_point_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_kernel_pattern_entrypoint
+ON kernel_pattern (entrypoint_id)
+WHERE entrypoint_id IS NOT NULL;
 
 -- Composite index for common queries
 CREATE INDEX IF NOT EXISTS idx_kernel_pattern_file_type
@@ -150,9 +150,9 @@ BEGIN
   -- Check metadata columns exist
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'entry_point' AND column_name = 'metadata'
+    WHERE table_name = 'entrypoint' AND column_name = 'metadata'
   ) THEN
-    RAISE EXCEPTION 'Migration failed: entry_point.metadata column not created';
+    RAISE EXCEPTION 'Migration failed: entrypoint.metadata column not created';
   END IF;
 
   IF NOT EXISTS (

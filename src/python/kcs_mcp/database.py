@@ -518,7 +518,7 @@ class Database:
 
                     # Insert entry point
                     entry_sql = """
-                    INSERT INTO entry_point (
+                    INSERT INTO entrypoint (
                         name, entry_type, file_path, line_number,
                         signature, description, metadata, config
                     )
@@ -604,18 +604,18 @@ class Database:
                             symbol_id = symbol_row["id"]
 
                     # Find associated entry point if specified
-                    entry_point_id = None
+                    entrypoint_id = None
                     if "entry_point_name" in pattern:
                         entry_row = await conn.fetchrow(
                             """
-                            SELECT id FROM entry_point
+                            SELECT id FROM entrypoint
                             WHERE name = $1 AND config = $2 LIMIT 1
                             """,
                             pattern["entry_point_name"],
                             config,
                         )
                         if entry_row:
-                            entry_point_id = entry_row["id"]
+                            entrypoint_id = entry_row["id"]
 
                     # Handle metadata if present
                     metadata = None
@@ -627,7 +627,7 @@ class Database:
                     # Insert pattern
                     pattern_sql = """
                     INSERT INTO kernel_pattern (
-                        pattern_type, symbol_id, entry_point_id, file_id,
+                        pattern_type, symbol_id, entrypoint_id, file_id,
                         line_number, raw_text, metadata
                     )
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -637,7 +637,7 @@ class Database:
                         pattern_sql,
                         pattern["pattern_type"],
                         symbol_id,
-                        entry_point_id,
+                        entrypoint_id,
                         file_id,
                         pattern["line_number"],
                         pattern.get("raw_text", ""),
