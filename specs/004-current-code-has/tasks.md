@@ -111,7 +111,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Extract symbol name and export type
   - Handle preprocessor conditionals
 
-- [ ] T011 Implement module_param pattern detection in `src/rust/kcs-parser/src/kernel_patterns.rs`
+- [x] T011 Implement module_param pattern detection in `src/rust/kcs-parser/src/kernel_patterns.rs`
   - Add patterns for module_param/module_param_array
   - Extract parameter name, type, description
   - Associate MODULE_PARM_DESC with params

@@ -39,6 +39,9 @@ pub struct PatternDetector {
     export_symbol_gpl_regex: Regex,
     export_symbol_ns_regex: Regex,
     export_symbol_ns_gpl_regex: Regex,
+    module_param_regex: Regex,
+    module_param_array_regex: Regex,
+    module_param_desc_regex: Regex,
 }
 
 impl Default for PatternDetector {
@@ -71,11 +74,32 @@ impl PatternDetector {
         )
         .unwrap();
 
+        // MODULE PARAM patterns
+        // Matches: module_param(name, type, perm)
+        let module_param_regex = Regex::new(
+            r"(?m)\bmodule_param\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)",
+        )
+        .unwrap();
+
+        // Matches: module_param_array(name, type, nump, perm)
+        let module_param_array_regex = Regex::new(
+            r"(?m)\bmodule_param_array\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)"
+        ).unwrap();
+
+        // Matches: MODULE_PARM_DESC(name, description)
+        let module_param_desc_regex = Regex::new(
+            r#"(?m)\bMODULE_PARM_DESC\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*,\s*"([^"]*)"\s*\)"#,
+        )
+        .unwrap();
+
         Self {
             export_symbol_regex,
             export_symbol_gpl_regex,
             export_symbol_ns_regex,
             export_symbol_ns_gpl_regex,
+            module_param_regex,
+            module_param_array_regex,
+            module_param_desc_regex,
         }
     }
 
@@ -173,6 +197,84 @@ impl PatternDetector {
         patterns
     }
 
+    /// Detect module parameters in source code
+    pub fn detect_module_params(&self, content: &str, file_path: &str) -> Vec<KernelPattern> {
+        let mut patterns = Vec::new();
+        let mut descriptions: HashMap<String, String> = HashMap::new();
+
+        // First, collect all MODULE_PARM_DESC declarations
+        for cap in self.module_param_desc_regex.captures_iter(content) {
+            if let (Some(name_match), Some(desc_match)) = (cap.get(1), cap.get(2)) {
+                let param_name = name_match.as_str().to_string();
+                let description = desc_match.as_str().to_string();
+                descriptions.insert(param_name, description);
+            }
+        }
+
+        // Find all module_param declarations
+        for cap in self.module_param_regex.captures_iter(content) {
+            if let (Some(name_match), Some(type_match), Some(perm_match)) =
+                (cap.get(1), cap.get(2), cap.get(3))
+            {
+                let param_name = name_match.as_str().to_string();
+                let param_type = type_match.as_str().trim().to_string();
+                let param_perm = perm_match.as_str().trim().to_string();
+                let line_number = calculate_line_number(content, cap.get(0).unwrap().start());
+
+                let mut metadata = HashMap::new();
+                metadata.insert("param_type".to_string(), param_type);
+                metadata.insert("permissions".to_string(), param_perm);
+
+                // Add description if available
+                if let Some(desc) = descriptions.get(&param_name) {
+                    metadata.insert("description".to_string(), desc.clone());
+                }
+
+                patterns.push(KernelPattern {
+                    pattern_type: PatternType::ModuleParam,
+                    name: param_name,
+                    file_path: file_path.to_string(),
+                    line_number,
+                    metadata,
+                });
+            }
+        }
+
+        // Find all module_param_array declarations
+        for cap in self.module_param_array_regex.captures_iter(content) {
+            if let (Some(name_match), Some(type_match), Some(nump_match), Some(perm_match)) =
+                (cap.get(1), cap.get(2), cap.get(3), cap.get(4))
+            {
+                let param_name = name_match.as_str().to_string();
+                let param_type = type_match.as_str().trim().to_string();
+                let param_nump = nump_match.as_str().trim().to_string();
+                let param_perm = perm_match.as_str().trim().to_string();
+                let line_number = calculate_line_number(content, cap.get(0).unwrap().start());
+
+                let mut metadata = HashMap::new();
+                metadata.insert("param_type".to_string(), param_type);
+                metadata.insert("array_size".to_string(), param_nump);
+                metadata.insert("permissions".to_string(), param_perm);
+                metadata.insert("is_array".to_string(), "true".to_string());
+
+                // Add description if available
+                if let Some(desc) = descriptions.get(&param_name) {
+                    metadata.insert("description".to_string(), desc.clone());
+                }
+
+                patterns.push(KernelPattern {
+                    pattern_type: PatternType::ModuleParam,
+                    name: param_name,
+                    file_path: file_path.to_string(),
+                    line_number,
+                    metadata,
+                });
+            }
+        }
+
+        patterns
+    }
+
     /// Detect all kernel patterns in source code
     pub fn detect_patterns(&self, content: &str, file_path: &str) -> Vec<KernelPattern> {
         let mut patterns = Vec::new();
@@ -180,7 +282,9 @@ impl PatternDetector {
         // Detect export symbols
         patterns.extend(self.detect_export_symbols(content, file_path));
 
-        // TODO: Add module_param detection (T011)
+        // Detect module parameters
+        patterns.extend(self.detect_module_params(content, file_path));
+
         // TODO: Add boot parameter detection (T012)
 
         patterns
@@ -300,6 +404,122 @@ EXPORT_SYMBOL_GPL(another_func);
         assert_eq!(calculate_line_number(content, 0), 1);
         assert_eq!(calculate_line_number(content, 6), 2);
         assert_eq!(calculate_line_number(content, 12), 3);
+    }
+
+    #[test]
+    fn test_module_param_detection() {
+        let detector = PatternDetector::new();
+        let content = r#"
+static int debug = 0;
+module_param(debug, int, 0644);
+MODULE_PARM_DESC(debug, "Enable debug mode");
+
+static unsigned long buffer_size = 4096;
+module_param(buffer_size, ulong, 0444);
+MODULE_PARM_DESC(buffer_size, "Buffer size in bytes");
+
+static char *mode = "auto";
+module_param(mode, charp, 0644);
+"#;
+
+        let patterns = detector.detect_module_params(content, "test.c");
+        assert_eq!(patterns.len(), 3);
+
+        // Check debug parameter
+        let debug_param = patterns.iter().find(|p| p.name == "debug").unwrap();
+        assert_eq!(debug_param.pattern_type, PatternType::ModuleParam);
+        assert_eq!(
+            debug_param.metadata.get("param_type"),
+            Some(&"int".to_string())
+        );
+        assert_eq!(
+            debug_param.metadata.get("permissions"),
+            Some(&"0644".to_string())
+        );
+        assert_eq!(
+            debug_param.metadata.get("description"),
+            Some(&"Enable debug mode".to_string())
+        );
+
+        // Check buffer_size parameter
+        let buffer_param = patterns.iter().find(|p| p.name == "buffer_size").unwrap();
+        assert_eq!(
+            buffer_param.metadata.get("param_type"),
+            Some(&"ulong".to_string())
+        );
+        assert_eq!(
+            buffer_param.metadata.get("permissions"),
+            Some(&"0444".to_string())
+        );
+        assert_eq!(
+            buffer_param.metadata.get("description"),
+            Some(&"Buffer size in bytes".to_string())
+        );
+
+        // Check mode parameter (no description)
+        let mode_param = patterns.iter().find(|p| p.name == "mode").unwrap();
+        assert_eq!(
+            mode_param.metadata.get("param_type"),
+            Some(&"charp".to_string())
+        );
+        assert_eq!(mode_param.metadata.get("description"), None);
+    }
+
+    #[test]
+    fn test_module_param_array_detection() {
+        let detector = PatternDetector::new();
+        let content = r#"
+static int irqs[MAX_DEVICES];
+static int num_irqs;
+module_param_array(irqs, int, &num_irqs, 0444);
+MODULE_PARM_DESC(irqs, "IRQ numbers for devices");
+
+static char *names[MAX_NAMES];
+module_param_array(names, charp, NULL, 0644);
+"#;
+
+        let patterns = detector.detect_module_params(content, "test.c");
+        assert_eq!(patterns.len(), 2);
+
+        // Check irqs array parameter
+        let irqs_param = patterns.iter().find(|p| p.name == "irqs").unwrap();
+        assert_eq!(irqs_param.pattern_type, PatternType::ModuleParam);
+        assert_eq!(
+            irqs_param.metadata.get("param_type"),
+            Some(&"int".to_string())
+        );
+        assert_eq!(
+            irqs_param.metadata.get("array_size"),
+            Some(&"&num_irqs".to_string())
+        );
+        assert_eq!(
+            irqs_param.metadata.get("permissions"),
+            Some(&"0444".to_string())
+        );
+        assert_eq!(
+            irqs_param.metadata.get("is_array"),
+            Some(&"true".to_string())
+        );
+        assert_eq!(
+            irqs_param.metadata.get("description"),
+            Some(&"IRQ numbers for devices".to_string())
+        );
+
+        // Check names array parameter (no description, NULL size)
+        let names_param = patterns.iter().find(|p| p.name == "names").unwrap();
+        assert_eq!(
+            names_param.metadata.get("param_type"),
+            Some(&"charp".to_string())
+        );
+        assert_eq!(
+            names_param.metadata.get("array_size"),
+            Some(&"NULL".to_string())
+        );
+        assert_eq!(
+            names_param.metadata.get("is_array"),
+            Some(&"true".to_string())
+        );
+        assert_eq!(names_param.metadata.get("description"), None);
     }
 
     #[test]
