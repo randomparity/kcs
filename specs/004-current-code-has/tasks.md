@@ -201,7 +201,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Verify <100ms per file target
   - Test parallel processing scalability
 
-- [ ] T026 Update documentation in `docs/features/kernel_patterns.md`
+- [x] T026 Update documentation in `docs/features/kernel_patterns.md`
   - Document new entry point types
   - Explain pattern detection
   - Provide Clang setup guide
