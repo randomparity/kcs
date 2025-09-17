@@ -122,13 +122,13 @@ CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation.
 
 ### Endpoint Implementations
 
-- [ ] T011 Implement who_calls endpoint in `src/python/kcs_mcp/tools.py:who_calls()`
+- [x] T011 Implement who_calls endpoint in `src/python/kcs_mcp/tools.py:who_calls()`
   - Remove mock data fallback (lines 273-294)
   - Use enhanced find_callers() with depth
   - Ensure all results have citations
   - Handle empty results gracefully
 
-- [ ] T012 Implement list_dependencies endpoint in `src/python/kcs_mcp/tools.py:list_dependencies()`
+- [x] T012 Implement list_dependencies endpoint in `src/python/kcs_mcp/tools.py:list_dependencies()`
   - Remove mock data fallback (lines 348-370)
   - Use enhanced find_callees() with depth
   - Ensure all results have citations

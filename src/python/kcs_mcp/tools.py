@@ -269,29 +269,6 @@ async def who_calls(
                 )
             )
 
-        # Fall back to mock data if no database results for known test symbols
-        if not callers and request.symbol in ["vfs_read", "sys_read", "sys_write"]:
-            # Entry points like sys_read should have few/no callers
-            if request.symbol.startswith("sys_") or request.symbol.startswith(
-                "__x64_sys_"
-            ):
-                return WhoCallsResponse(callers=[])
-
-            # Mock for vfs_read for testing
-            if request.symbol == "vfs_read":
-                callers = [
-                    CallerInfo(
-                        symbol="sys_read",
-                        span=Span(
-                            path="fs/read_write.c",
-                            sha="a1b2c3d4e5f6789012345678901234567890abcd",
-                            start=100,
-                            end=105,
-                        ),
-                        call_type="direct",
-                    )
-                ]
-
         return WhoCallsResponse(callers=callers)
 
     except Exception as e:
@@ -343,23 +320,6 @@ async def list_dependencies(
                     call_type=callee_data["call_type"],
                 )
             )
-
-        # Fall back to mock data if no database results for known test symbols
-        if not callees and request.symbol in ["sys_read", "sys_write", "sys_openat"]:
-            if request.symbol.startswith("sys_"):
-                # System calls typically call VFS functions
-                callees = [
-                    CallerInfo(
-                        symbol="vfs_read" if "read" in request.symbol else "vfs_write",
-                        span=Span(
-                            path="fs/read_write.c",
-                            sha="a1b2c3d4e5f6789012345678901234567890abcd",
-                            start=200,
-                            end=205,
-                        ),
-                        call_type="direct",
-                    )
-                ]
 
         return ListDependenciesResponse(callees=callees)
 
