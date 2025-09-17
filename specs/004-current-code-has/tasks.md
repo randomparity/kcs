@@ -137,7 +137,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Extract file operations
   - Identify debugfs attributes
 
-- [ ] T016 Implement netlink handler detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T016 Implement netlink handler detection in `src/rust/kcs-extractor/src/entry_points.rs`
   - Add patterns for netlink_kernel_create
   - Extract message handlers
   - Identify protocol families

@@ -27,6 +27,7 @@ pub enum EntryType {
     Sysfs,
     ProcFs,
     DebugFs,
+    Netlink,
     ModuleInit,
     ModuleExit,
 }
@@ -39,6 +40,7 @@ pub struct ExtractionConfig {
     pub include_sysfs: bool,
     pub include_procfs: bool,
     pub include_debugfs: bool,
+    pub include_netlink: bool,
     pub include_modules: bool,
 }
 
@@ -51,6 +53,7 @@ impl Default for ExtractionConfig {
             include_sysfs: true,
             include_procfs: true,
             include_debugfs: true,
+            include_netlink: true,
             include_modules: true,
         }
     }
@@ -90,6 +93,10 @@ impl Extractor {
 
         if self.config.include_debugfs {
             entry_points.extend(entry_points::extract_debugfs_entries(kernel_dir.as_ref())?);
+        }
+
+        if self.config.include_netlink {
+            entry_points.extend(entry_points::extract_netlink_handlers(kernel_dir.as_ref())?);
         }
 
         if self.config.include_modules {

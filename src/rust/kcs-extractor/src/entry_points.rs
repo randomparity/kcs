@@ -1,6 +1,7 @@
 use crate::{EntryPoint, EntryType};
 use anyhow::Result;
 use regex::Regex;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -498,6 +499,148 @@ where
     )
 }
 
+/// Extract netlink handler entry points from kernel source
+pub fn extract_netlink_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryPoint>> {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let kernel_dir = kernel_dir.as_ref();
+    let entry_points = Rc::new(RefCell::new(Vec::new()));
+
+    // Patterns for netlink_kernel_create function calls
+    let netlink_create_patterns = [
+        // Modern pattern with netlink_kernel_cfg struct
+        Regex::new(r#"netlink_kernel_create\s*\(\s*&?(\w+)\s*,\s*([A-Z_]+)\s*,\s*&(\w+)\s*\)"#)?,
+        // Inline struct pattern
+        Regex::new(
+            r#"netlink_kernel_create\s*\(\s*&?(\w+)\s*,\s*([A-Z_]+)\s*,\s*&\(struct\s+netlink_kernel_cfg\)\s*\{[^}]*\.input\s*=\s*(\w+)"#,
+        )?,
+        // Legacy pattern (older kernels)
+        Regex::new(
+            r#"netlink_kernel_create\s*\(\s*&?(\w+)\s*,\s*([A-Z_]+)\s*,\s*\d+\s*,\s*(\w+)"#,
+        )?,
+    ];
+
+    // Pattern to extract netlink_kernel_cfg structures
+    let cfg_pattern =
+        Regex::new(r#"static\s+struct\s+netlink_kernel_cfg\s+(\w+)\s*=\s*\{([^}]+)\}"#)?;
+
+    // Pattern to extract input handler from cfg
+    let input_pattern = Regex::new(r#"\.input\s*=\s*(\w+)"#)?;
+
+    // Common netlink protocol names
+    let protocol_pattern = Regex::new(r#"NETLINK_([A-Z_]+)"#)?;
+
+    let entry_points_clone = entry_points.clone();
+
+    // Search for C source files
+    search_kernel_files(
+        kernel_dir,
+        &[".c"],
+        move |_file_path, file_path_str, content| {
+            // First, find all netlink_kernel_cfg structures
+            let mut cfg_handlers: HashMap<String, String> = HashMap::new();
+            for cap in cfg_pattern.captures_iter(content) {
+                let cfg_name = &cap[1];
+                let cfg_body = &cap[2];
+
+                // Extract input handler from cfg
+                if let Some(input_cap) = input_pattern.captures(cfg_body) {
+                    cfg_handlers.insert(cfg_name.to_string(), input_cap[1].to_string());
+                }
+            }
+
+            // Now find netlink_kernel_create calls
+            for pattern in &netlink_create_patterns {
+                for cap in pattern.captures_iter(content) {
+                    let mut metadata = serde_json::Map::new();
+                    let protocol_name;
+                    let handler_name;
+
+                    // Extract based on pattern type
+                    if cap.len() == 4 {
+                        // Has explicit parameters
+                        protocol_name = cap[2].to_string();
+
+                        // Check if third capture is a config struct or a handler
+                        if cap[3].ends_with("_cfg") {
+                            // It's a config struct, look up the handler
+                            handler_name = cfg_handlers
+                                .get(&cap[3])
+                                .cloned()
+                                .unwrap_or_else(|| cap[3].to_string());
+                            metadata.insert(
+                                "config_struct".to_string(),
+                                serde_json::Value::String(cap[3].to_string()),
+                            );
+                        } else {
+                            // Direct handler
+                            handler_name = cap[3].to_string();
+                        }
+
+                        metadata.insert(
+                            "net_namespace".to_string(),
+                            serde_json::Value::String(cap[1].to_string()),
+                        );
+                    } else {
+                        // Fallback for partial matches
+                        protocol_name = "NETLINK_UNKNOWN".to_string();
+                        handler_name = "netlink_handler".to_string();
+                    }
+
+                    // Extract protocol family if it's a known constant
+                    if let Some(proto_cap) = protocol_pattern.captures(&protocol_name) {
+                        metadata.insert(
+                            "protocol_family".to_string(),
+                            serde_json::Value::String(proto_cap[1].to_string()),
+                        );
+                    } else {
+                        metadata.insert(
+                            "protocol_family".to_string(),
+                            serde_json::Value::String(protocol_name.clone()),
+                        );
+                    }
+
+                    metadata.insert(
+                        "protocol".to_string(),
+                        serde_json::Value::String(protocol_name.clone()),
+                    );
+                    metadata.insert(
+                        "handler_type".to_string(),
+                        serde_json::Value::String("netlink_input".to_string()),
+                    );
+
+                    // Try to find line number by searching for the handler function
+                    let line_number = content
+                        .lines()
+                        .position(|line| line.contains(&handler_name))
+                        .map(|pos| (pos + 1) as u32)
+                        .unwrap_or(1);
+
+                    entry_points_clone.borrow_mut().push(EntryPoint {
+                        name: handler_name.clone(),
+                        entry_type: EntryType::Netlink,
+                        file_path: file_path_str.clone(),
+                        line_number,
+                        signature: format!("netlink handler for {}", protocol_name),
+                        description: Some(format!(
+                            "Netlink message handler for {} protocol",
+                            protocol_name
+                        )),
+                        metadata: Some(metadata),
+                    });
+                }
+            }
+
+            Ok(())
+        },
+    )?;
+
+    Ok(Rc::try_unwrap(entry_points)
+        .unwrap_or_else(|_| panic!("Failed to unwrap Rc"))
+        .into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -664,6 +807,92 @@ static int __init test_init(void) {{
                 assert!(
                     metadata.contains_key("debugfs_type"),
                     "Should have debugfs_type in metadata"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_netlink_handlers() -> Result<()> {
+        use std::fs;
+        use std::fs::File;
+        use std::io::Write;
+        use tempfile::tempdir;
+
+        // Create a temporary directory with test files
+        let temp_dir = tempdir()?;
+        let kernel_dir = temp_dir.path();
+
+        // Create net directory
+        let net_dir = kernel_dir.join("net");
+        fs::create_dir_all(&net_dir)?;
+
+        let mut test_file = File::create(net_dir.join("test_netlink.c"))?;
+        write!(
+            test_file,
+            r#"
+#include <linux/netlink.h>
+
+static void test_netlink_rcv(struct sk_buff *skb)
+{{
+    /* Handle netlink message */
+}}
+
+static struct netlink_kernel_cfg test_netlink_cfg = {{
+    .input = test_netlink_rcv,
+    .groups = 1,
+}};
+
+static int test_init(void)
+{{
+    netlink_kernel_create(&init_net, NETLINK_TEST_PROTO, &test_netlink_cfg);
+
+    /* Inline config */
+    netlink_kernel_create(&init_net, NETLINK_GENERIC, &(struct netlink_kernel_cfg){{
+        .input = inline_handler,
+        .groups = 4,
+    }});
+
+    /* Legacy pattern */
+    netlink_kernel_create(&init_net, NETLINK_ROUTE, 0, legacy_handler, NULL, THIS_MODULE);
+
+    return 0;
+}}
+"#
+        )?;
+
+        // Extract netlink handlers
+        let entry_points = extract_netlink_handlers(kernel_dir)?;
+
+        // Verify we found the expected netlink handlers
+        assert!(
+            entry_points.len() >= 3,
+            "Expected at least 3 netlink handlers, found {}",
+            entry_points.len()
+        );
+
+        // Check that all found entries are netlink type
+        for entry in &entry_points {
+            assert!(
+                matches!(entry.entry_type, EntryType::Netlink),
+                "Expected Netlink entry type"
+            );
+            assert!(
+                entry.metadata.is_some(),
+                "Netlink entries should have metadata"
+            );
+
+            // Check for expected metadata fields
+            if let Some(metadata) = &entry.metadata {
+                assert!(
+                    metadata.contains_key("protocol"),
+                    "Should have protocol in metadata"
+                );
+                assert!(
+                    metadata.contains_key("handler_type"),
+                    "Should have handler_type in metadata"
                 );
             }
         }
