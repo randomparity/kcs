@@ -364,6 +364,13 @@ class Database:
                 if "symbols" in parsed_file:
                     symbol_batch = []
                     for symbol in parsed_file["symbols"]:
+                        # Handle metadata if present
+                        metadata = None
+                        if symbol.get("metadata"):
+                            import json
+
+                            metadata = json.dumps(symbol["metadata"])
+
                         symbol_batch.append(
                             (
                                 symbol["name"],
@@ -375,13 +382,14 @@ class Database:
                                 symbol.get("end_col", 0),
                                 config,
                                 symbol.get("signature", ""),
+                                metadata,
                             )
                         )
 
                     if symbol_batch:
                         symbol_sql = """
-                        INSERT INTO symbol (name, kind, file_id, start_line, end_line, start_col, end_col, config, signature)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                        INSERT INTO symbol (name, kind, file_id, start_line, end_line, start_col, end_col, config, signature, metadata)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                         RETURNING id, name
                         """
 
@@ -479,6 +487,165 @@ class Database:
                 continue
 
         return processed_count
+
+    async def insert_entry_points(
+        self, entry_points: list[dict[str, Any]], config: str
+    ) -> int:
+        """
+        Insert entry points with metadata into the database.
+
+        Args:
+            entry_points: List of entry points from extraction
+            config: Configuration string (e.g., "x86_64:defconfig")
+
+        Returns:
+            Number of entry points inserted
+        """
+        if not entry_points:
+            return 0
+
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                inserted_count = 0
+
+                for entry_point in entry_points:
+                    # Handle metadata if present
+                    metadata = None
+                    if entry_point.get("metadata"):
+                        import json
+
+                        metadata = json.dumps(entry_point["metadata"])
+
+                    # Insert entry point
+                    entry_sql = """
+                    INSERT INTO entry_point (
+                        name, entry_type, file_path, line_number,
+                        signature, description, metadata, config
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ON CONFLICT (name, entry_type, config)
+                    DO UPDATE SET
+                        file_path = EXCLUDED.file_path,
+                        line_number = EXCLUDED.line_number,
+                        signature = EXCLUDED.signature,
+                        description = EXCLUDED.description,
+                        metadata = EXCLUDED.metadata,
+                        updated_at = NOW()
+                    """
+
+                    await conn.execute(
+                        entry_sql,
+                        entry_point["name"],
+                        entry_point["entry_type"],
+                        entry_point["file_path"],
+                        entry_point["line_number"],
+                        entry_point.get("signature", ""),
+                        entry_point.get("description"),
+                        metadata,
+                        config,
+                    )
+                    inserted_count += 1
+
+                return inserted_count
+
+    async def insert_kernel_patterns(
+        self, patterns: list[dict[str, Any]], config: str
+    ) -> int:
+        """
+        Insert kernel patterns with metadata into the database.
+
+        Args:
+            patterns: List of detected kernel patterns
+            config: Configuration string (e.g., "x86_64:defconfig")
+
+        Returns:
+            Number of patterns inserted
+        """
+        if not patterns:
+            return 0
+
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                inserted_count = 0
+
+                for pattern in patterns:
+                    # First, find the file ID
+                    file_row = await conn.fetchrow(
+                        "SELECT id FROM file WHERE path = $1 AND config = $2",
+                        pattern["file_path"],
+                        config,
+                    )
+
+                    if not file_row:
+                        # Insert file if it doesn't exist
+                        file_sql = """
+                        INSERT INTO file (path, sha, config)
+                        VALUES ($1, $2, $3)
+                        RETURNING id
+                        """
+                        file_row = await conn.fetchrow(
+                            file_sql,
+                            pattern["file_path"],
+                            pattern.get("sha", ""),
+                            config,
+                        )
+
+                    file_id = file_row["id"]
+
+                    # Find associated symbol if specified
+                    symbol_id = None
+                    if "symbol_name" in pattern:
+                        symbol_row = await conn.fetchrow(
+                            "SELECT id FROM symbol WHERE name = $1 AND config = $2 LIMIT 1",
+                            pattern["symbol_name"],
+                            config,
+                        )
+                        if symbol_row:
+                            symbol_id = symbol_row["id"]
+
+                    # Find associated entry point if specified
+                    entry_point_id = None
+                    if "entry_point_name" in pattern:
+                        entry_row = await conn.fetchrow(
+                            """
+                            SELECT id FROM entry_point
+                            WHERE name = $1 AND config = $2 LIMIT 1
+                            """,
+                            pattern["entry_point_name"],
+                            config,
+                        )
+                        if entry_row:
+                            entry_point_id = entry_row["id"]
+
+                    # Handle metadata if present
+                    metadata = None
+                    if pattern.get("metadata"):
+                        import json
+
+                        metadata = json.dumps(pattern["metadata"])
+
+                    # Insert pattern
+                    pattern_sql = """
+                    INSERT INTO kernel_pattern (
+                        pattern_type, symbol_id, entry_point_id, file_id,
+                        line_number, raw_text, metadata
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """
+
+                    await conn.execute(
+                        pattern_sql,
+                        pattern["pattern_type"],
+                        symbol_id,
+                        entry_point_id,
+                        file_id,
+                        pattern["line_number"],
+                        pattern.get("raw_text", ""),
+                        metadata,
+                    )
+                    inserted_count += 1
+
+                return inserted_count
 
 
 # Global database instance
