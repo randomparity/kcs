@@ -195,7 +195,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ## Phase 3.5: Polish
 
-- [ ] T025 [P] Performance validation in `tests/performance/test_pattern_performance.py`
+- [x] T025 [P] Performance validation in `tests/performance/test_pattern_performance.py`
   - Benchmark pattern detection speed
   - Test with full kernel directory
   - Verify <100ms per file target
