@@ -18,7 +18,7 @@
 ### Phase 2: Contract Tests (Must Fail First)
 
 - [x] **T007**: Write failing test for parse_kernel_config endpoint in tests/contract/test_parse_kernel_config.py
-- [ ] **T008**: Write failing test for validate_spec endpoint in tests/contract/test_validate_spec.py
+- [x] **T008**: Write failing test for validate_spec endpoint in tests/contract/test_validate_spec.py
 - [ ] **T009**: Write failing test for semantic_search endpoint in tests/contract/test_semantic_search.py
 - [ ] **T010**: Write failing test for traverse_call_graph endpoint in tests/contract/test_traverse_call_graph.py
 - [ ] **T011**: Write failing test for export_graph endpoint in tests/contract/test_export_graph.py
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 7
+- **Completed**: 8
 - **In Progress**: 0
 - **Blocked**: 0
 
