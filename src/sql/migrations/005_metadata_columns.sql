@@ -33,11 +33,11 @@ COMMENT ON COLUMN symbol.metadata IS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS kernel_pattern (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGSERIAL PRIMARY KEY,
     pattern_type VARCHAR(50) NOT NULL,
-    symbol_id UUID REFERENCES symbol (id) ON DELETE CASCADE,
-    entrypoint_id UUID REFERENCES entrypoint (id) ON DELETE CASCADE,
-    file_id UUID NOT NULL REFERENCES file (id) ON DELETE CASCADE,
+    symbol_id BIGINT REFERENCES symbol (id) ON DELETE CASCADE,
+    entrypoint_id BIGINT REFERENCES entrypoint (id) ON DELETE CASCADE,
+    file_id BIGINT NOT NULL REFERENCES file (id) ON DELETE CASCADE,
     line_number INTEGER NOT NULL CHECK (line_number > 0),
     raw_text TEXT NOT NULL,
     metadata JSONB,
