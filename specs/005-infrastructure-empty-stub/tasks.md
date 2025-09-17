@@ -26,9 +26,9 @@
 ### Phase 3A: kcs-config Crate Implementation
 
 - [x] **T012**: Create kcs-config crate structure with Cargo.toml
-- [ ] **T013**: Implement KernelConfig parser in kcs-config/src/parser.rs
+- [x] **T013**: Implement KernelConfig parser in kcs-config/src/parser.rs
 - [ ] **T014**: Add CLI interface in kcs-config/src/main.rs with --help/--version/--format
-- [ ] **T015**: Write unit tests for kcs-config parser
+- [x] **T015**: Write unit tests for kcs-config parser
 - [ ] **T016**: Create integration test for kcs-config with sample configs
 
 ### Phase 3B: kcs-drift Completion
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 12
+- **Completed**: 14
 - **In Progress**: 0
 - **Blocked**: 0
 
