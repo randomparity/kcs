@@ -9,7 +9,7 @@
 ### Phase 1: Database Migrations [P] - Can be done in parallel
 
 - [x] **T001**: Create migration 006_kernel_config.sql for kernel_config table
-- [ ] **T002**: Create migration 006_specification.sql for specification table
+- [x] **T002**: Create migration 007_specification.sql for specification table
 - [ ] **T003**: Create migration 007_drift_report.sql for drift_report table
 - [ ] **T004**: Create migration 008_semantic_query_log.sql for semantic_query_log table
 - [ ] **T005**: Create migration 009_graph_export.sql for graph_export table
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 1
+- **Completed**: 2
 - **In Progress**: 0
 - **Blocked**: 0
 
