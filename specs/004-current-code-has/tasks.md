@@ -92,7 +92,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Verify type information extraction
   - Test graceful degradation without Clang
 
-- [ ] T008 [P] Integration test for ioctl command extraction in `tests/integration/test_ioctl_detection.py`
+- [x] T008 [P] Integration test for ioctl command extraction in `tests/integration/test_ioctl_detection.py`
   - Test ioctl magic number detection
   - Verify ioctl handler identification
   - Check command metadata storage
