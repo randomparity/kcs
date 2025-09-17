@@ -180,7 +180,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Database Integration
 
-- [ ] T023 Update database insertion for metadata in `src/python/kcs_mcp/database.py`
+- [x] T023 Update database insertion for metadata in `src/python/kcs_mcp/database.py`
   - Modify insert_entry_points() to handle metadata JSONB
   - Modify insert_symbols() to handle metadata JSONB
   - Add insert_kernel_patterns() method
