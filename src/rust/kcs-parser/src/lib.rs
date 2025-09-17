@@ -83,6 +83,8 @@ pub struct Symbol {
     pub signature: String,
     pub visibility: Visibility,
     pub attributes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// Types of symbols we can parse

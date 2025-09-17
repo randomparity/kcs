@@ -6,13 +6,16 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::{ExtendedParserConfig, Symbol};
+use crate::{ExtendedParserConfig, Symbol, SymbolKind};
 
 #[cfg(feature = "clang")]
 use clang_sys::*;
 
 #[cfg(feature = "clang")]
 use std::ffi::CString;
+
+#[cfg(feature = "clang")]
+use std::ffi::CStr;
 
 /// Wrapper around Clang's index for semantic analysis
 pub struct ClangBridge {
@@ -220,6 +223,155 @@ impl ClangBridge {
         Ok(tu)
     }
 
+    /// Extract detailed type information from a Clang cursor
+    #[cfg(feature = "clang")]
+    fn extract_type_info(cursor: CXCursor) -> HashMap<String, serde_json::Value> {
+        let mut type_info = HashMap::new();
+
+        // Get the type of the cursor
+        let cursor_type = unsafe { clang_getCursorType(cursor) };
+
+        // Get the return type for functions
+        let cursor_kind = unsafe { clang_getCursorKind(cursor) };
+
+        if cursor_kind == CXCursor_FunctionDecl || cursor_kind == CXCursor_CXXMethod {
+            // Get return type
+            let result_type = unsafe { clang_getResultType(cursor_type) };
+            let result_type_spelling = unsafe {
+                let spelling = clang_getTypeSpelling(result_type);
+                Self::cxstring_to_string(spelling)
+            };
+            if !result_type_spelling.is_empty() {
+                type_info.insert(
+                    "return_type".to_string(),
+                    serde_json::Value::String(result_type_spelling),
+                );
+            }
+
+            // Get parameter types
+            let num_args = unsafe { clang_getNumArgTypes(cursor_type) };
+            if num_args >= 0 {
+                let mut params = Vec::new();
+                for i in 0..num_args {
+                    let arg_type = unsafe { clang_getArgType(cursor_type, i as u32) };
+                    let arg_type_spelling = unsafe {
+                        let spelling = clang_getTypeSpelling(arg_type);
+                        Self::cxstring_to_string(spelling)
+                    };
+
+                    // Try to get parameter name
+                    let arg_cursor = unsafe { clang_Cursor_getArgument(cursor, i as u32) };
+                    let arg_name = unsafe {
+                        let spelling = clang_getCursorSpelling(arg_cursor);
+                        Self::cxstring_to_string(spelling)
+                    };
+
+                    let mut param_info = serde_json::Map::new();
+                    param_info.insert(
+                        "type".to_string(),
+                        serde_json::Value::String(arg_type_spelling),
+                    );
+                    if !arg_name.is_empty() {
+                        param_info.insert("name".to_string(), serde_json::Value::String(arg_name));
+                    }
+                    params.push(serde_json::Value::Object(param_info));
+                }
+                if !params.is_empty() {
+                    type_info.insert("parameters".to_string(), serde_json::Value::Array(params));
+                }
+            }
+
+            // Check if function is variadic
+            let is_variadic = unsafe { clang_isFunctionTypeVariadic(cursor_type) };
+            if is_variadic != 0 {
+                type_info.insert("is_variadic".to_string(), serde_json::Value::Bool(true));
+            }
+        }
+
+        // Note: Storage class extraction removed due to compatibility issues
+        // Could be re-added with proper clang-sys version detection
+
+        // Get type spelling
+        let type_spelling = unsafe {
+            let spelling = clang_getTypeSpelling(cursor_type);
+            Self::cxstring_to_string(spelling)
+        };
+        if !type_spelling.is_empty() {
+            type_info.insert(
+                "type_spelling".to_string(),
+                serde_json::Value::String(type_spelling.clone()),
+            );
+        }
+
+        // Check if it's a definition vs declaration
+        let is_definition = unsafe { clang_isCursorDefinition(cursor) };
+        if is_definition != 0 {
+            type_info.insert("is_definition".to_string(), serde_json::Value::Bool(true));
+        }
+
+        // Get canonical type (resolved typedef)
+        let canonical_type = unsafe { clang_getCanonicalType(cursor_type) };
+        let canonical_spelling = unsafe {
+            let spelling = clang_getTypeSpelling(canonical_type);
+            Self::cxstring_to_string(spelling)
+        };
+
+        let type_kind = cursor_type.kind;
+        if type_kind == CXType_Typedef && canonical_spelling != type_spelling {
+            type_info.insert(
+                "canonical_type".to_string(),
+                serde_json::Value::String(canonical_spelling),
+            );
+        }
+
+        type_info
+    }
+
+    /// Convert a CXString to a Rust String
+    #[cfg(feature = "clang")]
+    fn cxstring_to_string(cx_string: CXString) -> String {
+        unsafe {
+            let c_str = clang_getCString(cx_string);
+            if c_str.is_null() {
+                String::new()
+            } else {
+                let result = CStr::from_ptr(c_str).to_string_lossy().to_string();
+                clang_disposeString(cx_string);
+                result
+            }
+        }
+    }
+
+    /// Find a cursor at a specific location
+    #[cfg(feature = "clang")]
+    fn find_cursor_at_location(
+        tu: CXTranslationUnit,
+        line: u32,
+        column: u32,
+        file_path: &Path,
+    ) -> Option<CXCursor> {
+        // Get the file handle
+        let c_file_path = CString::new(file_path.to_str()?).ok()?;
+        let file = unsafe { clang_getFile(tu, c_file_path.as_ptr()) };
+        if file.is_null() {
+            return None;
+        }
+
+        // Get location at line and column
+        let location = unsafe { clang_getLocation(tu, file, line, column) };
+
+        // Get cursor at that location
+        let cursor = unsafe { clang_getCursor(tu, location) };
+
+        // Check if cursor is valid
+        let is_invalid = unsafe { clang_isInvalid(clang_getCursorKind(cursor)) };
+        if is_invalid != 0 {
+            return None;
+        }
+
+        Some(cursor)
+    }
+
     /// Enhance symbols with Clang semantic information
     pub fn enhance_symbols(&mut self, file_path: &Path, symbols: &[Symbol]) -> Result<Vec<Symbol>> {
         #[cfg(not(feature = "clang"))]
@@ -237,7 +389,7 @@ impl ClangBridge {
             }
 
             // Get translation unit for the file
-            let _tu = match self.get_translation_unit(file_path) {
+            let tu = match self.get_translation_unit(file_path) {
                 Ok(tu) => tu,
                 Err(e) => {
                     eprintln!(
@@ -249,9 +401,60 @@ impl ClangBridge {
                 }
             };
 
-            // For now, just return the original symbols
-            // Symbol enhancement will be implemented in T019 and T020
-            Ok(symbols.to_vec())
+            // Enhance each symbol
+            let mut enhanced_symbols = Vec::new();
+            for symbol in symbols {
+                let mut enhanced = symbol.clone();
+
+                // Try to find the cursor for this symbol
+                if let Some(cursor) = Self::find_cursor_at_location(
+                    tu,
+                    symbol.start_line,
+                    symbol.start_col,
+                    file_path,
+                ) {
+                    // Extract type information
+                    let type_info = Self::extract_type_info(cursor);
+
+                    if !type_info.is_empty() {
+                        // Initialize metadata if needed
+                        if enhanced.metadata.is_none() {
+                            enhanced.metadata = Some(serde_json::Map::new());
+                        }
+
+                        // Add type information to metadata
+                        if let Some(ref mut metadata) = enhanced.metadata {
+                            for (key, value) in type_info {
+                                metadata.insert(key, value);
+                            }
+                        }
+                    }
+
+                    // For functions, also try to enhance the signature
+                    if matches!(symbol.kind, SymbolKind::Function) {
+                        // Get the full type spelling which includes parameter names
+                        let cursor_type = unsafe { clang_getCursorType(cursor) };
+                        let type_spelling = unsafe {
+                            let spelling = clang_getTypeSpelling(cursor_type);
+                            Self::cxstring_to_string(spelling)
+                        };
+
+                        // If we got a better signature from Clang, use it
+                        if !type_spelling.is_empty() && type_spelling != enhanced.signature {
+                            if let Some(ref mut metadata) = enhanced.metadata {
+                                metadata.insert(
+                                    "enhanced_signature".to_string(),
+                                    serde_json::Value::String(type_spelling),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                enhanced_symbols.push(enhanced);
+            }
+
+            Ok(enhanced_symbols)
         }
     }
 }
@@ -359,6 +562,7 @@ mod tests {
             signature: "void test_func(void)".to_string(),
             visibility: crate::Visibility::Global,
             attributes: vec![],
+            metadata: None,
         }];
 
         let enhanced = bridge.enhance_symbols(Path::new("test.c"), &symbols)?;
@@ -394,11 +598,86 @@ mod tests {
             signature: "int main()".to_string(),
             visibility: crate::Visibility::Global,
             attributes: vec![],
+            metadata: None,
         }];
 
         // Should not fail even with clang enabled
         let enhanced = bridge.enhance_symbols(&test_file, &symbols)?;
         assert_eq!(enhanced.len(), symbols.len());
+
+        Ok(())
+    }
+
+    #[cfg(feature = "clang")]
+    #[test]
+    fn test_symbol_type_extraction() -> Result<()> {
+        let config = ExtendedParserConfig {
+            use_clang: true,
+            ..Default::default()
+        };
+
+        // Create a temporary C file with more complex types
+        let temp_dir = tempdir()?;
+        let test_file = temp_dir.path().join("test.c");
+        let mut file = File::create(&test_file)?;
+        writeln!(
+            file,
+            r#"
+static int add(int a, int b) {{
+    return a + b;
+}}
+
+int multiply(int x, int y) {{
+    return x * y;
+}}
+"#
+        )?;
+
+        let mut bridge = ClangBridge::new(&config)?;
+
+        let symbols = vec![
+            Symbol {
+                name: "add".to_string(),
+                kind: crate::SymbolKind::Function,
+                start_line: 2,
+                end_line: 4,
+                start_col: 0,
+                end_col: 0,
+                signature: "static int add(int a, int b)".to_string(),
+                visibility: crate::Visibility::Static,
+                attributes: vec![],
+                metadata: None,
+            },
+            Symbol {
+                name: "multiply".to_string(),
+                kind: crate::SymbolKind::Function,
+                start_line: 6,
+                end_line: 8,
+                start_col: 0,
+                end_col: 0,
+                signature: "int multiply(int x, int y)".to_string(),
+                visibility: crate::Visibility::Global,
+                attributes: vec![],
+                metadata: None,
+            },
+        ];
+
+        let enhanced = bridge.enhance_symbols(&test_file, &symbols)?;
+        assert_eq!(enhanced.len(), symbols.len());
+
+        // Check that metadata was added
+        for symbol in &enhanced {
+            if symbol.name == "add" {
+                assert!(symbol.metadata.is_some());
+                if let Some(ref metadata) = symbol.metadata {
+                    // Should have return type and parameters
+                    assert!(
+                        metadata.contains_key("return_type")
+                            || metadata.contains_key("type_spelling")
+                    );
+                }
+            }
+        }
 
         Ok(())
     }
