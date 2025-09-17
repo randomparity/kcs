@@ -15,6 +15,8 @@ pub struct EntryPoint {
     pub line_number: u32,
     pub signature: String,
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +128,7 @@ impl Extractor {
                                                     "System call: {}",
                                                     syscall_name.as_str()
                                                 )),
+                                                metadata: None,
                                             });
                                         }
                                     }
@@ -142,6 +145,7 @@ impl Extractor {
                                                     "Kernel syscall helper: {}",
                                                     syscall_name.as_str()
                                                 )),
+                                                metadata: None,
                                             });
                                         }
                                     }
@@ -160,6 +164,7 @@ impl Extractor {
                                                 "Direct syscall: {}",
                                                 &name[4..]
                                             )),
+                                            metadata: None,
                                         });
                                     }
                                 }

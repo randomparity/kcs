@@ -41,6 +41,7 @@ pub fn extract_file_operations<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Entr
                             "File operation: {} ({})",
                             field_name, function_name
                         )),
+                        metadata: None,
                     });
                 }
             }
@@ -79,6 +80,7 @@ pub fn extract_sysfs_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<EntryP
                             line_number: (line_num + 1) as u32,
                             signature: line.trim().to_string(),
                             description: Some(format!("Sysfs attribute: {}", name)),
+                            metadata: None,
                         });
                     }
                 }
@@ -116,6 +118,7 @@ pub fn extract_module_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Entry
                             line_number: (line_num + 1) as u32,
                             signature: line.trim().to_string(),
                             description: Some(format!("Module init function: {}", name.as_str())),
+                            metadata: None,
                         });
                     }
                 }
@@ -130,6 +133,7 @@ pub fn extract_module_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Entry
                             line_number: (line_num + 1) as u32,
                             signature: line.trim().to_string(),
                             description: Some(format!("Module exit function: {}", name.as_str())),
+                            metadata: None,
                         });
                     }
                 }
@@ -144,6 +148,7 @@ pub fn extract_module_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Entry
                             line_number: (line_num + 1) as u32,
                             signature: line.trim().to_string(),
                             description: Some(format!("Init function: {}", name.as_str())),
+                            metadata: None,
                         });
                     }
                 }
@@ -157,6 +162,7 @@ pub fn extract_module_entries<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Entry
                             line_number: (line_num + 1) as u32,
                             signature: line.trim().to_string(),
                             description: Some(format!("Exit function: {}", name.as_str())),
+                            metadata: None,
                         });
                     }
                 }
