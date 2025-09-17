@@ -63,7 +63,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Verify new entry types returned (procfs, debugfs, netlink, etc.)
   - MUST FAIL initially (new types not implemented)
 
-- [ ] T003 [P] Contract test for detect_patterns endpoint in `tests/contract/test_detect_patterns.py`
+- [x] T003 [P] Contract test for detect_patterns endpoint in `tests/contract/test_detect_patterns.py`
   - Validate request/response schemas match `contracts/detect_patterns.yaml`
   - Test pattern detection on sample files
   - Verify EXPORT_SYMBOL, module_param detection
