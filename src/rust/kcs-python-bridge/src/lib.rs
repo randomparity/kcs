@@ -256,6 +256,47 @@ fn detect_patterns(file_path: &str, content: &str) -> PyResult<Vec<PyKernelPatte
         .collect())
 }
 
+/// Extract and enhance symbols with Clang semantic analysis
+#[pyfunction]
+fn enhance_symbols_with_clang(
+    file_path: &str,
+    compile_commands_path: Option<&str>,
+) -> PyResult<Vec<PySymbolInfo>> {
+    use std::path::PathBuf;
+
+    // Create a parser with Clang enabled
+    let config = ExtendedParserConfig {
+        use_clang: true,
+        compile_commands_path: compile_commands_path.map(PathBuf::from),
+        include_paths: Vec::new(),
+        defines: HashMap::new(),
+        arch: "x86_64".to_string(),
+        config_name: "defconfig".to_string(),
+        include_call_graphs: false,
+    };
+
+    let mut parser = Parser::new(config).map_err(|e| {
+        pyo3::exceptions::PyRuntimeError::new_err(format!("Parser creation failed: {}", e))
+    })?;
+
+    let result = parser.parse_file(file_path).map_err(|e| {
+        pyo3::exceptions::PyRuntimeError::new_err(format!("Parse error: {}", e))
+    })?;
+
+    Ok(result
+        .symbols
+        .into_iter()
+        .map(|s| PySymbolInfo {
+            name: s.name,
+            kind: format!("{:?}", s.kind).to_lowercase(),
+            file_path: file_path.to_string(),
+            start_line: s.start_line,
+            end_line: s.end_line,
+            signature: Some(s.signature),
+        })
+        .collect())
+}
+
 /// Extract entry points from a kernel directory
 #[pyfunction]
 fn extract_entry_points(
@@ -329,5 +370,6 @@ fn kcs_python_bridge(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_c_file, m)?)?;
     m.add_function(wrap_pyfunction!(detect_patterns, m)?)?;
     m.add_function(wrap_pyfunction!(extract_entry_points, m)?)?;
+    m.add_function(wrap_pyfunction!(enhance_symbols_with_clang, m)?)?;
     Ok(())
 }

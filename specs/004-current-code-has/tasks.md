@@ -168,7 +168,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Python Bindings
 
-- [ ] T021 Update Python bindings for pattern detection in `src/rust/kcs-python-bridge/src/lib.rs`
+- [x] T021 Update Python bindings for pattern detection in `src/rust/kcs-python-bridge/src/lib.rs`
   - Export detect_patterns function to Python
   - Handle pattern type filtering
   - Return structured pattern data
