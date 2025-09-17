@@ -1,0 +1,136 @@
+openapi: 3.0.0
+info:
+  title: Impact Analysis Endpoint
+  version: 1.0.0
+
+paths:
+  /mcp/tools/impact_of:
+    post:
+      summary: Analyze impact of changes on kernel subsystems
+      operationId: impactOf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImpactOfRequest'
+      responses:
+        '200':
+          description: Impact analysis results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImpactResult'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ImpactOfRequest:
+      type: object
+      properties:
+        diff:
+          type: string
+          description: Git diff content to analyze
+        files:
+          type: array
+          items:
+            type: string
+          description: List of modified file paths
+        symbols:
+          type: array
+          items:
+            type: string
+          description: List of modified symbols
+        config:
+          type: string
+          description: Optional kernel configuration filter
+          example: "x86_64:defconfig"
+
+    ImpactResult:
+      type: object
+      required:
+        - configs
+        - modules
+        - tests
+        - owners
+        - risks
+        - cites
+      properties:
+        configs:
+          type: array
+          items:
+            type: string
+          description: Affected kernel configurations
+          example: ["x86_64:defconfig", "x86_64:allmodconfig"]
+        modules:
+          type: array
+          items:
+            type: string
+          description: Affected kernel modules
+          example: ["ext4", "vfs"]
+        tests:
+          type: array
+          items:
+            type: string
+          description: Relevant test files
+          example: ["fs/vfs_test.c"]
+        owners:
+          type: array
+          items:
+            type: string
+          description: Maintainer contacts
+          example: ["vfs@kernel.org", "ext4@kernel.org"]
+        risks:
+          type: array
+          items:
+            type: string
+          description: Risk assessment flags
+          example: ["high_impact_change", "syscall_interface_affected"]
+        cites:
+          type: array
+          items:
+            $ref: '#/components/schemas/Span'
+          description: Source citations for evidence
+
+    Span:
+      type: object
+      required:
+        - path
+        - sha
+        - start
+        - end
+      properties:
+        path:
+          type: string
+          description: File path relative to kernel root
+          example: "fs/read_write.c"
+        sha:
+          type: string
+          description: File content hash
+          example: "a1b2c3d4e5f6789012345678901234567890abcd"
+        start:
+          type: integer
+          minimum: 1
+          description: Starting line number
+        end:
+          type: integer
+          minimum: 1
+          description: Ending line number
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message

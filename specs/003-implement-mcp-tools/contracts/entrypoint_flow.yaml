@@ -1,0 +1,117 @@
+openapi: 3.0.0
+info:
+  title: Entry Point Flow Endpoint
+  version: 1.0.0
+
+paths:
+  /mcp/tools/entrypoint_flow:
+    post:
+      summary: Trace execution flow from kernel entry point
+      operationId: entrypointFlow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntrypointFlowRequest'
+      responses:
+        '200':
+          description: Execution flow steps
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntrypointFlowResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    EntrypointFlowRequest:
+      type: object
+      required:
+        - entry
+      properties:
+        entry:
+          type: string
+          description: Entry point identifier (syscall number or name)
+          example: "__NR_read"
+        config:
+          type: string
+          description: Optional kernel configuration filter
+          example: "x86_64:defconfig"
+
+    EntrypointFlowResponse:
+      type: object
+      required:
+        - steps
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowStep'
+          description: Ordered list of execution flow steps
+
+    FlowStep:
+      type: object
+      required:
+        - edge
+        - from
+        - to
+        - span
+      properties:
+        edge:
+          type: string
+          enum: [syscall, function_call, indirect_call, macro_expansion]
+          description: Type of control flow edge
+        from:
+          type: string
+          description: Source symbol or context
+          example: "syscall_entry"
+        to:
+          type: string
+          description: Target symbol
+          example: "sys_read"
+        span:
+          $ref: '#/components/schemas/Span'
+
+    Span:
+      type: object
+      required:
+        - path
+        - sha
+        - start
+        - end
+      properties:
+        path:
+          type: string
+          description: File path relative to kernel root
+          example: "fs/read_write.c"
+        sha:
+          type: string
+          description: File content hash
+          example: "a1b2c3d4e5f6789012345678901234567890abcd"
+        start:
+          type: integer
+          minimum: 1
+          description: Starting line number
+        end:
+          type: integer
+          minimum: 1
+          description: Ending line number
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message

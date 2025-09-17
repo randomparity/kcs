@@ -1,0 +1,118 @@
+openapi: 3.0.0
+info:
+  title: List Dependencies Endpoint
+  version: 1.0.0
+
+paths:
+  /mcp/tools/list_dependencies:
+    post:
+      summary: Find functions called by a given symbol
+      operationId: listDependencies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListDependenciesRequest'
+      responses:
+        '200':
+          description: List of dependencies found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListDependenciesResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ListDependenciesRequest:
+      type: object
+      required:
+        - symbol
+      properties:
+        symbol:
+          type: string
+          description: Kernel symbol to find dependencies for
+          example: "sys_read"
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 1
+          description: Traversal depth for transitive dependencies
+        config:
+          type: string
+          description: Optional kernel configuration filter
+          example: "x86_64:defconfig"
+
+    ListDependenciesResponse:
+      type: object
+      required:
+        - callees
+      properties:
+        callees:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallerInfo'
+          description: List of functions called by the target symbol
+
+    CallerInfo:
+      type: object
+      required:
+        - symbol
+        - span
+        - call_type
+      properties:
+        symbol:
+          type: string
+          description: Name of the called function
+          example: "vfs_read"
+        span:
+          $ref: '#/components/schemas/Span'
+        call_type:
+          type: string
+          enum: [direct, indirect, macro]
+          description: Type of call relationship
+
+    Span:
+      type: object
+      required:
+        - path
+        - sha
+        - start
+        - end
+      properties:
+        path:
+          type: string
+          description: File path relative to kernel root
+          example: "fs/read_write.c"
+        sha:
+          type: string
+          description: File content hash
+          example: "a1b2c3d4e5f6789012345678901234567890abcd"
+        start:
+          type: integer
+          minimum: 1
+          description: Starting line number
+        end:
+          type: integer
+          minimum: 1
+          description: Ending line number
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message

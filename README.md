@@ -321,10 +321,10 @@ Complete local installation without Docker.
 |------|-------------|---------|
 | `search_code` | Semantic/lexical code search | Find memory management functions |
 | `get_symbol` | Symbol information with summary | Get details for `vfs_read` |
-| `who_calls` | Find callers of a function | Who calls `kmalloc`? |
-| `list_dependencies` | Find function callees | What does `sys_open` call? |
-| `entrypoint_flow` | Trace from entry to implementation | Follow syscall path |
-| `impact_of` | Analyze change blast radius | Impact of modifying `mm/mmap.c` |
+| `who_calls` | Find callers with depth traversal | Who calls `kmalloc` (depth 1-5)? |
+| `list_dependencies` | Find callees with depth traversal | What does `sys_open` call (depth 1-5)? |
+| `entrypoint_flow` | Trace syscall/ioctl flow paths | Follow `__NR_read` through kernel |
+| `impact_of` | Analyze change blast radius | Impact of modifying `vfs_read` |
 | `search_docs` | Search kernel documentation | Find memory barrier docs |
 | `owners_for` | Find code maintainers | Who maintains `fs/ext4/`? |
 
