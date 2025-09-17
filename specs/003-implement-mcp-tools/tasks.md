@@ -152,7 +152,7 @@ No integration tasks needed - existing infrastructure handles DB connections, lo
 
 ## Phase 3.5: Polish
 
-- [ ] T015 Performance validation in `tests/performance/test_mcp_performance.py`
+- [x] T015 Performance validation in `tests/performance/test_mcp_performance.py`
   - Measure query times for all endpoints
   - Test with production-scale data (if available)
   - Verify p95 < 600ms constitutional requirement
