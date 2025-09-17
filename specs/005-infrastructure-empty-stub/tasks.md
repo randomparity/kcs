@@ -29,7 +29,7 @@
 - [x] **T013**: Implement KernelConfig parser in kcs-config/src/parser.rs
 - [x] **T014**: Add CLI interface in kcs-config/src/main.rs with --help/--version/--format
 - [x] **T015**: Write unit tests for kcs-config parser
-- [ ] **T016**: Create integration test for kcs-config with sample configs
+- [x] **T016**: Create integration test for kcs-config with sample configs
 
 ### Phase 3B: kcs-drift Completion
 
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 15
+- **Completed**: 16
 - **In Progress**: 0
 - **Blocked**: 0
 
