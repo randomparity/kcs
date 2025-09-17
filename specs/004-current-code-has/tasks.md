@@ -116,7 +116,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Extract parameter name, type, description
   - Associate MODULE_PARM_DESC with params
 
-- [ ] T012 Implement boot parameter patterns in `src/rust/kcs-parser/src/kernel_patterns.rs`
+- [x] T012 Implement boot parameter patterns in `src/rust/kcs-parser/src/kernel_patterns.rs`
   - Add __setup, early_param, core_param patterns
   - Extract parameter names and handlers
 
