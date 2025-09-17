@@ -173,7 +173,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Handle pattern type filtering
   - Return structured pattern data
 
-- [ ] T022 Update Python bindings for enhanced extraction in `src/rust/kcs-python-bridge/src/lib.rs`
+- [x] T022 Update Python bindings for enhanced extraction in `src/rust/kcs-python-bridge/src/lib.rs`
   - Export new entry point types
   - Include metadata in results
   - Support Clang enablement flag
