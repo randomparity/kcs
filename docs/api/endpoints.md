@@ -43,14 +43,14 @@ curl -X POST \
 
 ### POST /mcp/tools/entrypoint_flow
 
-**Summary**: Trace flow from entry point using call graph data
+**Summary**: Trace flow from entry point through kernel with support for 40+ syscalls, ioctl, and file_ops
 
 **Request Body**:
 
 Content-Type: `application/json`
 
 Properties:
-- `entry` (string) (required): Syscall entry point name (e.g., "__NR_read", "__NR_write")
+- `entry` (string) (required): Entry point name (syscall: "__NR_read", ioctl: "IOCTL_*", file_ops: "*_fops")
 - `config` (string) (optional): Kernel configuration context
 
 **Responses**:
@@ -128,16 +128,16 @@ curl -X POST \
 
 ### POST /mcp/tools/impact_of
 
-**Summary**: Analyze impact of changes using call graph blast radius analysis
+**Summary**: Analyze impact of changes using bidirectional call graph traversal with subsystem detection
 
 **Request Body**:
 
 Content-Type: `application/json`
 
 Properties:
-- `diff` (string) (optional): Git diff content to extract symbols from
+- `diff` (string) (optional): Git diff to extract symbols from (functions, structs, macros)
 - `files` (array) (optional): Files to analyze for impact
-- `symbols` (array) (optional): Symbols to analyze for blast radius
+- `symbols` (array) (optional): Symbols to analyze for blast radius (callers + callees)
 - `config` (string) (optional): Configuration context
 
 **Responses**:
@@ -165,7 +165,7 @@ curl -X POST \
 
 ### POST /mcp/tools/list_dependencies
 
-**Summary**: Find functions called by a symbol using call graph data
+**Summary**: Find functions called by a symbol using recursive call graph traversal with cycle detection
 
 **Request Body**:
 
@@ -173,7 +173,7 @@ Content-Type: `application/json`
 
 Properties:
 - `symbol` (string) (required): Function or symbol name to analyze
-- `depth` (integer) (optional): Call graph traversal depth (default: 1)
+- `depth` (integer) (optional): Call graph traversal depth (1-5, default: 1)
 - `config` (string) (optional): Kernel configuration context
 
 **Responses**:
@@ -292,7 +292,7 @@ curl -X POST \
 
 ### POST /mcp/tools/who_calls
 
-**Summary**: Find callers of a symbol using call graph data
+**Summary**: Find callers of a symbol using recursive call graph traversal with cycle detection
 
 **Request Body**:
 
@@ -300,7 +300,7 @@ Content-Type: `application/json`
 
 Properties:
 - `symbol` (string) (required): Function or symbol name to find callers for
-- `depth` (integer) (optional): Call graph traversal depth (default: 1)
+- `depth` (integer) (optional): Call graph traversal depth (1-5, default: 1)
 - `config` (string) (optional): Kernel configuration context
 
 **Responses**:
