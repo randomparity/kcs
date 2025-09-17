@@ -187,7 +187,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### CLI Updates
 
-- [ ] T024 Update extract CLI for new options in `tools/extract_entry_points_streaming.py`
+- [x] T024 Update extract CLI for new options in `tools/extract_entry_points_streaming.py`
   - Add --pattern-detection flag
   - Add --enable-clang flag
   - Add --entry-types filter
