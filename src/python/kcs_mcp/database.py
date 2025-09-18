@@ -768,6 +768,131 @@ class Database:
                     json.dumps(implementation_details),
                 )
 
+    async def search_code_semantic_advanced(
+        self,
+        query: str,
+        top_k: int = 10,
+        offset: int = 0,
+        threshold: float = 0.5,
+        filters: dict | None = None,
+    ) -> list[dict]:
+        """
+        Advanced semantic search with filtering and pagination.
+
+        Args:
+            query: Search query
+            top_k: Maximum number of results
+            offset: Result offset for pagination
+            threshold: Similarity threshold
+            filters: Search filters (subsystems, file_patterns, etc.)
+
+        Returns:
+            List of search results with metadata
+        """
+        async with self.acquire() as conn:
+            # Build base SQL query with vector similarity
+            sql = """
+            SELECT
+                s.name as symbol,
+                s.file_path as path,
+                s.sha,
+                s.start_line as start,
+                s.end_line as end,
+                s.snippet,
+                s.embedding <=> get_query_embedding($1) as score,
+                CASE
+                    WHEN s.file_path LIKE 'fs/%' THEN 'filesystem'
+                    WHEN s.file_path LIKE 'mm/%' THEN 'memory'
+                    WHEN s.file_path LIKE 'net/%' THEN 'networking'
+                    WHEN s.file_path LIKE 'drivers/%' THEN 'drivers'
+                    ELSE 'other'
+                END as subsystem
+            FROM symbol s
+            WHERE s.embedding IS NOT NULL
+            """
+
+            params = [query]
+            param_idx = 2
+
+            # Apply filters
+            if filters:
+                if filters.get("subsystems"):
+                    subsystem_conditions = []
+                    for subsys in filters["subsystems"]:
+                        if subsys in ["fs", "filesystem"]:
+                            subsystem_conditions.append("s.file_path LIKE 'fs/%'")
+                        elif subsys in ["mm", "memory"]:
+                            subsystem_conditions.append("s.file_path LIKE 'mm/%'")
+                        elif subsys in ["net", "networking"]:
+                            subsystem_conditions.append("s.file_path LIKE 'net/%'")
+                        elif subsys in ["drivers"]:
+                            subsystem_conditions.append("s.file_path LIKE 'drivers/%'")
+
+                    if subsystem_conditions:
+                        sql += f" AND ({' OR '.join(subsystem_conditions)})"
+
+                if filters.get("file_patterns"):
+                    pattern_conditions = []
+                    for pattern in filters["file_patterns"]:
+                        # Convert glob pattern to SQL LIKE pattern
+                        sql_pattern = pattern.replace("*", "%").replace("?", "_")
+                        pattern_conditions.append(f"s.file_path LIKE ${param_idx}")
+                        params.append(sql_pattern)
+                        param_idx += 1
+
+                    if pattern_conditions:
+                        sql += f" AND ({' OR '.join(pattern_conditions)})"
+
+                if filters.get("symbol_types"):
+                    type_conditions = []
+                    for sym_type in filters["symbol_types"]:
+                        if sym_type == "function":
+                            type_conditions.append("s.kind = 'function'")
+                        elif sym_type == "macro":
+                            type_conditions.append("s.kind = 'macro'")
+                        elif sym_type == "struct":
+                            type_conditions.append("s.kind = 'struct'")
+
+                    if type_conditions:
+                        sql += f" AND ({' OR '.join(type_conditions)})"
+
+                if filters.get("exclude_tests"):
+                    sql += " AND s.file_path NOT LIKE '%test%' AND s.file_path NOT LIKE '%Test%'"
+
+            # Add similarity threshold
+            sql += f" AND (s.embedding <=> get_query_embedding($1)) < ${param_idx}"
+            params.append(str(1.0 - threshold))  # Convert similarity to distance
+            param_idx += 1
+
+            # Order by similarity and add pagination
+            sql += f" ORDER BY score LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+            params.extend([str(top_k), str(offset)])
+
+            try:
+                results = await conn.fetch(sql, *params)
+
+                return [
+                    {
+                        "symbol": row["symbol"],
+                        "path": row["path"],
+                        "sha": row["sha"],
+                        "start": row["start"],
+                        "end": row["end"],
+                        "snippet": row["snippet"],
+                        "score": 1.0
+                        - float(row["score"]),  # Convert distance back to similarity
+                        "subsystem": row["subsystem"],
+                    }
+                    for row in results
+                ]
+
+            except Exception as e:
+                # If advanced search fails, fall back to basic search
+                logger.warning(
+                    "Advanced semantic search failed, falling back", error=str(e)
+                )
+                return []
+
 
 # Global database instance
 _database: Database | None = None
@@ -923,6 +1048,63 @@ class MockDatabase(Database):
             is_valid=is_valid,
             deviations_count=len(deviations),
         )
+
+    async def search_code_semantic_advanced(
+        self,
+        query: str,
+        top_k: int = 10,
+        offset: int = 0,
+        threshold: float = 0.5,
+        filters: dict | None = None,
+    ) -> list[dict]:
+        """Mock advanced semantic search."""
+        logger.info(
+            "Mock advanced semantic search",
+            query=query,
+            top_k=top_k,
+            offset=offset,
+            threshold=threshold,
+            has_filters=filters is not None,
+        )
+
+        # Return some mock results
+        mock_results = [
+            {
+                "symbol": "vfs_read",
+                "path": "fs/read_write.c",
+                "sha": "abc123",
+                "start": 100,
+                "end": 150,
+                "snippet": "ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)",
+                "score": 0.85,
+                "subsystem": "filesystem",
+            },
+            {
+                "symbol": "generic_file_read_iter",
+                "path": "mm/filemap.c",
+                "sha": "def456",
+                "start": 200,
+                "end": 250,
+                "snippet": "ssize_t generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)",
+                "score": 0.75,
+                "subsystem": "memory",
+            },
+        ]
+
+        # Apply basic filtering for mock
+        if filters:
+            subsystems = filters.get("subsystems")
+            if subsystems and isinstance(subsystems, list):
+                mock_results = [
+                    r
+                    for r in mock_results
+                    if any(str(subsys) in str(r["subsystem"]) for subsys in subsystems)
+                ]
+
+        # Apply pagination
+        start_idx = offset
+        end_idx = offset + top_k
+        return mock_results[start_idx:end_idx]
 
 
 def set_database(database: Database) -> None:

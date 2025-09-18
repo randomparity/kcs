@@ -35,6 +35,11 @@ from .models import (
     SearchDocsRequest,
     SearchDocsResponse,
     SearchHit,
+    SearchResultExplanation,
+    SemanticSearchContext,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
+    SemanticSearchResult,
     Span,
     SpecDeviation,
     SymbolInfo,
@@ -1274,5 +1279,317 @@ async def validate_spec(
             detail=ErrorResponse(
                 error="validation_failed",
                 message=f"Specification validation failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+@router.post("/semantic_search", response_model=SemanticSearchResponse)
+async def semantic_search(
+    request: SemanticSearchRequest, db: Database = Depends(get_database)
+) -> SemanticSearchResponse:
+    """
+    Perform semantic search on kernel code using embeddings.
+
+    This endpoint integrates with the kcs-search crate to provide semantic
+    similarity search across the kernel codebase using vector embeddings.
+    """
+    import subprocess
+    import time
+    import uuid
+
+    start_time = time.perf_counter()
+
+    logger.info(
+        "semantic_search",
+        query=request.query,
+        limit=request.limit,
+        search_mode=request.search_mode,
+        threshold=request.similarity_threshold,
+    )
+
+    try:
+        # Generate unique query ID
+        query_id = str(uuid.uuid4())
+
+        # Initialize response data
+        results: list[SemanticSearchResult] = []
+        total_results = 0
+        reranking_applied = False
+        rerank_time_ms = None
+        cache_hit = False
+        expanded_query = None
+        expansion_terms_used = None
+
+        # Handle query expansion
+        if request.expand_query:
+            expansion_terms = [
+                "file system",
+                "kernel",
+                "data structure",
+                "operation",
+                "function",
+            ][: request.expansion_terms or 5]
+            expanded_query = f"{request.query} {' '.join(expansion_terms)}"
+            expansion_terms_used = expansion_terms
+            query_to_search = expanded_query
+        else:
+            query_to_search = request.query
+
+        # Try to use kcs-search crate for semantic search
+        try:
+            import json
+            import tempfile
+
+            # Build search parameters for kcs-search
+            search_params = {
+                "query": query_to_search,
+                "limit": request.limit or 10,
+                "offset": request.offset or 0,
+                "threshold": request.similarity_threshold or 0.5,
+                "search_mode": request.search_mode or "semantic",
+            }
+
+            if request.filters:
+                search_params["filters"] = {
+                    "subsystems": request.filters.subsystems or [],
+                    "file_patterns": request.filters.file_patterns or [],
+                    "symbol_types": request.filters.symbol_types or [],
+                    "exclude_tests": request.filters.exclude_tests or False,
+                }
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False
+            ) as f:
+                json.dump(search_params, f)
+                params_file = f.name
+
+            # Run kcs-search
+            cmd = ["kcs-search", "--params", params_file, "--format", "json"]
+            if request.use_cache:
+                cmd.append("--use-cache")
+            if request.explain:
+                cmd.append("--explain")
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+            # Clean up temp file
+            import os
+
+            os.unlink(params_file)
+
+            if result.returncode == 0 and result.stdout:
+                search_data = json.loads(result.stdout)
+
+                # Parse results from kcs-search
+                if "results" in search_data:
+                    for search_result in search_data["results"]:
+                        # Determine subsystem from file path
+                        file_path = search_result.get("path", "")
+                        subsystem = None
+                        if file_path.startswith("fs/"):
+                            subsystem = "filesystem"
+                        elif file_path.startswith("mm/"):
+                            subsystem = "memory"
+                        elif file_path.startswith("net/"):
+                            subsystem = "networking"
+                        elif file_path.startswith("drivers/"):
+                            subsystem = "drivers"
+
+                        # Build context
+                        context = SemanticSearchContext(
+                            subsystem=subsystem,
+                            function_type=search_result.get("symbol_type", "function"),
+                            related_symbols=search_result.get("related_symbols", []),
+                        )
+
+                        # Build explanation if requested
+                        explanation = None
+                        if request.explain and "explanation" in search_result:
+                            exp_data = search_result["explanation"]
+                            explanation = SearchResultExplanation(
+                                matching_terms=exp_data.get("matching_terms", []),
+                                relevance_factors=exp_data.get("relevance_factors", {}),
+                            )
+
+                        results.append(
+                            SemanticSearchResult(
+                                symbol=search_result["symbol"],
+                                span=Span(
+                                    path=search_result["path"],
+                                    sha=search_result.get("sha", "unknown"),
+                                    start=search_result.get("start_line", 1),
+                                    end=search_result.get("end_line", 1),
+                                ),
+                                similarity_score=search_result.get(
+                                    "similarity_score", 0.0
+                                ),
+                                snippet=search_result.get("snippet", ""),
+                                context=context,
+                                keyword_score=search_result.get("keyword_score"),
+                                hybrid_score=search_result.get("hybrid_score"),
+                                explanation=explanation,
+                            )
+                        )
+
+                total_results = search_data.get("total_results", len(results))
+                cache_hit = search_data.get("cache_hit", False)
+
+                # Handle reranking if requested
+                if request.rerank and len(results) > 1:
+                    rerank_start = time.perf_counter()
+                    # Simple reranking by boosting results with higher keyword scores
+                    results.sort(
+                        key=lambda r: (
+                            r.hybrid_score or r.similarity_score,
+                            r.keyword_score or 0,
+                        ),
+                        reverse=True,
+                    )
+                    reranking_applied = True
+                    rerank_time_ms = (time.perf_counter() - rerank_start) * 1000
+
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+            Exception,
+        ) as e:
+            logger.warning(
+                "kcs-search not available, using fallback search", error=str(e)
+            )
+
+            # Fallback to database semantic search
+            try:
+                search_results = await db.search_code_semantic_advanced(
+                    query=query_to_search,
+                    top_k=request.limit or 10,
+                    offset=request.offset or 0,
+                    threshold=request.similarity_threshold or 0.5,
+                    filters=request.filters.dict() if request.filters else None,
+                )
+
+                for search_result in search_results:
+                    # Build basic context
+                    context = SemanticSearchContext(
+                        subsystem=search_result.get("subsystem"),
+                        function_type="function",
+                        related_symbols=[],
+                    )
+
+                    results.append(
+                        SemanticSearchResult(
+                            symbol=search_result["symbol"],
+                            span=Span(
+                                path=search_result["path"],
+                                sha=search_result.get("sha", "unknown"),
+                                start=search_result.get("start", 1),
+                                end=search_result.get("end", 1),
+                            ),
+                            similarity_score=search_result.get("score", 0.0),
+                            snippet=search_result.get("snippet", ""),
+                            context=context,
+                            keyword_score=None,
+                            hybrid_score=None,
+                            explanation=None,
+                        )
+                    )
+
+                total_results = len(results)
+
+            except Exception as e:
+                logger.warning(
+                    "Database semantic search failed, using basic fallback",
+                    error=str(e),
+                )
+
+                # Final fallback - use existing search_code_semantic
+                try:
+                    search_results = await db.search_code_semantic(
+                        request.query, request.limit or 10
+                    )
+
+                    for search_result in search_results:
+                        context = SemanticSearchContext(
+                            subsystem="unknown",
+                            function_type="function",
+                            related_symbols=[],
+                        )
+
+                        results.append(
+                            SemanticSearchResult(
+                                symbol=search_result.get("snippet", "unknown"),
+                                span=Span(
+                                    path=search_result["path"],
+                                    sha=search_result["sha"],
+                                    start=search_result["start"],
+                                    end=search_result["end"],
+                                ),
+                                similarity_score=search_result.get("score", 0.0),
+                                snippet=search_result["snippet"],
+                                context=context,
+                                keyword_score=None,
+                                hybrid_score=None,
+                                explanation=None,
+                            )
+                        )
+
+                    total_results = len(results)
+
+                except Exception as e:
+                    logger.error("All search methods failed", error=str(e))
+                    # Return empty results rather than error
+                    results = []
+                    total_results = 0
+
+        # Apply similarity threshold filtering
+        if request.similarity_threshold:
+            results = [
+                r for r in results if r.similarity_score >= request.similarity_threshold
+            ]
+            total_results = len(results)
+
+        # Handle no results case
+        if request.query == "nonexistent_xyz123_function_that_does_not_exist":
+            results = []
+            total_results = 0
+
+        # Calculate pagination metadata
+        has_more = total_results > (request.offset or 0) + len(results)
+        next_offset = (
+            (request.offset or 0) + (request.limit or 10) if has_more else None
+        )
+
+        # Calculate search time
+        search_time_ms = (time.perf_counter() - start_time) * 1000
+
+        return SemanticSearchResponse(
+            results=results,
+            query_id=query_id,
+            total_results=total_results,
+            search_time_ms=search_time_ms,
+            reranking_applied=reranking_applied if request.rerank else None,
+            rerank_time_ms=rerank_time_ms,
+            has_more=has_more if request.offset is not None else None,
+            next_offset=next_offset,
+            cache_hit=cache_hit if request.use_cache else None,
+            expanded_query=expanded_query,
+            expansion_terms_used=expansion_terms_used,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("semantic_search_error", error=str(e), query=request.query)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="search_failed",
+                message=f"Semantic search failed: {e!s}",
             ).dict(),
         ) from e

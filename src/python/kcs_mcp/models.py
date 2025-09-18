@@ -432,6 +432,106 @@ class ValidateSpecResponse(BaseModel):
     )
 
 
+class SemanticSearchFilters(BaseModel):
+    """Filters for semantic search."""
+
+    subsystems: list[str] | None = Field(None, description="Subsystem filters")
+    file_patterns: list[str] | None = Field(None, description="File pattern filters")
+    symbol_types: list[str] | None = Field(None, description="Symbol type filters")
+    exclude_tests: bool | None = Field(False, description="Exclude test files")
+
+
+class SemanticSearchRequest(BaseModel):
+    """Request for semantic search."""
+
+    query: str = Field(..., description="Search query", min_length=1)
+    limit: int | None = Field(10, description="Maximum results", ge=1, le=1000)
+    offset: int | None = Field(0, description="Result offset for pagination", ge=0)
+    similarity_threshold: float | None = Field(
+        0.5, description="Similarity threshold", ge=0.0, le=1.0
+    )
+    filters: SemanticSearchFilters | None = Field(None, description="Search filters")
+    rerank: bool | None = Field(False, description="Enable reranking")
+    rerank_model: str | None = Field("cross-encoder", description="Reranking model")
+    search_mode: str | None = Field(
+        "semantic", description="Search mode", pattern="^(semantic|hybrid|keyword)$"
+    )
+    keyword_weight: float | None = Field(
+        0.3, description="Keyword weight in hybrid mode", ge=0.0, le=1.0
+    )
+    semantic_weight: float | None = Field(
+        0.7, description="Semantic weight in hybrid mode", ge=0.0, le=1.0
+    )
+    use_cache: bool | None = Field(True, description="Use embeddings cache")
+    expand_query: bool | None = Field(
+        False, description="Expand query for better recall"
+    )
+    expansion_terms: int | None = Field(
+        5, description="Number of expansion terms", ge=1, le=20
+    )
+    explain: bool | None = Field(False, description="Include explanations")
+
+
+class SemanticSearchContext(BaseModel):
+    """Context information for search result."""
+
+    subsystem: str | None = Field(None, description="Kernel subsystem")
+    function_type: str | None = Field(None, description="Function type")
+    related_symbols: list[str] | None = Field(None, description="Related symbols")
+
+
+class SearchResultExplanation(BaseModel):
+    """Explanation for why a result was returned."""
+
+    matching_terms: list[str] | None = Field(None, description="Matching terms")
+    relevance_factors: dict[str, Any] | None = Field(
+        None, description="Relevance factors"
+    )
+
+
+class SemanticSearchResult(BaseModel):
+    """Individual semantic search result."""
+
+    symbol: str = Field(..., description="Symbol name")
+    span: Span = Field(..., description="Location in code")
+    similarity_score: float = Field(..., description="Similarity score", ge=0.0, le=1.0)
+    snippet: str = Field(..., description="Code snippet")
+    context: SemanticSearchContext = Field(..., description="Context information")
+    keyword_score: float | None = Field(
+        None, description="Keyword matching score", ge=0.0, le=1.0
+    )
+    hybrid_score: float | None = Field(None, description="Hybrid score", ge=0.0, le=1.0)
+    explanation: SearchResultExplanation | None = Field(
+        None, description="Result explanation"
+    )
+
+
+class SemanticSearchResponse(BaseModel):
+    """Response for semantic search."""
+
+    results: list[SemanticSearchResult] = Field(..., description="Search results")
+    query_id: str = Field(..., description="Unique query identifier (UUID)")
+    total_results: int = Field(..., description="Total number of results", ge=0)
+    search_time_ms: float = Field(..., description="Search time in milliseconds", ge=0)
+    reranking_applied: bool | None = Field(
+        None, description="Whether reranking was applied"
+    )
+    rerank_time_ms: float | None = Field(
+        None, description="Reranking time in milliseconds", ge=0
+    )
+    has_more: bool | None = Field(
+        None, description="Whether more results are available"
+    )
+    next_offset: int | None = Field(
+        None, description="Next offset for pagination", ge=0
+    )
+    cache_hit: bool | None = Field(None, description="Whether query hit cache")
+    expanded_query: str | None = Field(None, description="Expanded query")
+    expansion_terms_used: list[str] | None = Field(
+        None, description="Expansion terms used"
+    )
+
+
 # Error response
 class ErrorResponse(BaseModel):
     """Standard error response."""
