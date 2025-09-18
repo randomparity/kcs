@@ -617,4 +617,195 @@ mod tests {
         let reachable = graph.get_reachable_symbols("child1", 1);
         assert_eq!(reachable.len(), 2); // child1 and grandchild1
     }
+
+    #[test]
+    fn test_empty_graph() {
+        let graph = KernelGraph::new();
+        assert_eq!(graph.symbol_count(), 0);
+        assert_eq!(graph.call_count(), 0);
+        assert!(graph.get_symbol("nonexistent").is_none());
+        assert!(graph.find_callers("nonexistent").is_empty());
+        assert!(graph.find_callees("nonexistent").is_empty());
+    }
+
+    #[test]
+    fn test_symbol_duplicate_handling() {
+        let mut graph = KernelGraph::new();
+
+        let symbol1 = Symbol {
+            name: "duplicate".to_string(),
+            file_path: "file1.c".to_string(),
+            line_number: 10,
+            symbol_type: SymbolType::Function,
+            signature: None,
+            config_dependencies: vec![],
+        };
+
+        let symbol2 = Symbol {
+            name: "duplicate".to_string(),
+            file_path: "file2.c".to_string(),
+            line_number: 20,
+            symbol_type: SymbolType::Function,
+            signature: None,
+            config_dependencies: vec![],
+        };
+
+        let idx1 = graph.add_symbol(symbol1);
+        let idx2 = graph.add_symbol(symbol2.clone());
+
+        // Should reuse the same index for duplicate name
+        assert_eq!(idx1, idx2);
+
+        // Check that the symbol was NOT updated (first one wins)
+        let retrieved = graph.get_symbol("duplicate").unwrap();
+        assert_eq!(retrieved.file_path, "file1.c");
+        assert_eq!(retrieved.line_number, 10);
+    }
+
+    #[test]
+    fn test_invalid_edge_handling() {
+        let mut graph = KernelGraph::new();
+
+        let edge = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 100,
+            conditional: false,
+            config_guard: None,
+        };
+
+        // Try to add edge between non-existent symbols
+        let result = graph.add_call("nonexistent1", "nonexistent2", edge);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_path_with_conditional_edges() {
+        let mut graph = KernelGraph::new();
+
+        let symbols = ["start", "middle", "end"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        // Add conditional edge from start to middle
+        let edge1 = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 100,
+            conditional: true,
+            config_guard: Some("CONFIG_FEATURE".to_string()),
+        };
+        graph.add_call("start", "middle", edge1).unwrap();
+
+        // Add unconditional edge from middle to end
+        let edge2 = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 200,
+            conditional: false,
+            config_guard: None,
+        };
+        graph.add_call("middle", "end", edge2).unwrap();
+
+        // Path should still exist despite conditional edge
+        assert!(graph.has_path("start", "end"));
+        assert_eq!(graph.get_path_length("start", "end"), Some(2));
+    }
+
+    #[test]
+    fn test_symbols_by_config() {
+        let mut graph = KernelGraph::new();
+
+        let symbol1 = Symbol {
+            name: "func1".to_string(),
+            file_path: "test.c".to_string(),
+            line_number: 10,
+            symbol_type: SymbolType::Function,
+            signature: None,
+            config_dependencies: vec!["CONFIG_A".to_string()],
+        };
+
+        let symbol2 = Symbol {
+            name: "func2".to_string(),
+            file_path: "test.c".to_string(),
+            line_number: 20,
+            symbol_type: SymbolType::Function,
+            signature: None,
+            config_dependencies: vec!["CONFIG_B".to_string()],
+        };
+
+        let symbol3 = Symbol {
+            name: "func3".to_string(),
+            file_path: "test.c".to_string(),
+            line_number: 30,
+            symbol_type: SymbolType::Function,
+            signature: None,
+            config_dependencies: vec!["CONFIG_A".to_string()],
+        };
+
+        graph.add_symbol(symbol1);
+        graph.add_symbol(symbol2);
+        graph.add_symbol(symbol3);
+
+        // Check symbols grouped by config
+        let config_a_symbols = graph.symbols_by_config("CONFIG_A");
+        assert!(config_a_symbols.is_some());
+        assert_eq!(config_a_symbols.unwrap().len(), 2);
+
+        let config_b_symbols = graph.symbols_by_config("CONFIG_B");
+        assert!(config_b_symbols.is_some());
+        assert_eq!(config_b_symbols.unwrap().len(), 1);
+
+        let config_c_symbols = graph.symbols_by_config("CONFIG_C");
+        assert!(config_c_symbols.is_none());
+    }
+
+    #[test]
+    fn test_complex_multi_path_scenario() {
+        let mut graph = KernelGraph::new();
+
+        // Create a diamond pattern: A -> B -> D
+        //                           A -> C -> D
+        let symbols = ["A", "B", "C", "D"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        let edges = [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")];
+        for (caller, callee) in edges.iter() {
+            let edge = CallEdge {
+                call_type: CallType::Direct,
+                call_site_line: 100,
+                conditional: false,
+                config_guard: None,
+            };
+            graph.add_call(caller, callee, edge).unwrap();
+        }
+
+        // Should find 2 paths from A to D
+        let paths = graph.get_all_paths("A", "D", 3);
+        assert_eq!(paths.len(), 2);
+
+        // Both paths should have length 2
+        for path in paths {
+            assert_eq!(path.len(), 3); // A + intermediate + D
+        }
+
+        // Path length should be the shortest
+        assert_eq!(graph.get_path_length("A", "D"), Some(2));
+    }
 }

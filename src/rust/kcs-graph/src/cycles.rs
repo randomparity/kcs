@@ -835,4 +835,241 @@ mod tests {
         // With depth 1, we can't find the 2-node cycle
         assert_eq!(cycles_depth_1.len(), 0);
     }
+
+    #[test]
+    fn test_nested_cycles() {
+        let mut graph = KernelGraph::new();
+
+        // Create nested cycles: A -> B -> C -> A (outer)
+        //                            B -> D -> B (inner)
+        let symbols = ["func_a", "func_b", "func_c", "func_d"];
+
+        for (i, name) in symbols.iter().enumerate() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: (i as u32 + 1) * 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        // Outer cycle
+        let edges = vec![
+            ("func_a", "func_b"),
+            ("func_b", "func_c"),
+            ("func_c", "func_a"),
+            // Inner cycle
+            ("func_b", "func_d"),
+            ("func_d", "func_b"),
+        ];
+
+        for (caller, callee) in edges {
+            let edge = CallEdge {
+                call_type: CallType::Direct,
+                call_site_line: 100,
+                conditional: false,
+                config_guard: None,
+            };
+            graph.add_call(caller, callee, edge).unwrap();
+        }
+
+        let detector = CycleDetector::new(&graph);
+        let analysis = detector.analyze().unwrap();
+
+        assert!(analysis.has_cycles);
+        // All 4 functions are part of cycles
+        assert_eq!(analysis.nodes_in_cycles, 4);
+        // Should detect the strongly connected component
+        assert!(!analysis.strongly_connected_components.is_empty());
+    }
+
+    #[test]
+    fn test_cycle_with_function_pointers() {
+        let mut graph = KernelGraph::new();
+
+        let a = Symbol {
+            name: "callback_a".to_string(),
+            file_path: "test.c".to_string(),
+            line_number: 10,
+            symbol_type: SymbolType::Function,
+            signature: None,
+            config_dependencies: vec![],
+        };
+
+        let b = Symbol {
+            name: "callback_b".to_string(),
+            file_path: "test.c".to_string(),
+            line_number: 20,
+            symbol_type: SymbolType::Function,
+            signature: None,
+            config_dependencies: vec![],
+        };
+
+        graph.add_symbol(a);
+        graph.add_symbol(b);
+
+        // Create a cycle with function pointer calls
+        let edge1 = CallEdge {
+            call_type: CallType::FunctionPointer,
+            call_site_line: 15,
+            conditional: false,
+            config_guard: None,
+        };
+
+        let edge2 = CallEdge {
+            call_type: CallType::FunctionPointer,
+            call_site_line: 25,
+            conditional: false,
+            config_guard: None,
+        };
+
+        graph.add_call("callback_a", "callback_b", edge1).unwrap();
+        graph.add_call("callback_b", "callback_a", edge2).unwrap();
+
+        let detector = CycleDetector::new(&graph);
+        let analysis = detector.analyze().unwrap();
+
+        assert!(analysis.has_cycles);
+        // Check that indirect calls are detected
+        let cycle = &analysis.cycles[0];
+        assert!(cycle.has_indirect_calls);
+    }
+
+    #[test]
+    fn test_large_cycle() {
+        let mut graph = KernelGraph::new();
+
+        // Create a large cycle with 10 functions
+        let num_functions = 10;
+        for i in 0..num_functions {
+            let symbol = Symbol {
+                name: format!("func_{}", i),
+                file_path: "test.c".to_string(),
+                line_number: (i as u32 + 1) * 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        // Create cycle: func_0 -> func_1 -> ... -> func_9 -> func_0
+        for i in 0..num_functions {
+            let next = (i + 1) % num_functions;
+            let edge = CallEdge {
+                call_type: CallType::Direct,
+                call_site_line: 100 + i as u32,
+                conditional: false,
+                config_guard: None,
+            };
+            graph
+                .add_call(&format!("func_{}", i), &format!("func_{}", next), edge)
+                .unwrap();
+        }
+
+        let detector = CycleDetector::new(&graph);
+        let analysis = detector.analyze().unwrap();
+
+        assert!(analysis.has_cycles);
+        assert_eq!(analysis.nodes_in_cycles, num_functions);
+        // Should have one large SCC
+        assert_eq!(analysis.strongly_connected_components.len(), 1);
+        assert_eq!(
+            analysis.strongly_connected_components[0].len(),
+            num_functions
+        );
+    }
+
+    #[test]
+    fn test_conditional_cycle() {
+        let mut graph = KernelGraph::new();
+
+        let symbols = ["func_a", "func_b"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        // Create a cycle where all edges are conditional
+        let edge1 = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 15,
+            conditional: true,
+            config_guard: Some("CONFIG_DEBUG".to_string()),
+        };
+
+        let edge2 = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 25,
+            conditional: true,
+            config_guard: Some("CONFIG_VERBOSE".to_string()),
+        };
+
+        graph.add_call("func_a", "func_b", edge1).unwrap();
+        graph.add_call("func_b", "func_a", edge2).unwrap();
+
+        let detector = CycleDetector::new(&graph);
+        let analysis = detector.analyze().unwrap();
+
+        assert!(analysis.has_cycles);
+
+        // Verify config guards are captured
+        let cycle = &analysis.cycles[0];
+        assert!(cycle.config_guards.contains(&"CONFIG_DEBUG".to_string()));
+        assert!(cycle.config_guards.contains(&"CONFIG_VERBOSE".to_string()));
+    }
+
+    #[test]
+    fn test_cycle_detection_with_external_edges() {
+        let mut graph = KernelGraph::new();
+
+        // Create cycle A -> B -> A with external node C -> A
+        let symbols = ["func_a", "func_b", "func_c"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        let edge = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 100,
+            conditional: false,
+            config_guard: None,
+        };
+
+        // Create cycle
+        graph.add_call("func_a", "func_b", edge.clone()).unwrap();
+        graph.add_call("func_b", "func_a", edge.clone()).unwrap();
+        // External edge
+        graph.add_call("func_c", "func_a", edge).unwrap();
+
+        let detector = CycleDetector::new(&graph);
+        let analysis = detector.analyze().unwrap();
+
+        assert!(analysis.has_cycles);
+        // Only A and B should be in cycle
+        assert_eq!(analysis.nodes_in_cycles, 2);
+
+        // C should not be in any SCC
+        for scc in &analysis.strongly_connected_components {
+            assert!(!scc.contains(&"func_c".to_string()));
+        }
+    }
 }

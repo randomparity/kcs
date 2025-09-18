@@ -917,4 +917,252 @@ mod tests {
             ("func_a".to_string(), "func_b".to_string())
         );
     }
+
+    #[test]
+    fn test_empty_graph_traversal() {
+        let graph = KernelGraph::new();
+        let traversal = GraphTraversal::new(&graph);
+
+        // BFS on non-existent node should return empty result
+        let result = traversal.bfs("nonexistent", TraversalOptions::default());
+        assert!(result.is_ok());
+        let res = result.unwrap();
+        assert_eq!(res.count, 0);
+        assert!(res.visited.is_empty());
+
+        // Same for DFS
+        let result = traversal.dfs("nonexistent", TraversalOptions::default());
+        assert!(result.is_ok());
+        let res = result.unwrap();
+        assert_eq!(res.count, 0);
+        assert!(res.visited.is_empty());
+
+        // Topological sort on empty graph should return empty vec
+        let result = traversal.topological_sort();
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_cyclic_graph_topological_sort() {
+        let mut graph = create_test_graph();
+
+        // Add a cycle
+        let edge = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 500,
+            conditional: false,
+            config_guard: None,
+        };
+        graph.add_call("func_c", "func_a", edge).unwrap();
+
+        let traversal = GraphTraversal::new(&graph);
+        let result = traversal.topological_sort();
+
+        // Should return error when graph has cycles
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot perform topological sort on graph with cycles"));
+    }
+
+    #[test]
+    fn test_traversal_with_max_depth() {
+        let graph = create_test_graph();
+        let traversal = GraphTraversal::new(&graph);
+
+        let options = TraversalOptions {
+            max_depth: Some(1),
+            ..Default::default()
+        };
+
+        let result = traversal.bfs("func_a", options).unwrap();
+
+        // Should stop after depth 1 (func_a, func_b, func_d)
+        assert_eq!(result.count, 3);
+        let visited_names: Vec<String> = result.visited.iter().map(|s| s.name.clone()).collect();
+        assert!(visited_names.contains(&"func_a".to_string()));
+        assert!(visited_names.contains(&"func_b".to_string()));
+        assert!(visited_names.contains(&"func_d".to_string()));
+        assert!(!visited_names.contains(&"func_c".to_string())); // depth 2
+        assert!(!visited_names.contains(&"func_e".to_string())); // depth 2
+    }
+
+    #[test]
+    fn test_bidirectional_search_no_path() {
+        let mut graph = KernelGraph::new();
+
+        // Create two disconnected components
+        let symbols = ["comp1_a", "comp1_b", "comp2_a", "comp2_b"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        let edge = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 100,
+            conditional: false,
+            config_guard: None,
+        };
+
+        graph.add_call("comp1_a", "comp1_b", edge.clone()).unwrap();
+        graph.add_call("comp2_a", "comp2_b", edge).unwrap();
+
+        let traversal = GraphTraversal::new(&graph);
+        let path = traversal.bidirectional_search("comp1_a", "comp2_b");
+
+        // No path between disconnected components
+        assert!(path.is_none());
+    }
+
+    #[test]
+    fn test_ancestors_with_multiple_paths() {
+        let mut graph = KernelGraph::new();
+
+        // Create a merge pattern: A -> C, B -> C
+        let symbols = ["A", "B", "C"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        let edge = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 100,
+            conditional: false,
+            config_guard: None,
+        };
+
+        graph.add_call("A", "C", edge.clone()).unwrap();
+        graph.add_call("B", "C", edge).unwrap();
+
+        let traversal = GraphTraversal::new(&graph);
+        let ancestors = traversal.find_ancestors("C", None);
+
+        assert_eq!(ancestors.len(), 2);
+        let names: Vec<String> = ancestors.iter().map(|s| s.name.clone()).collect();
+        assert!(names.contains(&"A".to_string()));
+        assert!(names.contains(&"B".to_string()));
+    }
+
+    #[test]
+    fn test_level_order_with_branching() {
+        let mut graph = KernelGraph::new();
+
+        // Create a tree: root -> [child1, child2] -> [gc1, gc2, gc3]
+        let symbols = ["root", "child1", "child2", "gc1", "gc2", "gc3"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        let edge = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 100,
+            conditional: false,
+            config_guard: None,
+        };
+
+        graph.add_call("root", "child1", edge.clone()).unwrap();
+        graph.add_call("root", "child2", edge.clone()).unwrap();
+        graph.add_call("child1", "gc1", edge.clone()).unwrap();
+        graph.add_call("child1", "gc2", edge.clone()).unwrap();
+        graph.add_call("child2", "gc3", edge).unwrap();
+
+        let traversal = GraphTraversal::new(&graph);
+        let levels = traversal.level_order("root", None);
+
+        assert_eq!(levels.len(), 3);
+        assert_eq!(levels[0].len(), 1); // root
+        assert_eq!(levels[1].len(), 2); // child1, child2
+        assert_eq!(levels[2].len(), 3); // gc1, gc2, gc3
+    }
+
+    #[test]
+    fn test_traversal_with_indirect_calls() {
+        let mut graph = KernelGraph::new();
+
+        let symbols = ["func_a", "func_b", "func_c"];
+        for name in symbols.iter() {
+            let symbol = Symbol {
+                name: name.to_string(),
+                file_path: "test.c".to_string(),
+                line_number: 10,
+                symbol_type: SymbolType::Function,
+                signature: None,
+                config_dependencies: vec![],
+            };
+            graph.add_symbol(symbol);
+        }
+
+        // Mix of direct and indirect calls
+        graph
+            .add_call(
+                "func_a",
+                "func_b",
+                CallEdge {
+                    call_type: CallType::Direct,
+                    call_site_line: 100,
+                    conditional: false,
+                    config_guard: None,
+                },
+            )
+            .unwrap();
+
+        graph
+            .add_call(
+                "func_b",
+                "func_c",
+                CallEdge {
+                    call_type: CallType::Indirect,
+                    call_site_line: 200,
+                    conditional: false,
+                    config_guard: None,
+                },
+            )
+            .unwrap();
+
+        let traversal = GraphTraversal::new(&graph);
+
+        // Filter to only direct calls
+        let options = TraversalOptions {
+            call_type_filter: Some(CallType::Direct),
+            ..Default::default()
+        };
+
+        let result = traversal.bfs("func_a", options).unwrap();
+        assert_eq!(result.count, 2); // func_a and func_b only
+
+        // Filter to only indirect calls
+        let options = TraversalOptions {
+            call_type_filter: Some(CallType::Indirect),
+            ..Default::default()
+        };
+
+        let result = traversal.bfs("func_b", options).unwrap();
+        assert_eq!(result.count, 2); // func_b and func_c
+    }
 }
