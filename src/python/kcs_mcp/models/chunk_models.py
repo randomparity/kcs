@@ -15,23 +15,25 @@ from pydantic import BaseModel, Field, model_validator
 class ChunkMetadata(BaseModel):
     """Metadata for an individual chunk."""
 
-    id: str = Field(..., description="Unique chunk identifier", example="kernel_001")
-    sequence: int = Field(..., description="Chunk sequence number", ge=1)
+    id: str = Field(description="Unique chunk identifier", examples=["kernel_001"])
+    sequence: int = Field(description="Chunk sequence number", ge=1)
     file: str = Field(
-        ..., description="Chunk file path", example="chunks/kernel_001.json"
+        description="Chunk file path", examples=["chunks/kernel_001.json"]
     )
-    subsystem: str = Field(..., description="Kernel subsystem", example="kernel")
-    size_bytes: int = Field(..., description="Chunk size in bytes", ge=0)
+    subsystem: str = Field(description="Kernel subsystem", examples=["kernel"])
+    size_bytes: int = Field(description="Chunk size in bytes", ge=0)
     checksum_sha256: str = Field(
-        ..., description="SHA256 checksum of chunk file", pattern=r"^[a-f0-9]{64}$"
+        description="SHA256 checksum of chunk file", pattern=r"^[a-f0-9]{64}$"
     )
     symbol_count: int | None = Field(
-        None, description="Number of symbols in chunk", ge=0
+        default=None, description="Number of symbols in chunk", ge=0
     )
     entry_point_count: int | None = Field(
-        None, description="Number of entry points in chunk", ge=0
+        default=None, description="Number of entry points in chunk", ge=0
     )
-    file_count: int | None = Field(None, description="Number of files in chunk", ge=0)
+    file_count: int | None = Field(
+        default=None, description="Number of files in chunk", ge=0
+    )
 
     class Config:
         json_schema_extra: typing.ClassVar[dict[str, typing.Any]] = {
@@ -53,26 +55,27 @@ class ChunkManifest(BaseModel):
     """Manifest describing all chunks in an indexing operation."""
 
     version: str = Field(
-        ...,
         description="Manifest version in semver format",
         pattern=r"^\d+\.\d+\.\d+$",
-        example="1.0.0",
+        examples=["1.0.0"],
     )
-    created: datetime = Field(..., description="Manifest creation timestamp")
+    created: datetime = Field(description="Manifest creation timestamp")
     kernel_version: str | None = Field(
-        None, description="Kernel version", example="6.7.0"
+        default=None, description="Kernel version", examples=["6.7.0"]
     )
     kernel_path: str | None = Field(
-        None, description="Path to kernel source", example="/home/user/src/linux"
+        default=None,
+        description="Path to kernel source",
+        examples=["/home/user/src/linux"],
     )
     config: str | None = Field(
-        None, description="Kernel configuration", example="x86_64:defconfig"
+        default=None, description="Kernel configuration", examples=["x86_64:defconfig"]
     )
-    total_chunks: int = Field(..., description="Total number of chunks", ge=1)
+    total_chunks: int = Field(description="Total number of chunks", ge=1)
     total_size_bytes: int | None = Field(
-        None, description="Total size of all chunks in bytes", ge=0
+        default=None, description="Total size of all chunks in bytes", ge=0
     )
-    chunks: list[ChunkMetadata] = Field(..., description="List of chunk metadata")
+    chunks: list[ChunkMetadata] = Field(description="List of chunk metadata")
 
     @model_validator(mode="after")
     def validate_chunk_count(self) -> "ChunkManifest":
@@ -113,7 +116,7 @@ class ChunkManifest(BaseModel):
 class ProcessingStatus(BaseModel):
     """Processing status of a chunk."""
 
-    chunk_id: str = Field(..., description="Chunk identifier")
+    chunk_id: str = Field(description="Chunk identifier")
     manifest_version: str = Field(
         ..., description="Version of the manifest this chunk belongs to"
     )
@@ -124,19 +127,19 @@ class ProcessingStatus(BaseModel):
     )
     started_at: datetime | None = Field(None, description="Processing start timestamp")
     completed_at: datetime | None = Field(
-        None, description="Processing completion timestamp"
+        default=None, description="Processing completion timestamp"
     )
     error_message: str | None = Field(
-        None, description="Error message if processing failed"
+        default=None, description="Error message if processing failed"
     )
     retry_count: int | None = Field(
-        None, description="Number of retry attempts", ge=0, le=3
+        default=None, description="Number of retry attempts", ge=0, le=3
     )
     symbols_processed: int | None = Field(
-        None, description="Number of symbols processed", ge=0
+        default=None, description="Number of symbols processed", ge=0
     )
     checksum_verified: bool | None = Field(
-        None, description="Whether checksum was verified"
+        default=None, description="Whether checksum was verified"
     )
 
     class Config:
@@ -170,10 +173,10 @@ class ProcessBatchRequest(BaseModel):
     """Request to process multiple chunks in batch."""
 
     chunk_ids: list[str] = Field(
-        ..., description="List of chunk IDs to process", min_items=1, max_items=100
+        description="List of chunk IDs to process", min_length=1, max_length=100
     )
     parallelism: int = Field(
-        4, description="Number of chunks to process in parallel", ge=1, le=10
+        default=4, description="Number of chunks to process in parallel", ge=1, le=10
     )
 
 
@@ -183,17 +186,17 @@ class ProcessBatchRequest(BaseModel):
 class ProcessChunkResponse(BaseModel):
     """Response from chunk processing request."""
 
-    message: str = Field(..., description="Processing status message")
-    chunk_id: str = Field(..., description="Chunk identifier")
-    status: str = Field(..., description="Processing status")
+    message: str = Field(description="Processing status message")
+    chunk_id: str = Field(description="Chunk identifier")
+    status: str = Field(description="Processing status")
 
 
 class ProcessBatchResponse(BaseModel):
     """Response from batch processing request."""
 
-    message: str = Field(..., description="Batch processing status message")
-    total_chunks: int = Field(..., description="Total number of chunks to process")
-    processing: list[str] = Field(..., description="List of chunk IDs being processed")
+    message: str = Field(description="Batch processing status message")
+    total_chunks: int = Field(description="Total number of chunks to process")
+    processing: list[str] = Field(description="List of chunk IDs being processed")
 
 
 # Database models for internal use
@@ -202,8 +205,8 @@ class ProcessBatchResponse(BaseModel):
 class ChunkProcessingRecord(BaseModel):
     """Database record for chunk processing status."""
 
-    chunk_id: str = Field(..., description="Primary key: chunk identifier")
-    manifest_version: str = Field(..., description="Version of manifest")
+    chunk_id: str = Field(description="Primary key: chunk identifier")
+    manifest_version: str = Field(description="Version of manifest")
     status: str = Field(
         "pending",
         description="Processing status",
@@ -211,25 +214,25 @@ class ChunkProcessingRecord(BaseModel):
     )
     started_at: datetime | None = Field(None, description="Processing start time")
     completed_at: datetime | None = Field(
-        None, description="Processing completion time"
+        default=None, description="Processing completion time"
     )
     error_message: str | None = Field(None, description="Error message if failed")
     retry_count: int = Field(0, description="Number of retry attempts", ge=0)
     symbols_processed: int = Field(0, description="Number of symbols processed", ge=0)
     checksum_verified: bool = Field(False, description="Whether checksum was verified")
-    created_at: datetime = Field(..., description="Record creation time")
-    updated_at: datetime = Field(..., description="Record last update time")
+    created_at: datetime = Field(description="Record creation time")
+    updated_at: datetime = Field(description="Record last update time")
 
 
 class IndexingManifestRecord(BaseModel):
     """Database record for indexing manifest."""
 
-    version: str = Field(..., description="Primary key: manifest version")
-    created: datetime = Field(..., description="Manifest creation time")
+    version: str = Field(description="Primary key: manifest version")
+    created: datetime = Field(description="Manifest creation time")
     kernel_version: str | None = Field(None, description="Kernel version")
     kernel_path: str | None = Field(None, description="Path to kernel source")
     config: str | None = Field(None, description="Kernel configuration")
-    total_chunks: int = Field(..., description="Total number of chunks", ge=1)
+    total_chunks: int = Field(description="Total number of chunks", ge=1)
     total_size_bytes: int | None = Field(None, description="Total size in bytes", ge=0)
-    manifest_data: dict[str, Any] = Field(..., description="Complete manifest as JSONB")
-    created_at: datetime = Field(..., description="Database record creation time")
+    manifest_data: dict[str, Any] = Field(description="Complete manifest as JSONB")
+    created_at: datetime = Field(description="Database record creation time")
