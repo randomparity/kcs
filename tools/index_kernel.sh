@@ -28,7 +28,7 @@ BATCH_SIZE=100
 USE_CLANG=true
 CLEANUP_TEMP=true
 INCREMENTAL=false
-DATABASE_URL="${DATABASE_URL:-postgresql://kcs:kcs_password@localhost:5432/kcs}"
+DATABASE_URL="${DATABASE_URL:-postgresql://kcs:kcs_dev_password_change_in_production@localhost:5432/kcs}"
 DRY_RUN=false
 VERBOSE=false
 
