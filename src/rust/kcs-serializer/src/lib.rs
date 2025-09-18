@@ -24,6 +24,9 @@ pub mod chunker;
 pub mod graphml_export;
 pub mod json_export;
 
+#[cfg(test)]
+mod chunk_writer_test;
+
 // Re-export main types for convenience
 pub use chunker::{ChunkOptions, GraphChunk, GraphChunker};
 pub use graphml_export::GraphMLExporter;

@@ -71,7 +71,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Rust Tests
 
-- [ ] T012 [P] Unit test chunk writer with size limits in src/rust/kcs-serializer/src/chunk_writer_test.rs
+- [x] T012 [P] Unit test chunk writer with size limits in src/rust/kcs-serializer/src/chunk_writer_test.rs
 - [ ] T013 [P] Unit test manifest generation in src/rust/kcs-serializer/src/manifest_test.rs
 - [ ] T014 [P] Unit test SHA256 checksum calculation in src/rust/kcs-serializer/src/checksum_test.rs
 
