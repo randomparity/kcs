@@ -1,0 +1,26 @@
+[package]
+name = "kcs-serializer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Graph serialization for kernel call graphs (JSON, GraphML formats)"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+kcs-graph = { path = "../kcs-graph" }
+petgraph = "0.6"
+quick-xml = "0.32"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3.0"
+pretty_assertions = "1.4"
+assert_cmd = "2.0"
+predicates = "3.0"

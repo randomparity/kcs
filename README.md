@@ -21,6 +21,14 @@ analysis with ground-truth accuracy.
 ⚡ **High Performance** - Sub-600ms query response times\
 🔗 **Citation Support** - All results include file:line references
 
+### Infrastructure Features (New)
+
+⚙️ **Configuration Analysis** - Parse kernel .config files with dependency resolution\
+✅ **Specification Validation** - Validate specs against implementation with compliance scoring\
+🧠 **AI-Powered Semantic Search** - Advanced embedding-based code search with explanations\
+🕸️ **Advanced Graph Traversal** - Cycle detection, path finding, and visualization support\
+📤 **Multi-format Export** - Export call graphs as GraphML, DOT, JSON, or CSV with compression
+
 ## Quick Start
 
 > **🚀 New to KCS?** Run our quick setup script: `bash tools/quick-setup.sh`
@@ -328,6 +336,16 @@ Complete local installation without Docker.
 | `search_docs` | Search kernel documentation | Find memory barrier docs |
 | `owners_for` | Find code maintainers | Who maintains `fs/ext4/`? |
 
+### Infrastructure Tools (New)
+
+| Tool | Description | Example |
+|------|-------------|---------|
+| `parse_kernel_config` | Parse .config files with dependencies | Extract CONFIG_EXT4_FS dependencies |
+| `validate_spec` | Validate specs against implementation | Check syscall spec compliance |
+| `semantic_search` | AI-powered semantic code search | "Find error handling patterns" |
+| `traverse_call_graph` | Advanced graph traversal + cycles | Find all paths from `sys_read` to `vfs_read` |
+| `export_graph` | Export graphs (GraphML/DOT/JSON/CSV) | Generate Graphviz visualization |
+
 ### Example Queries
 
 ```bash
@@ -368,6 +386,159 @@ curl -X POST http://localhost:8080/mcp/tools/impact_of \
     "files": ["mm/mmap.c"],
     "symbols": ["mmap_region"],
     "config": "x86_64:defconfig"
+  }'
+```
+
+### Infrastructure Endpoints (New)
+
+**Parse kernel configuration files:**
+
+```bash
+# Parse .config file with dependency resolution
+curl -X POST http://localhost:8080/mcp/tools/parse_kernel_config \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "config_path": "/usr/src/linux/.config",
+    "arch": "x86_64",
+    "config_name": "defconfig",
+    "resolve_dependencies": true,
+    "filters": {
+      "subsystems": ["EXT4", "BTRFS"]
+    }
+  }'
+```
+
+**Validate specifications against implementation:**
+
+```bash
+# Validate a specification with compliance checking
+curl -X POST http://localhost:8080/mcp/tools/validate_spec \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "specification": {
+      "name": "read_syscall_spec",
+      "version": "1.0",
+      "entry_point": "sys_read",
+      "expected_behavior": {
+        "description": "Read data from file descriptor",
+        "return_type": "ssize_t",
+        "side_effects": ["Updates file position"]
+      },
+      "parameters": [
+        {"name": "fd", "type": "int"},
+        {"name": "buf", "type": "void *"},
+        {"name": "count", "type": "size_t"}
+      ]
+    },
+    "drift_threshold": 0.8,
+    "include_suggestions": true
+  }'
+```
+
+**Semantic search with embeddings:**
+
+```bash
+# Advanced semantic search with filters and explanations
+curl -X POST http://localhost:8080/mcp/tools/semantic_search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "query": "memory allocation with error handling",
+    "limit": 10,
+    "similarity_threshold": 0.7,
+    "search_mode": "hybrid",
+    "filters": {
+      "subsystems": ["mm", "fs"],
+      "file_patterns": ["*.c"],
+      "exclude_tests": true
+    },
+    "expand_query": true,
+    "rerank": true,
+    "explain": true
+  }'
+```
+
+**Advanced call graph traversal:**
+
+```bash
+# Traverse call graph with cycle detection and path finding
+curl -X POST http://localhost:8080/mcp/tools/traverse_call_graph \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "start_symbol": "sys_read",
+    "direction": "callees",
+    "max_depth": 4,
+    "detect_cycles": true,
+    "find_all_paths": true,
+    "target_symbol": "vfs_read",
+    "filters": {
+      "exclude_patterns": ["debug_*", "trace_*"],
+      "include_subsystems": ["vfs", "mm"],
+      "exclude_static": true
+    },
+    "include_metrics": true,
+    "include_visualization": true,
+    "layout": "hierarchical"
+  }'
+```
+
+**Export call graphs in multiple formats:**
+
+```bash
+# Export graph as GraphML with compression and styling
+curl -X POST http://localhost:8080/mcp/tools/export_graph \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "root_symbol": "sys_read",
+    "format": "graphml",
+    "depth": 3,
+    "compress": true,
+    "include_metadata": true,
+    "include_statistics": true,
+    "styling": {
+      "node_color": "lightblue",
+      "edge_color": "gray",
+      "node_shape": "box",
+      "font_size": 12
+    },
+    "filters": {
+      "exclude_patterns": ["__*"],
+      "min_edge_weight": 0.1
+    }
+  }'
+
+# Export as DOT format for Graphviz visualization
+curl -X POST http://localhost:8080/mcp/tools/export_graph \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "root_symbol": "schedule",
+    "format": "dot",
+    "depth": 2,
+    "pretty": true,
+    "styling": {
+      "node_color": "lightgreen",
+      "edge_color": "black",
+      "font_size": 10
+    }
+  }'
+
+# Large graph export with chunking
+curl -X POST http://localhost:8080/mcp/tools/export_graph \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -d '{
+    "root_symbol": "init_task",
+    "format": "json",
+    "depth": 5,
+    "chunk_size": 100,
+    "chunk_index": 0,
+    "include_statistics": true,
+    "async_export": false
   }'
 ```
 

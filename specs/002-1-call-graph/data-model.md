@@ -37,12 +37,12 @@ Existing structure enhanced to include call graph data alongside symbol informat
 
 **New Field**:
 
-- `call_edges`: Vec<CallEdge> - Collection of function call relationships found during parsing
+- `call_edges`: `Vec<CallEdge>` - Collection of function call relationships found during parsing
 
 **Existing Fields** (unchanged):
 
-- `symbols`: Vec<SymbolInfo> - Function and variable symbols
-- `errors`: Vec<ParseError> - Parse errors encountered
+- `symbols`: `Vec<SymbolInfo>` - Function and variable symbols
+- `errors`: `Vec<ParseError>` - Parse errors encountered
 
 ## Data Flow
 
@@ -73,7 +73,8 @@ Existing structure enhanced to include call graph data alongside symbol informat
 
 ## State Transitions
 
-Call edges are immutable once extracted - they represent static analysis of source code at a point in time.
+Call edges are immutable once extracted - they represent static analysis of source code at a
+point in time.
 
 **Lifecycle**:
 

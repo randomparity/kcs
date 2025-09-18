@@ -1,10 +1,14 @@
 [workspace]
+resolver = "2"
 members = [
     "kcs-parser",
     "kcs-extractor",
     "kcs-graph",
     "kcs-impact",
     "kcs-drift",
+    "kcs-config",
+    "kcs-search",
+    "kcs-serializer",
     "kcs-python-bridge"
 ]
 

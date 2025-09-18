@@ -2,13 +2,16 @@
 
 ## Overview
 
-This research phase investigates the best approaches for extracting function call relationships from C source code using Tree-sitter AST parsing, focusing on the specific needs of Linux kernel analysis.
+This research phase investigates the best approaches for extracting function call relationships
+from C source code using Tree-sitter AST parsing, focusing on the specific needs of Linux kernel
+analysis.
 
 ## Tree-sitter Call Detection Patterns
 
 ### Decision: Use Tree-sitter C Grammar Call Expression Nodes
 
-**Rationale**: Tree-sitter-c provides structured AST nodes specifically for function calls (`call_expression`), enabling precise call site detection without regex parsing.
+**Rationale**: Tree-sitter-c provides structured AST nodes specifically for function calls
+(`call_expression`), enabling precise call site detection without regex parsing.
 
 **Key Patterns to Match**:
 
@@ -26,7 +29,8 @@ This research phase investigates the best approaches for extracting function cal
 
 ### Decision: Recursive Tree-sitter Node Walking
 
-**Rationale**: Tree-sitter provides efficient tree traversal APIs with type-safe node access, avoiding manual string parsing.
+**Rationale**: Tree-sitter provides efficient tree traversal APIs with type-safe node access,
+avoiding manual string parsing.
 
 **Implementation Approach**:
 
@@ -46,7 +50,8 @@ This research phase investigates the best approaches for extracting function cal
 
 ### Decision: Extend ParseResult with CallEdge Vec
 
-**Rationale**: Minimal disruption to existing symbol extraction while adding call graph data to the same parsing pass.
+**Rationale**: Minimal disruption to existing symbol extraction while adding call graph data to
+the same parsing pass.
 
 **Changes Required**:
 
@@ -64,7 +69,8 @@ This research phase investigates the best approaches for extracting function cal
 
 ### Decision: Parallel File Processing with Shared Call Graph
 
-**Rationale**: Kernel parsing is I/O bound, parallel processing of files with thread-safe call edge collection maximizes throughput.
+**Rationale**: Kernel parsing is I/O bound, parallel processing of files with thread-safe call
+edge collection maximizes throughput.
 
 **Approach**:
 
@@ -83,7 +89,8 @@ This research phase investigates the best approaches for extracting function cal
 
 ### Decision: Extend Existing CallEdge Table
 
-**Rationale**: Database schema already exists for call edges, implementation needs to populate rather than redesign.
+**Rationale**: Database schema already exists for call edges, implementation needs to populate
+rather than redesign.
 
 **Required Fields** (assuming existing schema):
 
@@ -103,7 +110,8 @@ This research phase investigates the best approaches for extracting function cal
 
 ### Decision: Graceful Degradation with Parse Error Collection
 
-**Rationale**: Kernel code has complex preprocessor usage; parser should capture what it can and report issues rather than failing completely.
+**Rationale**: Kernel code has complex preprocessor usage; parser should capture what it can and
+report issues rather than failing completely.
 
 **Error Categories**:
 
@@ -147,4 +155,5 @@ All technical unknowns have been resolved. The approach uses:
 - Parallel processing for performance
 - Graceful error handling for robustness
 
-Implementation can proceed with confidence that this approach will meet the constitutional requirements for performance, accuracy, and maintainability.
+Implementation can proceed with confidence that this approach will meet the constitutional
+requirements for performance, accuracy, and maintainability.

@@ -10,7 +10,9 @@ The KCS API provides endpoints for kernel analysis, organized into categories:
 
 ## MCP Tools
 
-MCP tools perform kernel analysis operations.
+MCP tools perform kernel analysis operations. **Updated with 5 new infrastructure endpoints for
+configuration parsing, specification validation, semantic search, call graph traversal, and
+graph export.**
 
 ### POST /mcp/tools/diff_spec_vs_code
 
@@ -319,6 +321,224 @@ curl -X POST \
   "config": "x86_64:defconfig"
 }' \
      http://localhost:8080/mcp/tools/who_calls
+```text
+
+### POST /mcp/tools/parse_kernel_config
+
+**Summary**: Parse kernel configuration file and extract options and dependencies
+
+**Request Body**:
+
+Content-Type: `application/json`
+
+Properties:
+- `config_path` (string) (required): Path to kernel .config file
+- `arch` (string) (optional): Target architecture (default: x86_64)
+- `config_name` (string) (optional): Configuration name identifier (default: custom)
+- `resolve_dependencies` (boolean) (optional): Whether to resolve config dependencies
+- `incremental` (boolean) (optional): Enable incremental parsing mode
+- `base_config_id` (string) (optional): Base config for incremental comparison
+- `filters` (object) (optional): Filter options by pattern or subsystem
+
+**Responses**:
+
+- **200**: Parsed configuration data
+  - Content-Type: `application/json`
+
+**Example**:
+
+```bash
+curl -X POST \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+  "config_path": "/usr/src/linux/.config",
+  "arch": "x86_64",
+  "config_name": "defconfig",
+  "resolve_dependencies": true
+}' \
+     http://localhost:8080/mcp/tools/parse_kernel_config
+```text
+
+### POST /mcp/tools/validate_spec
+
+**Summary**: Validate specification against kernel implementation
+
+**Request Body**:
+
+Content-Type: `application/json`
+
+Properties:
+- `specification` (object) (required): Specification to validate
+  - `name` (string) (required): Specification name
+  - `version` (string) (required): Specification version
+  - `entry_point` (string) (required): Main entry point symbol
+  - `expected_behavior` (object) (optional): Expected behavior description
+  - `parameters` (array) (optional): Expected parameters
+- `config` (string) (optional): Kernel configuration context
+- `kernel_version` (string) (optional): Target kernel version
+- `drift_threshold` (number) (optional): Compliance threshold (0.0-1.0)
+- `include_suggestions` (boolean) (optional): Include validation suggestions
+
+**Responses**:
+
+- **200**: Validation results with compliance score
+  - Content-Type: `application/json`
+
+**Example**:
+
+```bash
+curl -X POST \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+  "specification": {
+    "name": "sys_read_spec",
+    "version": "1.0",
+    "entry_point": "sys_read",
+    "expected_behavior": {
+      "description": "Read data from file descriptor"
+    }
+  },
+  "drift_threshold": 0.8,
+  "include_suggestions": true
+}' \
+     http://localhost:8080/mcp/tools/validate_spec
+```text
+
+### POST /mcp/tools/semantic_search
+
+**Summary**: Perform semantic search on kernel code using embeddings
+
+**Request Body**:
+
+Content-Type: `application/json`
+
+Properties:
+- `query` (string) (required): Search query
+- `limit` (integer) (optional): Maximum results to return (default: 10)
+- `offset` (integer) (optional): Results offset for pagination
+- `similarity_threshold` (number) (optional): Minimum similarity score (0.0-1.0)
+- `search_mode` (string) (optional): Search mode: semantic, lexical, or hybrid
+- `filters` (object) (optional): Search filters by subsystem, file patterns, etc.
+- `expand_query` (boolean) (optional): Enable query expansion
+- `rerank` (boolean) (optional): Apply result reranking
+- `explain` (boolean) (optional): Include search explanations
+- `use_cache` (boolean) (optional): Use cached results if available
+
+**Responses**:
+
+- **200**: Semantic search results with similarity scores
+  - Content-Type: `application/json`
+
+**Example**:
+
+```bash
+curl -X POST \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+  "query": "file system read operation",
+  "limit": 5,
+  "similarity_threshold": 0.7,
+  "search_mode": "hybrid",
+  "expand_query": true,
+  "explain": true
+}' \
+     http://localhost:8080/mcp/tools/semantic_search
+```text
+
+### POST /mcp/tools/traverse_call_graph
+
+**Summary**: Traverse call graph with advanced analysis features including cycle detection and path finding
+
+**Request Body**:
+
+Content-Type: `application/json`
+
+Properties:
+- `start_symbol` (string) (required): Starting symbol for traversal
+- `direction` (string) (optional): Traversal direction: callers, callees, or both (default: callees)
+- `max_depth` (integer) (optional): Maximum traversal depth (1-10, default: 5)
+- `detect_cycles` (boolean) (optional): Enable cycle detection
+- `find_all_paths` (boolean) (optional): Find all paths to target
+- `target_symbol` (string) (optional): Target symbol for path finding
+- `filters` (object) (optional): Traversal filters by patterns, subsystems, complexity
+- `include_metrics` (boolean) (optional): Include performance metrics
+- `include_visualization` (boolean) (optional): Include visualization data
+- `layout` (string) (optional): Layout algorithm: hierarchical, force, circular
+
+**Responses**:
+
+- **200**: Call graph with nodes, edges, cycles, and paths
+  - Content-Type: `application/json`
+
+**Example**:
+
+```bash
+curl -X POST \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+  "start_symbol": "sys_read",
+  "direction": "callees",
+  "max_depth": 3,
+  "detect_cycles": true,
+  "find_all_paths": true,
+  "target_symbol": "vfs_read",
+  "include_visualization": true
+}' \
+     http://localhost:8080/mcp/tools/traverse_call_graph
+```text
+
+### POST /mcp/tools/export_graph
+
+**Summary**: Export call graph in various formats with compression and chunking support
+
+**Request Body**:
+
+Content-Type: `application/json`
+
+Properties:
+- `root_symbol` (string) (required): Root symbol for graph export
+- `format` (string) (required): Export format: json, graphml, dot, or csv
+- `depth` (integer) (optional): Graph depth to export (default: 5)
+- `filters` (object) (optional): Export filters by patterns, subsystems, edge weights
+- `styling` (object) (optional): Visual styling options for DOT/GraphML
+- `compress` (boolean) (optional): Enable gzip compression
+- `chunk_size` (integer) (optional): Enable chunking with specified size
+- `chunk_index` (integer) (optional): Chunk index for paginated export
+- `include_metadata` (boolean) (optional): Include node/edge metadata
+- `include_annotations` (boolean) (optional): Include annotations
+- `include_statistics` (boolean) (optional): Include graph statistics
+- `async_export` (boolean) (optional): Process export asynchronously
+- `layout` (string) (optional): Layout algorithm for positioning
+- `pretty` (boolean) (optional): Pretty-print output
+
+**Responses**:
+
+- **200**: Exported graph data in requested format
+  - Content-Type: `application/json`
+
+**Example**:
+
+```bash
+curl -X POST \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+  "root_symbol": "sys_read",
+  "format": "graphml",
+  "depth": 4,
+  "compress": true,
+  "include_metadata": true,
+  "include_statistics": true,
+  "styling": {
+    "node_color": "lightblue",
+    "edge_color": "gray"
+  }
+}' \
+     http://localhost:8080/mcp/tools/export_graph
 ```text
 
 ## MCP Resources

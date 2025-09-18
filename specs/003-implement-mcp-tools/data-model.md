@@ -10,6 +10,7 @@
 Represents a function call relationship in the kernel.
 
 **Fields**:
+
 - `caller_id`: Foreign key to Symbol table
 - `callee_id`: Foreign key to Symbol table
 - `call_type`: Enum (direct, indirect, macro)
@@ -17,10 +18,12 @@ Represents a function call relationship in the kernel.
 - `config_bitmap`: Configuration where edge exists
 
 **Relationships**:
+
 - Many-to-one with Symbol (caller)
 - Many-to-one with Symbol (callee)
 
 **Validation**:
+
 - caller_id and callee_id must be different (no self-calls recorded)
 - line_number must be positive
 - call_type must be valid enum value
@@ -30,6 +33,7 @@ Represents a function call relationship in the kernel.
 Represents a kernel function, variable, or type.
 
 **Fields**:
+
 - `id`: Primary key
 - `name`: Symbol name (e.g., "vfs_read")
 - `kind`: Type of symbol (function, variable, etc.)
@@ -40,11 +44,13 @@ Represents a kernel function, variable, or type.
 - `config_bitmap`: Configurations where symbol exists
 
 **Relationships**:
+
 - Many-to-one with File
 - One-to-many with CallEdge (as caller)
 - One-to-many with CallEdge (as callee)
 
 **Validation**:
+
 - name must be non-empty
 - start_line <= end_line
 - Both line numbers positive
@@ -54,15 +60,18 @@ Represents a kernel function, variable, or type.
 Represents a source file in the kernel.
 
 **Fields**:
+
 - `id`: Primary key
 - `path`: Relative path from kernel root
 - `sha`: Content hash for version tracking
 - `last_parsed`: Timestamp of last analysis
 
 **Relationships**:
+
 - One-to-many with Symbol
 
 **Validation**:
+
 - path must be unique per configuration
 - sha must be valid hex string
 
@@ -71,12 +80,14 @@ Represents a source file in the kernel.
 Citation information for source location.
 
 **Fields**:
+
 - `path`: File path relative to kernel root
 - `sha`: File content hash
 - `start`: Starting line number
 - `end`: Ending line number
 
 **Validation**:
+
 - All fields required
 - start <= end
 - Line numbers positive
@@ -86,11 +97,13 @@ Citation information for source location.
 Information about a calling or called function.
 
 **Fields**:
+
 - `symbol`: Function name
 - `span`: Source location
 - `call_type`: Type of call (direct, indirect, macro)
 
 **Validation**:
+
 - All fields required
 - call_type must be valid enum
 
@@ -99,12 +112,14 @@ Information about a calling or called function.
 Single step in execution flow trace.
 
 **Fields**:
+
 - `edge`: Edge type (syscall, function_call, etc.)
 - `from`: Source symbol
 - `to`: Target symbol
 - `span`: Source location of call
 
 **Validation**:
+
 - All fields required
 - from and to must be different
 
@@ -113,6 +128,7 @@ Single step in execution flow trace.
 Impact analysis results.
 
 **Fields**:
+
 - `configs`: Affected kernel configurations
 - `modules`: Affected kernel modules
 - `tests`: Relevant test files
@@ -121,6 +137,7 @@ Impact analysis results.
 - `cites`: Source citations for evidence
 
 **Validation**:
+
 - All arrays can be empty but must be present
 - cites must contain valid Span objects
 
@@ -178,6 +195,7 @@ PENDING -> EXECUTING -> SUCCESS
 ## Query Patterns
 
 ### Find Callers Pattern
+
 ```sql
 WITH RECURSIVE caller_tree AS (
     -- Base case: direct callers
@@ -197,6 +215,7 @@ SELECT DISTINCT ... FROM caller_tree
 ```
 
 ### Find Callees Pattern
+
 ```sql
 WITH RECURSIVE callee_tree AS (
     -- Similar structure but following edges forward
@@ -206,6 +225,7 @@ SELECT DISTINCT ... FROM callee_tree
 ```
 
 ### Entry Point Flow Pattern
+
 ```sql
 -- Map entry point to initial function
 -- Then follow callee chain with depth limit
@@ -231,4 +251,5 @@ SELECT DISTINCT ... FROM callee_tree
 
 ## Migration Notes
 
-No database schema changes required. This implementation uses existing tables and adds query logic in the application layer.
+No database schema changes required. This implementation uses existing tables and adds query
+logic in the application layer.

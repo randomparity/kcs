@@ -6,7 +6,9 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::{ExtendedParserConfig, Symbol, SymbolKind};
+#[cfg(feature = "clang")]
+use crate::SymbolKind;
+use crate::{ExtendedParserConfig, Symbol};
 
 #[cfg(feature = "clang")]
 use clang_sys::*;
@@ -19,6 +21,7 @@ use std::ffi::CStr;
 
 /// Wrapper around Clang's index for semantic analysis
 pub struct ClangBridge {
+    #[allow(dead_code)] // Used when clang feature is enabled
     config: ExtendedParserConfig,
     #[cfg(feature = "clang")]
     index: Option<CXIndex>,
@@ -26,6 +29,7 @@ pub struct ClangBridge {
     #[cfg(feature = "clang")]
     translation_units: HashMap<PathBuf, CXTranslationUnit>,
     /// Compilation database if available
+    #[allow(dead_code)] // Will be used in future implementation
     compilation_database: Option<CompilationDatabase>,
 }
 
@@ -33,6 +37,7 @@ pub struct ClangBridge {
 #[derive(Debug, Clone)]
 pub struct CompilationDatabase {
     /// Map from file path to compilation command
+    #[allow(dead_code)] // Will be used in future implementation
     commands: HashMap<PathBuf, CompileCommand>,
 }
 
@@ -466,7 +471,7 @@ impl ClangBridge {
         {
             // If clang feature is not enabled, just return the original symbols
             let _ = file_path; // Suppress unused warning
-            return Ok(symbols.to_vec());
+            Ok(symbols.to_vec())
         }
 
         #[cfg(feature = "clang")]

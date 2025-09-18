@@ -279,9 +279,9 @@ fn enhance_symbols_with_clang(
         pyo3::exceptions::PyRuntimeError::new_err(format!("Parser creation failed: {}", e))
     })?;
 
-    let result = parser.parse_file(file_path).map_err(|e| {
-        pyo3::exceptions::PyRuntimeError::new_err(format!("Parse error: {}", e))
-    })?;
+    let result = parser
+        .parse_file(file_path)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Parse error: {}", e)))?;
 
     Ok(result
         .symbols
@@ -324,11 +324,9 @@ fn extract_entry_points(
     };
 
     let extractor = Extractor::new(config);
-    let entry_points = extractor
-        .extract_from_directory(kernel_dir)
-        .map_err(|e| {
-            pyo3::exceptions::PyRuntimeError::new_err(format!("Entry point extraction failed: {}", e))
-        })?;
+    let entry_points = extractor.extract_from_directory(kernel_dir).map_err(|e| {
+        pyo3::exceptions::PyRuntimeError::new_err(format!("Entry point extraction failed: {}", e))
+    })?;
 
     Ok(entry_points
         .into_iter()
@@ -350,11 +348,9 @@ fn extract_entry_points(
             line_number: ep.line_number,
             signature: ep.signature,
             description: ep.description,
-            metadata: ep.metadata.map(|m| {
-                m.into_iter()
-                    .map(|(k, v)| (k, v.to_string()))
-                    .collect()
-            }),
+            metadata: ep
+                .metadata
+                .map(|m| m.into_iter().map(|(k, v)| (k, v.to_string())).collect()),
         })
         .collect())
 }
