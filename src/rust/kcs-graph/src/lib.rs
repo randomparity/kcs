@@ -8,7 +8,10 @@ use std::collections::HashMap;
 
 pub mod builder;
 pub mod config;
+pub mod cycles;
 pub mod queries;
+
+pub use cycles::{Cycle, CycleAnalysis, CycleDetector};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Symbol {

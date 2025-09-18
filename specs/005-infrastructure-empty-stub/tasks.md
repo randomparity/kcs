@@ -50,7 +50,7 @@
 
 ### Phase 3D: kcs-graph Enhancements
 
-- [ ] **T028**: Implement cycle detection in kcs-graph/src/cycles.rs
+- [x] **T028**: Implement cycle detection in kcs-graph/src/cycles.rs
 - [ ] **T029**: Complete path reconstruction in kcs-graph/src/lib.rs
 - [ ] **T030**: Add traversal algorithms in kcs-graph/src/traversal.rs
 - [ ] **T031**: Write unit tests for graph algorithms
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 27
+- **Completed**: 28
 - **In Progress**: 0
 - **Blocked**: 0
 
