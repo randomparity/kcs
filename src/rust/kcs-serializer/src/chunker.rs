@@ -45,7 +45,7 @@ pub struct GraphChunk {
     /// Edge information for this chunk
     pub edges: Vec<ChunkEdge>,
     /// Boundary edges (edges to nodes in other chunks)
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub boundary_edges: Vec<BoundaryEdge>,
 }
 
