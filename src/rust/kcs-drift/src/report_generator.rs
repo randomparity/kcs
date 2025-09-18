@@ -11,7 +11,7 @@ pub struct ReportGenerator {
     output_format: OutputFormat,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum OutputFormat {
     Json,
     Html,
