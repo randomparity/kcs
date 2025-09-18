@@ -57,10 +57,10 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Contract Tests
 
-- [ ] T004 [P] Contract test GET /mcp/chunks/manifest in tests/contract/test_chunk_manifest.py
-- [ ] T005 [P] Contract test GET /mcp/chunks/{id}/status in tests/contract/test_chunk_status.py
-- [ ] T006 [P] Contract test POST /mcp/chunks/{id}/process in tests/contract/test_chunk_process.py
-- [ ] T007 [P] Contract test POST /mcp/chunks/process/batch in tests/contract/test_chunk_batch.py
+- [x] T004 [P] Contract test GET /mcp/chunks/manifest in tests/contract/test_chunk_manifest.py
+- [x] T005 [P] Contract test GET /mcp/chunks/{id}/status in tests/contract/test_chunk_status.py
+- [x] T006 [P] Contract test POST /mcp/chunks/{id}/process in tests/contract/test_chunk_process.py
+- [x] T007 [P] Contract test POST /mcp/chunks/process/batch in tests/contract/test_chunk_batch.py
 
 ### Integration Tests
 
