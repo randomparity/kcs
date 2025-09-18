@@ -1170,6 +1170,7 @@ dependencies = [
  "clang-sys",
  "clap",
  "criterion",
+ "kcs-serializer",
  "memmap2",
  "pretty_assertions",
  "rayon",

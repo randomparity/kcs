@@ -3,8 +3,8 @@
 //! These tests verify the ManifestBuilder implementation creates valid
 //! chunk manifests following the OpenAPI schema and data model constraints.
 
-use anyhow::Result;
 use crate::manifest::*;
+use anyhow::Result;
 
 #[cfg(test)]
 mod tests {
@@ -39,7 +39,7 @@ mod tests {
 
         // Verify required fields per OpenAPI schema
         assert_eq!(manifest.version, "1.0.0");
-        assert!(manifest.created.len() > 0);
+        assert!(!manifest.created.is_empty());
         assert_eq!(manifest.kernel_version, Some("6.7.0".to_string()));
         assert_eq!(manifest.total_chunks, 1);
         assert_eq!(manifest.chunks.len(), 1);
@@ -290,9 +290,9 @@ mod tests {
             subsystem: "kernel".to_string(),
             size_bytes: 2048,
             checksum_sha256: "abcd1234".repeat(8), // 64 char hex string
-            symbol_count: Some(150), // Updated count
-            entry_point_count: Some(8), // Updated count
-            file_count: Some(12), // Updated count
+            symbol_count: Some(150),               // Updated count
+            entry_point_count: Some(8),            // Updated count
+            file_count: Some(12),                  // Updated count
         };
 
         builder.update_chunk_metadata(&chunk_id, updated_metadata)?;
@@ -373,10 +373,18 @@ mod tests {
         let elapsed = start_time.elapsed();
 
         assert_eq!(manifest.total_chunks, 100);
-        assert!(elapsed.as_millis() < 1000, "Manifest build took too long: {:?}", elapsed);
+        assert!(
+            elapsed.as_millis() < 1000,
+            "Manifest build took too long: {:?}",
+            elapsed
+        );
 
         // Verify subsystem grouping if sorting is enabled
-        let subsystems: Vec<&str> = manifest.chunks.iter().map(|c| c.subsystem.as_str()).collect();
+        let subsystems: Vec<&str> = manifest
+            .chunks
+            .iter()
+            .map(|c| c.subsystem.as_str())
+            .collect();
         let mut unique_subsystems = subsystems.clone();
         unique_subsystems.sort();
         unique_subsystems.dedup();

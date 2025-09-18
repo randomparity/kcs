@@ -37,7 +37,7 @@ pub struct ChunkWriterConfig {
 impl Default for ChunkWriterConfig {
     fn default() -> Self {
         Self {
-            max_chunk_size: 50 * 1024 * 1024, // 50MB constitutional limit
+            max_chunk_size: 50 * 1024 * 1024,    // 50MB constitutional limit
             target_chunk_size: 45 * 1024 * 1024, // 45MB target (90% of max)
             auto_split: false,
             format: ChunkFormat::Json,
@@ -104,7 +104,7 @@ pub enum ChunkWriterError {
         /// Actual size of the chunk in bytes
         size: usize,
         /// Maximum allowed size limit in bytes
-        limit: usize
+        limit: usize,
     },
     /// I/O error occurred
     IoError(std::io::Error),
@@ -208,7 +208,11 @@ impl ChunkWriter {
     }
 
     /// Write a raw chunk of data
-    pub fn write_chunk(&mut self, chunk_id: &str, data: &[u8]) -> Result<ChunkInfo, ChunkWriterError> {
+    pub fn write_chunk(
+        &mut self,
+        chunk_id: &str,
+        data: &[u8],
+    ) -> Result<ChunkInfo, ChunkWriterError> {
         // Check size limits
         if data.len() > self.config.max_chunk_size {
             return Err(ChunkWriterError::ChunkTooLarge {
@@ -311,10 +315,12 @@ impl ChunkWriter {
         chunk_id: &str,
         data: &[u8],
     ) -> Result<FileInfo, ChunkWriterError> {
-        let output_dir = self.config.output_directory.as_ref()
-            .ok_or_else(|| ChunkWriterError::IoError(
-                std::io::Error::new(std::io::ErrorKind::InvalidInput, "No output directory configured")
-            ))?;
+        let output_dir = self.config.output_directory.as_ref().ok_or_else(|| {
+            ChunkWriterError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "No output directory configured",
+            ))
+        })?;
 
         let filename = self.generate_filename(chunk_id);
         let file_path = output_dir.join(&filename);
@@ -342,9 +348,11 @@ impl ChunkWriter {
             CompressionLevel::None => Ok((data.to_vec(), data.len())),
             compression_level => {
                 let mut encoder = GzEncoder::new(Vec::new(), compression_level.to_flate2_level());
-                encoder.write_all(data)
+                encoder
+                    .write_all(data)
                     .map_err(|e| ChunkWriterError::CompressionError(e.to_string()))?;
-                let compressed_data = encoder.finish()
+                let compressed_data = encoder
+                    .finish()
                     .map_err(|e| ChunkWriterError::CompressionError(e.to_string()))?;
                 Ok((compressed_data.clone(), compressed_data.len()))
             }
@@ -410,7 +418,10 @@ impl ChunkWriter {
         Ok(best_split.min(data.len()))
     }
 
-    fn estimate_serialized_size<T: Serialize>(&self, data: &[T]) -> Result<usize, ChunkWriterError> {
+    fn estimate_serialized_size<T: Serialize>(
+        &self,
+        data: &[T],
+    ) -> Result<usize, ChunkWriterError> {
         // For performance, we estimate rather than fully serialize
         // This is a heuristic based on the assumption that each item averages ~1KB when serialized
         Ok(data.len() * 1024)

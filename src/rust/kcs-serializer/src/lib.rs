@@ -37,12 +37,16 @@ mod manifest_test;
 mod checksum_test;
 
 // Re-export main types for convenience
-pub use checksum::{ChecksumCalculator, ChecksumConfig, ChecksumError, ChecksumResult, HashAlgorithm};
-pub use chunk_writer::{ChunkWriter, ChunkWriterConfig, ChunkWriterError, ChunkInfo, FileInfo};
+pub use checksum::{
+    ChecksumCalculator, ChecksumConfig, ChecksumError, ChecksumResult, HashAlgorithm,
+};
+pub use chunk_writer::{ChunkInfo, ChunkWriter, ChunkWriterConfig, ChunkWriterError, FileInfo};
 pub use chunker::{ChunkOptions, GraphChunk, GraphChunker};
 pub use graphml_export::GraphMLExporter;
 pub use json_export::JsonGraphExporter;
-pub use manifest::{ChunkManifest, ChunkMetadata, ManifestBuilder, ManifestBuilderConfig, ManifestError, ChunkInput};
+pub use manifest::{
+    ChunkInput, ChunkManifest, ChunkMetadata, ManifestBuilder, ManifestBuilderConfig, ManifestError,
+};
 
 /// Common trait for graph exporters
 pub trait GraphExporter {

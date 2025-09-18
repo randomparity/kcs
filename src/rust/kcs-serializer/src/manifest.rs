@@ -104,7 +104,7 @@ pub enum ManifestError {
         /// ID of the invalid chunk
         chunk_id: String,
         /// Reason for the validation failure
-        reason: String
+        reason: String,
     },
     /// Duplicate chunk ID
     DuplicateChunkId(String),
@@ -113,7 +113,7 @@ pub enum ManifestError {
         /// Expected total size in bytes
         expected: u64,
         /// Actual calculated size in bytes
-        actual: u64
+        actual: u64,
     },
 }
 
@@ -128,7 +128,11 @@ impl std::fmt::Display for ManifestError {
             }
             Self::DuplicateChunkId(id) => write!(f, "Duplicate chunk ID: {}", id),
             Self::TotalSizeMismatch { expected, actual } => {
-                write!(f, "Total size mismatch: expected {} bytes, got {}", expected, actual)
+                write!(
+                    f,
+                    "Total size mismatch: expected {} bytes, got {}",
+                    expected, actual
+                )
             }
         }
     }
@@ -190,14 +194,17 @@ impl ManifestBuilder {
         // Check for duplicate file paths
         if self.file_paths.contains(&input.file_path) {
             // Find the existing chunk with this file path and return its ID as the duplicate
-            let existing_chunk = self.chunks.iter()
+            let existing_chunk = self
+                .chunks
+                .iter()
                 .find(|chunk| chunk.file == input.file_path.to_string_lossy())
                 .unwrap(); // We know it exists because file_paths contains it
             return Err(ManifestError::DuplicateChunkId(existing_chunk.id.clone()));
         }
 
         // Generate sequence number for this subsystem
-        let sequence_number = *self.chunk_id_counter
+        let sequence_number = *self
+            .chunk_id_counter
             .entry(input.subsystem.clone())
             .and_modify(|e| *e += 1)
             .or_insert(1);
@@ -248,9 +255,9 @@ impl ManifestBuilder {
         let chunk_input = ChunkInput {
             file_path: file_path.to_path_buf(),
             subsystem,
-            symbol_count: 100, // Placeholder
+            symbol_count: 100,    // Placeholder
             entry_point_count: 5, // Placeholder
-            file_count: 10, // Placeholder
+            file_count: 10,       // Placeholder
         };
 
         self.add_chunk(chunk_input)
@@ -270,7 +277,8 @@ impl ManifestBuilder {
         if self.config.sort_chunks {
             chunks.sort_by(|a, b| {
                 // Sort by subsystem first, then by sequence
-                a.subsystem.cmp(&b.subsystem)
+                a.subsystem
+                    .cmp(&b.subsystem)
                     .then_with(|| a.sequence.cmp(&b.sequence))
             });
         }
@@ -319,31 +327,34 @@ impl ManifestBuilder {
             .map_err(|e| ManifestError::ValidationError(format!("Regex error: {}", e)))?;
 
         if !version_regex.is_match(&manifest.version) {
-            return Err(ManifestError::ValidationError(
-                format!("Version '{}' does not match semver format", manifest.version)
-            ));
+            return Err(ManifestError::ValidationError(format!(
+                "Version '{}' does not match semver format",
+                manifest.version
+            )));
         }
 
         // Validate created timestamp (ISO 8601)
         if chrono::DateTime::parse_from_rfc3339(&manifest.created).is_err() {
-            return Err(ManifestError::ValidationError(
-                format!("Created timestamp '{}' is not valid ISO 8601", manifest.created)
-            ));
+            return Err(ManifestError::ValidationError(format!(
+                "Created timestamp '{}' is not valid ISO 8601",
+                manifest.created
+            )));
         }
 
         // Validate minimum chunk count
         if manifest.total_chunks == 0 {
             return Err(ManifestError::ValidationError(
-                "total_chunks must be at least 1".to_string()
+                "total_chunks must be at least 1".to_string(),
             ));
         }
 
         // Validate chunks array length matches total_chunks
         if manifest.chunks.len() != manifest.total_chunks {
-            return Err(ManifestError::ValidationError(
-                format!("chunks array length ({}) does not match total_chunks ({})",
-                    manifest.chunks.len(), manifest.total_chunks)
-            ));
+            return Err(ManifestError::ValidationError(format!(
+                "chunks array length ({}) does not match total_chunks ({})",
+                manifest.chunks.len(),
+                manifest.total_chunks
+            )));
         }
 
         // Validate each chunk
@@ -364,12 +375,17 @@ impl ManifestBuilder {
     }
 
     /// Update existing chunk metadata
-    pub fn update_chunk_metadata(&mut self, chunk_id: &str, metadata: ChunkMetadata) -> Result<(), ManifestError> {
+    pub fn update_chunk_metadata(
+        &mut self,
+        chunk_id: &str,
+        metadata: ChunkMetadata,
+    ) -> Result<(), ManifestError> {
         // Validate the new metadata
         self.validate_chunk_metadata(&metadata)?;
 
         // Find and update the chunk
-        let chunk_index = self.chunks
+        let chunk_index = self
+            .chunks
             .iter()
             .position(|chunk| chunk.id == chunk_id)
             .ok_or_else(|| ManifestError::InvalidChunkData {
@@ -390,7 +406,8 @@ impl ManifestBuilder {
 
     /// Remove a chunk from the manifest
     pub fn remove_chunk(&mut self, chunk_id: &str) -> Result<(), ManifestError> {
-        let chunk_index = self.chunks
+        let chunk_index = self
+            .chunks
             .iter()
             .position(|chunk| chunk.id == chunk_id)
             .ok_or_else(|| ManifestError::InvalidChunkData {
@@ -421,7 +438,10 @@ impl ManifestBuilder {
         if chunk.checksum_sha256.len() != 64 {
             return Err(ManifestError::InvalidChunkData {
                 chunk_id: chunk.id.clone(),
-                reason: format!("Checksum must be 64 characters, got {}", chunk.checksum_sha256.len()),
+                reason: format!(
+                    "Checksum must be 64 characters, got {}",
+                    chunk.checksum_sha256.len()
+                ),
             });
         }
 

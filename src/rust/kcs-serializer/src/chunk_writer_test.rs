@@ -3,8 +3,8 @@
 //! These tests verify the ChunkWriter implementation handles size constraints
 //! correctly, including the constitutional 50MB chunk size limit.
 
-use anyhow::Result;
 use crate::chunk_writer::*;
+use anyhow::Result;
 
 #[cfg(test)]
 mod tests {
@@ -14,7 +14,7 @@ mod tests {
     #[test]
     fn test_chunk_writer_size_limit() -> Result<()> {
         let config = ChunkWriterConfig {
-            max_chunk_size: 50 * 1024 * 1024, // 50MB constitutional limit
+            max_chunk_size: 50 * 1024 * 1024,    // 50MB constitutional limit
             target_chunk_size: 45 * 1024 * 1024, // 45MB target
             ..Default::default()
         };
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn test_chunk_writer_auto_splitting() -> Result<()> {
         let config = ChunkWriterConfig {
-            max_chunk_size: 10 * 1024 * 1024, // 10MB limit for testing
+            max_chunk_size: 10 * 1024 * 1024,   // 10MB limit for testing
             target_chunk_size: 8 * 1024 * 1024, // 8MB target
             auto_split: true,
             ..Default::default()
@@ -224,7 +224,7 @@ mod tests {
         assert!(chunk_info.metadata.is_some());
 
         let metadata = chunk_info.metadata.unwrap();
-        assert!(metadata.created_at.len() > 0);
+        assert!(!metadata.created_at.is_empty());
         assert_eq!(metadata.chunk_version, "1.0.0");
         assert!(metadata.total_symbols > 0 || metadata.total_entry_points > 0);
 
@@ -244,7 +244,7 @@ mod tests {
                 Ok(writer) => writers.push(writer),
                 Err(_) => {
                     // Expected to fail until T018 implementation
-                    assert!(true, "Expected failure until ChunkWriter is implemented");
+                    // If writer creation fails, test passes as implementation is not complete
                     return Ok(());
                 }
             }

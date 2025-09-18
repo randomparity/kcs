@@ -73,7 +73,11 @@ impl std::fmt::Display for ChecksumError {
             Self::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
             Self::IoError(e) => write!(f, "IO error: {}", e),
             Self::VerificationFailed { expected, actual } => {
-                write!(f, "Checksum verification failed: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Checksum verification failed: expected {}, got {}",
+                    expected, actual
+                )
             }
             Self::UnsupportedAlgorithm(algo) => write!(f, "Unsupported algorithm: {}", algo),
         }
@@ -122,9 +126,10 @@ impl ChecksumCalculator {
     /// Calculate SHA256 checksum for data in memory
     pub fn calculate_sha256(&mut self, data: &[u8]) -> Result<String, ChecksumError> {
         if self.config.algorithm != HashAlgorithm::Sha256 {
-            return Err(ChecksumError::UnsupportedAlgorithm(
-                format!("{:?}", self.config.algorithm)
-            ));
+            return Err(ChecksumError::UnsupportedAlgorithm(format!(
+                "{:?}",
+                self.config.algorithm
+            )));
         }
 
         // Generate cache key if caching is enabled
@@ -157,21 +162,24 @@ impl ChecksumCalculator {
     /// Calculate SHA256 checksum for a file
     pub fn calculate_sha256_file(&mut self, file_path: &Path) -> Result<String, ChecksumError> {
         if self.config.algorithm != HashAlgorithm::Sha256 {
-            return Err(ChecksumError::UnsupportedAlgorithm(
-                format!("{:?}", self.config.algorithm)
-            ));
+            return Err(ChecksumError::UnsupportedAlgorithm(format!(
+                "{:?}",
+                self.config.algorithm
+            )));
         }
 
         // Generate cache key based on file path and metadata
         let cache_key = if self.config.cache_checksums {
             match std::fs::metadata(file_path) {
                 Ok(metadata) => {
-                    let modified = metadata.modified()
+                    let modified = metadata
+                        .modified()
                         .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
                         .duration_since(std::time::SystemTime::UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs();
-                    Some(format!("sha256_file:{}:{}:{}",
+                    Some(format!(
+                        "sha256_file:{}:{}:{}",
                         file_path.to_string_lossy(),
                         metadata.len(),
                         modified
@@ -204,7 +212,10 @@ impl ChecksumCalculator {
     }
 
     /// Calculate checksum with additional metadata
-    pub fn calculate_with_metadata(&mut self, data: &[u8]) -> Result<ChecksumResult, ChecksumError> {
+    pub fn calculate_with_metadata(
+        &mut self,
+        data: &[u8],
+    ) -> Result<ChecksumResult, ChecksumError> {
         let start_time = Instant::now();
 
         // Generate cache key if caching is enabled
@@ -242,9 +253,10 @@ impl ChecksumCalculator {
     pub fn verify_checksum(&mut self, data: &[u8], expected: &str) -> Result<bool, ChecksumError> {
         // Validate expected checksum format first
         if expected.len() != 64 || !expected.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(ChecksumError::InvalidInput(
-                format!("Invalid checksum format: expected 64 hex characters, got '{}'", expected)
-            ));
+            return Err(ChecksumError::InvalidInput(format!(
+                "Invalid checksum format: expected 64 hex characters, got '{}'",
+                expected
+            )));
         }
 
         let actual = self.calculate_sha256(data)?;
@@ -257,12 +269,17 @@ impl ChecksumCalculator {
     }
 
     /// Verify that a file matches the expected checksum
-    pub fn verify_file_checksum(&mut self, file_path: &Path, expected: &str) -> Result<bool, ChecksumError> {
+    pub fn verify_file_checksum(
+        &mut self,
+        file_path: &Path,
+        expected: &str,
+    ) -> Result<bool, ChecksumError> {
         // Validate expected checksum format first
         if expected.len() != 64 || !expected.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(ChecksumError::InvalidInput(
-                format!("Invalid checksum format: expected 64 hex characters, got '{}'", expected)
-            ));
+            return Err(ChecksumError::InvalidInput(format!(
+                "Invalid checksum format: expected 64 hex characters, got '{}'",
+                expected
+            )));
         }
 
         let actual = self.calculate_sha256_file(file_path)?;
@@ -285,11 +302,15 @@ impl ChecksumCalculator {
     }
 
     /// Calculate checksum from a streaming reader
-    pub fn calculate_streaming(&mut self, mut reader: Box<dyn Read>) -> Result<String, ChecksumError> {
+    pub fn calculate_streaming(
+        &mut self,
+        mut reader: Box<dyn Read>,
+    ) -> Result<String, ChecksumError> {
         if self.config.algorithm != HashAlgorithm::Sha256 {
-            return Err(ChecksumError::UnsupportedAlgorithm(
-                format!("{:?}", self.config.algorithm)
-            ));
+            return Err(ChecksumError::UnsupportedAlgorithm(format!(
+                "{:?}",
+                self.config.algorithm
+            )));
         }
 
         let mut hasher = Sha256::new();
@@ -312,7 +333,8 @@ impl ChecksumCalculator {
     fn quick_hash(&self, data: &[u8]) -> u64 {
         // Simple FNV-1a hash for cache key generation
         let mut hash = 14695981039346656037u64;
-        for &byte in data.iter().take(1024) { // Only hash first 1KB for speed
+        for &byte in data.iter().take(1024) {
+            // Only hash first 1KB for speed
             hash ^= byte as u64;
             hash = hash.wrapping_mul(1099511628211);
         }

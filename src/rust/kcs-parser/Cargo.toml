@@ -23,6 +23,9 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
+# Internal dependencies
+kcs-serializer = { path = "../kcs-serializer" }
+
 # Parser-specific dependencies
 tree-sitter = { workspace = true }
 tree-sitter-c = { workspace = true }

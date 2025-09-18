@@ -3,8 +3,8 @@
 //! These tests verify the checksum module provides accurate and reliable
 //! SHA256 hash calculation for chunk integrity verification.
 
-use anyhow::Result;
 use crate::checksum::*;
+use anyhow::Result;
 
 #[cfg(test)]
 mod tests {
@@ -148,7 +148,7 @@ mod tests {
         assert_eq!(result.algorithm, HashAlgorithm::Sha256);
         assert_eq!(result.hash.len(), 64);
         assert_eq!(result.data_size, 1024);
-        assert!(result.calculation_time_ms >= 0);
+        // calculation_time_ms is unsigned, so this assertion is always true and unnecessary
         assert!(!result.from_cache); // First calculation shouldn't be from cache
 
         Ok(())
