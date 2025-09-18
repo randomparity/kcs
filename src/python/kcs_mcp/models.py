@@ -686,3 +686,183 @@ class HealthResponse(BaseModel):
     status: str = Field(..., pattern="^healthy$")
     version: str
     indexed_at: str | None = Field(None, description="Last index timestamp")
+
+
+# Export Graph models
+class ExportFilters(BaseModel):
+    """Filters for graph export."""
+
+    exclude_patterns: list[str] | None = Field(
+        None, description="Symbol patterns to exclude"
+    )
+    include_subsystems: list[str] | None = Field(
+        None, description="Subsystems to include"
+    )
+    exclude_subsystems: list[str] | None = Field(
+        None, description="Subsystems to exclude"
+    )
+    min_edge_weight: float | None = Field(
+        None, description="Minimum edge weight", ge=0.0
+    )
+    exclude_indirect: bool | None = Field(False, description="Exclude indirect calls")
+
+
+class StylingOptions(BaseModel):
+    """Styling options for graph visualization."""
+
+    node_color: str | None = Field(None, description="Default node color")
+    edge_color: str | None = Field(None, description="Default edge color")
+    font_size: int | None = Field(None, description="Font size", ge=6, le=72)
+    node_shape: str | None = Field(None, description="Node shape")
+    edge_style: str | None = Field(None, description="Edge style")
+
+
+class ExportGraphRequest(BaseModel):
+    """Request for graph export."""
+
+    root_symbol: str | None = Field(
+        None, description="Root symbol for export", min_length=1
+    )
+    format: str = Field(
+        ..., description="Export format", pattern="^(json|graphml|dot|csv)$"
+    )
+    depth: int | None = Field(5, description="Maximum depth", ge=1, le=100)
+    include_metadata: bool | None = Field(False, description="Include node metadata")
+    include_attributes: bool | None = Field(
+        False, description="Include GraphML attributes"
+    )
+    pretty: bool | None = Field(False, description="Pretty print output")
+    layout: str | None = Field("hierarchical", description="Graph layout algorithm")
+    styling: StylingOptions | None = Field(None, description="Styling options")
+    csv_type: str | None = Field(
+        "edge_list", description="CSV export type", pattern="^(edge_list|adjacency)$"
+    )
+    filters: ExportFilters | None = Field(None, description="Export filters")
+    chunk_size: int | None = Field(
+        None, description="Chunk size for large exports", ge=1, le=10000
+    )
+    chunk_index: int | None = Field(
+        None, description="Chunk index for pagination", ge=0
+    )
+    compress: bool | None = Field(False, description="Enable compression")
+    compression_format: str | None = Field(
+        "gzip", description="Compression format", pattern="^(gzip|zlib|bzip2)$"
+    )
+    async_export: bool | None = Field(
+        False, description="Asynchronous export", alias="async"
+    )
+    callback_url: str | None = Field(None, description="Callback URL for async export")
+    include_annotations: bool | None = Field(
+        False, description="Include code annotations"
+    )
+    annotation_types: list[str] | None = Field(
+        None, description="Types of annotations to include"
+    )
+    include_statistics: bool | None = Field(
+        False, description="Include graph statistics"
+    )
+
+
+class GraphNode(BaseModel):
+    """Node in exported graph."""
+
+    id: str = Field(..., description="Node identifier")
+    label: str = Field(..., description="Node label")
+    type: str = Field(..., description="Node type")
+    metadata: dict[str, Any] | None = Field(None, description="Node metadata")
+    annotations: dict[str, Any] | None = Field(None, description="Code annotations")
+
+
+class GraphEdge(BaseModel):
+    """Edge in exported graph."""
+
+    source: str = Field(..., description="Source node ID")
+    target: str = Field(..., description="Target node ID")
+    type: str = Field(..., description="Edge type")
+    weight: float | None = Field(None, description="Edge weight", ge=0.0)
+    metadata: dict[str, Any] | None = Field(None, description="Edge metadata")
+
+
+class ExportedGraph(BaseModel):
+    """Exported graph structure."""
+
+    nodes: list[GraphNode] = Field(..., description="Graph nodes")
+    edges: list[GraphEdge] = Field(..., description="Graph edges")
+    metadata: dict[str, Any] = Field(..., description="Graph metadata")
+
+
+class ChunkInfo(BaseModel):
+    """Information about chunked export."""
+
+    total_chunks: int = Field(..., description="Total number of chunks", ge=1)
+    current_chunk: int = Field(..., description="Current chunk index", ge=0)
+    chunk_size: int = Field(..., description="Chunk size", ge=1)
+    has_more: bool = Field(..., description="Whether more chunks are available")
+
+
+class SizeInfo(BaseModel):
+    """Size information for compressed exports."""
+
+    original_size: int = Field(..., description="Original size in bytes", ge=0)
+    compressed_size: int = Field(..., description="Compressed size in bytes", ge=0)
+    compression_ratio: float = Field(..., description="Compression ratio", ge=0.0)
+
+
+class GraphStatistics(BaseModel):
+    """Graph analysis statistics."""
+
+    total_nodes: int = Field(..., description="Total number of nodes", ge=0)
+    total_edges: int = Field(..., description="Total number of edges", ge=0)
+    max_depth_reached: int = Field(..., description="Maximum depth reached", ge=0)
+    avg_degree: float = Field(..., description="Average node degree", ge=0.0)
+    density: float = Field(..., description="Graph density", ge=0.0, le=1.0)
+    connected_components: int = Field(
+        ..., description="Number of connected components", ge=0
+    )
+    cycles_count: int = Field(..., description="Number of cycles detected", ge=0)
+    longest_path: int = Field(..., description="Longest path length", ge=0)
+
+
+class AsyncJobInfo(BaseModel):
+    """Information about asynchronous export job."""
+
+    job_id: str = Field(..., description="Unique job identifier")
+    status: str = Field(
+        ..., description="Job status", pattern="^(pending|processing|completed|failed)$"
+    )
+    status_url: str = Field(..., description="URL to check job status")
+    estimated_time: int | None = Field(
+        None, description="Estimated completion time in seconds", ge=0
+    )
+    progress: float | None = Field(
+        None, description="Job progress percentage", ge=0.0, le=100.0
+    )
+
+
+class ExportGraphResponse(BaseModel):
+    """Response for graph export."""
+
+    export_id: str = Field(..., description="Unique export identifier")
+    format: str = Field(..., description="Export format")
+    exported_at: str = Field(..., description="Export timestamp")
+
+    # Format-specific fields
+    graph: ExportedGraph | None = Field(None, description="JSON graph data")
+    graphml: str | None = Field(None, description="GraphML XML data")
+    dot: str | None = Field(None, description="DOT/Graphviz data")
+    csv: str | None = Field(None, description="CSV data")
+
+    # Compression fields
+    compressed: bool | None = Field(None, description="Whether data is compressed")
+    compression_format: str | None = Field(None, description="Compression format used")
+    graph_data: str | None = Field(None, description="Base64 encoded compressed data")
+    size_info: SizeInfo | None = Field(None, description="Size information")
+
+    # Chunking fields
+    chunk_info: ChunkInfo | None = Field(None, description="Chunk information")
+
+    # Statistics and metadata
+    statistics: GraphStatistics | None = Field(None, description="Graph statistics")
+
+    # Async export fields
+    job_info: AsyncJobInfo | None = Field(None, description="Async job information")
