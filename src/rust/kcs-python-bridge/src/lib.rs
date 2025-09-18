@@ -4,7 +4,6 @@
 //! using PyO3 for high-performance integration.
 
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use std::collections::HashMap;
 
 use kcs_extractor::{EntryType, ExtractionConfig, Extractor};
@@ -12,7 +11,7 @@ use kcs_parser::kernel_patterns::{PatternDetector, PatternType};
 use kcs_parser::{ExtendedParserConfig, ParseResult, ParsedFile, Parser};
 
 /// Python wrapper for the Rust Parser
-#[pyclass]
+#[pyclass(unsendable)]
 struct PyParser {
     parser: Parser,
 }
@@ -143,7 +142,7 @@ impl PyParser {
     }
 
     /// Set parser configuration (deprecated - configuration is now set at construction time)
-    fn configure(&mut self, _py_config: &PyDict) -> PyResult<()> {
+    fn configure(&mut self, _py_config: &Bound<'_, pyo3::types::PyDict>) -> PyResult<()> {
         // Configuration is now immutable and set at parser creation
         // This method is kept for backward compatibility but does nothing
         Ok(())
@@ -357,7 +356,7 @@ fn extract_entry_points(
 
 /// Python module definition
 #[pymodule]
-fn kcs_python_bridge(_py: Python, m: &PyModule) -> PyResult<()> {
+fn kcs_python_bridge(_py: Python, m: &Bound<'_, pyo3::types::PyModule>) -> PyResult<()> {
     m.add_class::<PyParser>()?;
     m.add_class::<PySymbolInfo>()?;
     m.add_class::<PyParseResult>()?;
