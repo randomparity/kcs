@@ -702,6 +702,72 @@ class Database:
                     json.dumps(metadata),
                 )
 
+    async def store_validation_result(
+        self,
+        validation_id: str,
+        specification_id: str,
+        spec_name: str,
+        spec_version: str,
+        entry_point: str,
+        compliance_score: float,
+        is_valid: bool,
+        deviations: list,
+        implementation_details: dict,
+    ) -> None:
+        """
+        Store specification validation result in the database.
+
+        Args:
+            validation_id: Unique validation identifier
+            specification_id: Specification identifier
+            spec_name: Specification name
+            spec_version: Specification version
+            entry_point: Entry point symbol
+            compliance_score: Compliance score (0-100)
+            is_valid: Whether validation passed
+            deviations: List of deviations
+            implementation_details: Implementation details
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                import json
+
+                # Store specification if not exists
+                spec_sql = """
+                INSERT INTO specification (
+                    spec_id, name, version, entry_point, created_at
+                )
+                VALUES ($1, $2, $3, $4, NOW())
+                ON CONFLICT (spec_id) DO NOTHING
+                """
+
+                await conn.execute(
+                    spec_sql,
+                    specification_id,
+                    spec_name,
+                    spec_version,
+                    entry_point,
+                )
+
+                # Store validation result
+                validation_sql = """
+                INSERT INTO drift_report (
+                    report_id, spec_id, compliance_score, is_valid,
+                    deviations, implementation_details, validated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                """
+
+                await conn.execute(
+                    validation_sql,
+                    validation_id,
+                    specification_id,
+                    compliance_score,
+                    is_valid,
+                    json.dumps([dev.dict() for dev in deviations]),
+                    json.dumps(implementation_details),
+                )
+
 
 # Global database instance
 _database: Database | None = None
@@ -834,6 +900,28 @@ class MockDatabase(Database):
             arch=arch,
             config_name=config_name,
             options_count=len(options),
+        )
+
+    async def store_validation_result(
+        self,
+        validation_id: str,
+        specification_id: str,
+        spec_name: str,
+        spec_version: str,
+        entry_point: str,
+        compliance_score: float,
+        is_valid: bool,
+        deviations: list,
+        implementation_details: dict,
+    ) -> None:
+        """Mock validation result storage."""
+        logger.info(
+            "Mock storing validation result",
+            validation_id=validation_id,
+            spec_name=spec_name,
+            compliance_score=compliance_score,
+            is_valid=is_valid,
+            deviations_count=len(deviations),
         )
 
 

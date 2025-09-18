@@ -290,6 +290,148 @@ class ParseKernelConfigResponse(BaseModel):
     diff: dict[str, Any] | None = Field(None, description="Diff for incremental mode")
 
 
+class SpecificationBehavior(BaseModel):
+    """Expected behavior specification."""
+
+    description: str = Field(..., description="Behavior description")
+    preconditions: list[str] | None = Field(None, description="Required preconditions")
+    postconditions: list[str] | None = Field(
+        None, description="Expected postconditions"
+    )
+    error_conditions: list[str] | None = Field(
+        None, description="Expected error conditions"
+    )
+
+
+class SpecificationParameter(BaseModel):
+    """Function parameter specification."""
+
+    name: str = Field(..., description="Parameter name")
+    type: str = Field(..., description="Parameter type")
+    description: str | None = Field(None, description="Parameter description")
+
+
+class ImplementationHints(BaseModel):
+    """Hints for finding implementation."""
+
+    file_pattern: str | None = Field(None, description="File pattern to search")
+    subsystem: str | None = Field(None, description="Kernel subsystem")
+    related_symbols: list[str] | None = Field(None, description="Related symbols")
+
+
+class Specification(BaseModel):
+    """Specification definition."""
+
+    name: str = Field(..., description="Specification name")
+    version: str = Field(
+        ..., description="Version (semver)", pattern=r"^\d+\.\d+\.\d+$"
+    )
+    entry_point: str = Field(..., description="Entry point symbol name")
+    expected_behavior: SpecificationBehavior | None = Field(
+        None, description="Expected behavior"
+    )
+    parameters: list[SpecificationParameter] | None = Field(
+        None, description="Parameters"
+    )
+    implementation_hints: ImplementationHints | None = Field(
+        None, description="Implementation hints"
+    )
+    previous_version: str | None = Field(
+        None, description="Previous version for comparison"
+    )
+
+
+class ValidateSpecRequest(BaseModel):
+    """Request for specification validation."""
+
+    specification: Specification = Field(..., description="Specification to validate")
+    specifications: list[Specification] | None = Field(
+        None, description="For batch validation"
+    )
+    kernel_version: str | None = Field(None, description="Target kernel version")
+    config: str | None = Field(None, description="Kernel configuration")
+    drift_threshold: float | None = Field(
+        0.7, description="Compliance threshold (0.0-1.0)", ge=0.0, le=1.0
+    )
+    include_suggestions: bool | None = Field(
+        False, description="Include improvement suggestions"
+    )
+    compare_with_previous: bool | None = Field(
+        False, description="Compare with previous version"
+    )
+
+
+class SpecDeviation(BaseModel):
+    """Specification deviation."""
+
+    type: str = Field(
+        ...,
+        description="Deviation type",
+        pattern="^(missing_implementation|behavior_mismatch|parameter_mismatch|error_handling|performance)$",
+    )
+    severity: str = Field(
+        ...,
+        description="Deviation severity",
+        pattern="^(critical|major|minor|info)$",
+    )
+    description: str = Field(..., description="Detailed description")
+    location: Span | None = Field(None, description="Related code location")
+
+
+class ImplementationDetails(BaseModel):
+    """Implementation details found during validation."""
+
+    entry_point: dict[str, Any] | None = Field(
+        None, description="Entry point information"
+    )
+    call_graph: list[dict[str, Any]] | None = Field(
+        None, description="Call graph analysis"
+    )
+    parameters_found: list[dict[str, Any]] | None = Field(
+        None, description="Parameters found"
+    )
+
+
+class ValidationSuggestion(BaseModel):
+    """Improvement suggestion."""
+
+    type: str = Field(..., description="Suggestion type")
+    description: str = Field(..., description="Suggestion description")
+    priority: str | None = Field(None, description="Priority level")
+
+
+class ValidationComparison(BaseModel):
+    """Comparison with previous validation."""
+
+    compliance_delta: float = Field(..., description="Change in compliance score")
+    new_deviations: list[SpecDeviation] = Field(..., description="New deviations")
+    resolved_deviations: list[SpecDeviation] = Field(
+        ..., description="Resolved deviations"
+    )
+
+
+class ValidateSpecResponse(BaseModel):
+    """Response for specification validation."""
+
+    validation_id: str = Field(..., description="Unique validation identifier (UUID)")
+    specification_id: str = Field(..., description="Specification identifier (UUID)")
+    is_valid: bool = Field(..., description="Whether specification is valid")
+    compliance_score: float = Field(
+        ..., description="Compliance score (0-100)", ge=0, le=100
+    )
+    deviations: list[SpecDeviation] = Field(..., description="Specification deviations")
+    implementation_details: ImplementationDetails = Field(
+        ..., description="Implementation details"
+    )
+    validated_at: str = Field(..., description="Validation timestamp (ISO format)")
+    suggestions: list[ValidationSuggestion] | None = Field(
+        None, description="Improvement suggestions"
+    )
+    comparison: ValidationComparison | None = Field(
+        None, description="Previous version comparison"
+    )
+
+
 # Error response
 class ErrorResponse(BaseModel):
     """Standard error response."""

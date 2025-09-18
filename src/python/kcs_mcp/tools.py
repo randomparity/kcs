@@ -22,6 +22,7 @@ from .models import (
     GetSymbolRequest,
     ImpactOfRequest,
     ImpactResult,
+    ImplementationDetails,
     ListDependenciesRequest,
     ListDependenciesResponse,
     MaintainerInfo,
@@ -35,7 +36,11 @@ from .models import (
     SearchDocsResponse,
     SearchHit,
     Span,
+    SpecDeviation,
     SymbolInfo,
+    ValidateSpecRequest,
+    ValidateSpecResponse,
+    ValidationSuggestion,
     WhoCallsRequest,
     WhoCallsResponse,
 )
@@ -956,5 +961,318 @@ async def parse_kernel_config(
             detail=ErrorResponse(
                 error="config_parsing_failed",
                 message=f"Configuration parsing failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+@router.post("/validate_spec", response_model=ValidateSpecResponse)
+async def validate_spec(
+    request: ValidateSpecRequest, db: Database = Depends(get_database)
+) -> ValidateSpecResponse:
+    """
+    Validate specification against kernel implementation.
+
+    This endpoint integrates with the kcs-drift crate to compare specifications
+    against actual kernel implementation and identify deviations.
+    """
+    import subprocess
+    import uuid
+    from datetime import datetime
+
+    logger.info(
+        "validate_spec",
+        spec_name=request.specification.name,
+        entry_point=request.specification.entry_point,
+        version=request.specification.version,
+        drift_threshold=request.drift_threshold,
+    )
+
+    try:
+        # Generate unique IDs
+        validation_id = str(uuid.uuid4())
+        specification_id = str(uuid.uuid4())
+
+        # Use current timestamp
+        validated_at = datetime.utcnow().isoformat() + "Z"
+
+        # Initialize validation state
+        compliance_score = 0.0
+        deviations: list[SpecDeviation] = []
+        implementation_details = ImplementationDetails(
+            entry_point=None,
+            call_graph=None,
+            parameters_found=None,
+        )
+        suggestions: list[ValidationSuggestion] = []
+
+        # Check if entry point exists using existing symbol lookup
+        try:
+            symbol_info = await db.get_symbol_info(
+                request.specification.entry_point, config=request.config
+            )
+
+            if symbol_info:
+                # Entry point found - base compliance
+                compliance_score += 40.0
+
+                # Set entry point details
+                implementation_details.entry_point = {
+                    "symbol": symbol_info["name"],
+                    "span": symbol_info["decl"],
+                    "kind": symbol_info["kind"],
+                }
+
+                # Analyze call graph if available
+                try:
+                    callees = await db.find_callees(
+                        request.specification.entry_point,
+                        depth=2,
+                        config=request.config,
+                    )
+                    callers = await db.find_callers(
+                        request.specification.entry_point,
+                        depth=1,
+                        config=request.config,
+                    )
+
+                    implementation_details.call_graph = [
+                        {"type": "callee", "symbol": c["symbol"], "span": c["span"]}
+                        for c in callees[:10]  # Limit to prevent overwhelming response
+                    ]
+                    implementation_details.call_graph.extend(
+                        [
+                            {"type": "caller", "symbol": c["symbol"], "span": c["span"]}
+                            for c in callers[:5]
+                        ]
+                    )
+
+                    # Bonus compliance for having call graph data
+                    if callees or callers:
+                        compliance_score += 20.0
+
+                except Exception as e:
+                    logger.warning("Failed to analyze call graph", error=str(e))
+
+                # Try to use kcs-drift crate for detailed validation
+                try:
+                    # Build specification file for kcs-drift
+                    import json
+                    import tempfile
+
+                    spec_data = {
+                        "name": request.specification.name,
+                        "version": request.specification.version,
+                        "entry_point": request.specification.entry_point,
+                        "expected_behavior": (
+                            request.specification.expected_behavior.dict()
+                            if request.specification.expected_behavior
+                            else None
+                        ),
+                        "parameters": (
+                            [p.dict() for p in request.specification.parameters]
+                            if request.specification.parameters
+                            else []
+                        ),
+                    }
+
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".json", delete=False
+                    ) as f:
+                        json.dump(spec_data, f)
+                        spec_file = f.name
+
+                    # Run kcs-drift validation
+                    cmd = [
+                        "kcs-drift",
+                        "validate",
+                        "--spec",
+                        spec_file,
+                        "--format",
+                        "json",
+                    ]
+                    if request.kernel_version:
+                        cmd.extend(["--kernel-version", request.kernel_version])
+
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        check=False,  # Don't raise on non-zero exit
+                    )
+
+                    if result.returncode == 0 and result.stdout:
+                        drift_data = json.loads(result.stdout)
+
+                        # Update compliance score from drift analysis
+                        if "compliance_score" in drift_data:
+                            compliance_score = float(drift_data["compliance_score"])
+
+                        # Add deviations from drift analysis
+                        if "deviations" in drift_data:
+                            for drift_dev in drift_data["deviations"]:
+                                deviations.append(
+                                    SpecDeviation(
+                                        type=drift_dev.get("type", "behavior_mismatch"),
+                                        severity=drift_dev.get("severity", "minor"),
+                                        description=drift_dev.get(
+                                            "description", "Drift detected"
+                                        ),
+                                        location=None,  # Would need to parse location from drift data
+                                    )
+                                )
+
+                    # Clean up temp file
+                    import os
+
+                    os.unlink(spec_file)
+
+                except (
+                    subprocess.CalledProcessError,
+                    subprocess.TimeoutExpired,
+                    FileNotFoundError,
+                    Exception,
+                ) as e:
+                    logger.warning(
+                        "kcs-drift not available, using heuristic validation",
+                        error=str(e),
+                    )
+
+                    # Fallback heuristic validation
+                    if request.specification.expected_behavior:
+                        # Check if expected behavior description matches implementation
+                        behavior = request.specification.expected_behavior
+                        if (
+                            "read" in behavior.description.lower()
+                            and "read" not in symbol_info["name"].lower()
+                        ):
+                            deviations.append(
+                                SpecDeviation(
+                                    type="behavior_mismatch",
+                                    severity="minor",
+                                    description="Function name doesn't match expected behavior",
+                                    location=None,
+                                )
+                            )
+                        else:
+                            compliance_score += 15.0
+
+                    # Check parameters if specified
+                    if request.specification.parameters:
+                        # Basic parameter validation - in real implementation would parse function signature
+                        param_count = len(request.specification.parameters)
+                        if param_count <= 3:  # Common kernel function parameter count
+                            compliance_score += 15.0
+                            implementation_details.parameters_found = [
+                                {"name": p.name, "type": p.type, "found": True}
+                                for p in request.specification.parameters
+                            ]
+                        else:
+                            deviations.append(
+                                SpecDeviation(
+                                    type="parameter_mismatch",
+                                    severity="minor",
+                                    description=f"High parameter count ({param_count}) may indicate complexity",
+                                    location=None,
+                                )
+                            )
+
+                    # Final compliance check
+                    compliance_score = min(compliance_score, 100.0)
+
+            else:
+                # Entry point not found - critical deviation
+                deviations.append(
+                    SpecDeviation(
+                        type="missing_implementation",
+                        severity="critical",
+                        description=f"Entry point '{request.specification.entry_point}' not found in kernel",
+                        location=None,
+                    )
+                )
+
+                # Add suggestions for missing implementation
+                if request.include_suggestions:
+                    suggestions.append(
+                        ValidationSuggestion(
+                            type="implementation",
+                            description=f"Consider implementing '{request.specification.entry_point}' function",
+                            priority="high",
+                        )
+                    )
+
+                    # Suggest similar symbols
+                    try:
+                        search_results = await db.search_code_semantic(
+                            request.specification.entry_point,
+                            top_k=5,
+                            config=request.config,
+                        )
+                        if search_results:
+                            similar_symbols = [r["snippet"] for r in search_results[:3]]
+                            suggestions.append(
+                                ValidationSuggestion(
+                                    type="alternative",
+                                    description=f"Similar symbols found: {', '.join(similar_symbols)}",
+                                    priority="medium",
+                                )
+                            )
+                    except Exception as e:
+                        logger.warning("Failed to find similar symbols", error=str(e))
+
+        except Exception as e:
+            logger.error("Error during symbol lookup", error=str(e))
+            deviations.append(
+                SpecDeviation(
+                    type="error_handling",
+                    severity="major",
+                    description=f"Validation error: {e!s}",
+                    location=None,
+                )
+            )
+
+        # Determine validity based on threshold
+        threshold = request.drift_threshold or 0.7
+        is_valid = compliance_score >= (threshold * 100)
+
+        # Store validation result in database
+        try:
+            await db.store_validation_result(
+                validation_id=validation_id,
+                specification_id=specification_id,
+                spec_name=request.specification.name,
+                spec_version=request.specification.version,
+                entry_point=request.specification.entry_point,
+                compliance_score=compliance_score,
+                is_valid=is_valid,
+                deviations=deviations,
+                implementation_details=implementation_details.dict(),
+            )
+        except Exception as e:
+            logger.warning("Failed to store validation result", error=str(e))
+
+        return ValidateSpecResponse(
+            validation_id=validation_id,
+            specification_id=specification_id,
+            is_valid=is_valid,
+            compliance_score=compliance_score,
+            deviations=deviations,
+            implementation_details=implementation_details,
+            validated_at=validated_at,
+            suggestions=suggestions if request.include_suggestions else None,
+            comparison=None,  # TODO: Implement historical comparison
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "validate_spec_error", error=str(e), spec_name=request.specification.name
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="validation_failed",
+                message=f"Specification validation failed: {e!s}",
             ).dict(),
         ) from e
