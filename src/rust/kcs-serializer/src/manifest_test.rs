@@ -4,167 +4,7 @@
 //! chunk manifests following the OpenAPI schema and data model constraints.
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
-
-// Supporting types and configurations for testing
-// These would normally be defined in manifest.rs
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChunkManifest {
-    pub version: String,
-    pub created: String,
-    pub kernel_version: Option<String>,
-    pub kernel_path: Option<String>,
-    pub config: Option<String>,
-    pub total_chunks: usize,
-    pub total_size_bytes: u64,
-    pub chunks: Vec<ChunkMetadata>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChunkMetadata {
-    pub id: String,
-    pub sequence: usize,
-    pub file: String,
-    pub subsystem: String,
-    pub size_bytes: u64,
-    pub checksum_sha256: String,
-    pub symbol_count: Option<usize>,
-    pub entry_point_count: Option<usize>,
-    pub file_count: Option<usize>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ManifestBuilderConfig {
-    pub version: String,
-    pub kernel_version: Option<String>,
-    pub kernel_path: Option<String>,
-    pub config: Option<String>,
-    pub output_directory: Option<std::path::PathBuf>,
-    pub chunk_prefix: String,
-    pub validate_schema: bool,
-    pub sort_chunks: bool,
-}
-
-impl Default for ManifestBuilderConfig {
-    fn default() -> Self {
-        Self {
-            version: "1.0.0".to_string(),
-            kernel_version: None,
-            kernel_path: None,
-            config: None,
-            output_directory: None,
-            chunk_prefix: "kernel".to_string(),
-            validate_schema: true,
-            sort_chunks: true,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum ManifestError {
-    ValidationError(String),
-    IoError(std::io::Error),
-    SerializationError(String),
-    InvalidChunkData { chunk_id: String, reason: String },
-    DuplicateChunkId(String),
-    TotalSizeMismatch { expected: u64, actual: u64 },
-}
-
-impl std::fmt::Display for ManifestError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ValidationError(msg) => write!(f, "Validation error: {}", msg),
-            Self::IoError(e) => write!(f, "IO error: {}", e),
-            Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
-            Self::InvalidChunkData { chunk_id, reason } => {
-                write!(f, "Invalid chunk data for {}: {}", chunk_id, reason)
-            }
-            Self::DuplicateChunkId(id) => write!(f, "Duplicate chunk ID: {}", id),
-            Self::TotalSizeMismatch { expected, actual } => {
-                write!(f, "Total size mismatch: expected {} bytes, got {}", expected, actual)
-            }
-        }
-    }
-}
-
-impl std::error::Error for ManifestError {}
-
-#[derive(Debug)]
-pub struct ManifestBuilder {
-    config: ManifestBuilderConfig,
-    chunks: Vec<ChunkMetadata>,
-    total_size_bytes: u64,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChunkInput {
-    pub file_path: std::path::PathBuf,
-    pub subsystem: String,
-    pub symbol_count: usize,
-    pub entry_point_count: usize,
-    pub file_count: usize,
-}
-
-// Stub implementations for testing - these will fail until T019 is implemented
-impl ManifestBuilder {
-    pub fn new(_config: ManifestBuilderConfig) -> Result<Self, ManifestError> {
-        // This will fail until T019 is implemented
-        Err(ManifestError::SerializationError(
-            "ManifestBuilder not yet implemented - awaiting T019".to_string(),
-        ))
-    }
-
-    pub fn add_chunk(&mut self, _input: ChunkInput) -> Result<String, ManifestError> {
-        Err(ManifestError::SerializationError(
-            "add_chunk not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn add_chunk_from_file(&mut self, _file_path: &std::path::Path) -> Result<String, ManifestError> {
-        Err(ManifestError::SerializationError(
-            "add_chunk_from_file not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn build(&self) -> Result<ChunkManifest, ManifestError> {
-        Err(ManifestError::SerializationError(
-            "build not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn build_and_write(&self, _output_path: &std::path::Path) -> Result<ChunkManifest, ManifestError> {
-        Err(ManifestError::SerializationError(
-            "build_and_write not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn validate_manifest(&self, _manifest: &ChunkManifest) -> Result<(), ManifestError> {
-        Err(ManifestError::ValidationError(
-            "validate_manifest not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn update_chunk_metadata(&mut self, _chunk_id: &str, _metadata: ChunkMetadata) -> Result<(), ManifestError> {
-        Err(ManifestError::SerializationError(
-            "update_chunk_metadata not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn remove_chunk(&mut self, _chunk_id: &str) -> Result<(), ManifestError> {
-        Err(ManifestError::SerializationError(
-            "remove_chunk not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn get_total_size(&self) -> u64 {
-        self.total_size_bytes
-    }
-
-    pub fn get_chunk_count(&self) -> usize {
-        self.chunks.len()
-    }
-}
+use crate::manifest::*;
 
 #[cfg(test)]
 mod tests {
@@ -583,15 +423,16 @@ mod tests {
             file_count: Some(5),
         };
 
-        // This should still fail in stub implementation, but for the right reasons
+        // This should fail because the chunk doesn't exist
         let result = builder.update_chunk_metadata("test_chunk", valid_metadata);
         assert!(result.is_err());
 
         match result.unwrap_err() {
-            ManifestError::SerializationError(msg) => {
-                assert!(msg.contains("not yet implemented"));
+            ManifestError::InvalidChunkData { chunk_id, reason } => {
+                assert_eq!(chunk_id, "test_chunk");
+                assert!(reason.contains("not found"));
             }
-            _ => panic!("Expected SerializationError for unimplemented function"),
+            other => panic!("Expected InvalidChunkData error, got: {:?}", other),
         }
 
         Ok(())

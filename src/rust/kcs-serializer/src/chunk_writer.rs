@@ -166,14 +166,14 @@ pub struct ChunkInfo {
     /// Compression ratio (compressed/uncompressed)
     pub compression_ratio: f64,
     /// Optional metadata about the chunk
-    pub metadata: Option<ChunkMetadata>,
+    pub metadata: Option<ChunkWriterMetadata>,
     /// Number of items in the chunk
     pub item_count: usize,
 }
 
-/// Metadata associated with a chunk
+/// Metadata associated with a chunk (internal to ChunkWriter)
 #[derive(Debug)]
-pub struct ChunkMetadata {
+pub struct ChunkWriterMetadata {
     /// Timestamp when chunk was created
     pub created_at: String,
     /// Version of the chunk format
@@ -225,7 +225,7 @@ impl ChunkWriter {
 
         // Generate metadata if requested
         let metadata = if self.config.include_metadata {
-            Some(ChunkMetadata {
+            Some(ChunkWriterMetadata {
                 created_at: chrono::Utc::now().to_rfc3339(),
                 chunk_version: "1.0.0".to_string(),
                 total_symbols: self.estimate_symbols(&processed_data),

@@ -24,6 +24,7 @@ pub mod chunk_writer;
 pub mod chunker;
 pub mod graphml_export;
 pub mod json_export;
+pub mod manifest;
 
 #[cfg(test)]
 mod chunk_writer_test;
@@ -35,10 +36,11 @@ mod manifest_test;
 mod checksum_test;
 
 // Re-export main types for convenience
-pub use chunk_writer::{ChunkWriter, ChunkWriterConfig, ChunkWriterError, ChunkInfo, ChunkMetadata, FileInfo};
+pub use chunk_writer::{ChunkWriter, ChunkWriterConfig, ChunkWriterError, ChunkInfo, FileInfo};
 pub use chunker::{ChunkOptions, GraphChunk, GraphChunker};
 pub use graphml_export::GraphMLExporter;
 pub use json_export::JsonGraphExporter;
+pub use manifest::{ChunkManifest, ChunkMetadata, ManifestBuilder, ManifestBuilderConfig, ManifestError, ChunkInput};
 
 /// Common trait for graph exporters
 pub trait GraphExporter {

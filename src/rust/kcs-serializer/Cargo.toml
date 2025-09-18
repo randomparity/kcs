@@ -21,6 +21,7 @@ chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
 flate2 = "1.0"
 hex = "0.4"
+regex = "1.10"
 
 [dev-dependencies]
 tempfile = "3.0"
