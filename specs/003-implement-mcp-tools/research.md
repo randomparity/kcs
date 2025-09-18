@@ -5,7 +5,9 @@
 
 ## Overview
 
-This research document consolidates findings for implementing the actual MCP tool endpoints to replace the current mock implementations. All technical context is already established in the existing KCS project.
+This research document consolidates findings for implementing the actual MCP tool endpoints to
+replace the current mock implementations. All technical context is already established in the
+existing KCS project.
 
 ## Key Decisions
 
@@ -13,6 +15,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Use existing asyncpg database methods with recursive CTEs for graph traversal
 **Rationale**:
+
 - Already implemented find_callers() and find_callees() methods in database.py
 - PostgreSQL CTEs handle depth-limited traversal efficiently
 - Avoids loading entire graph into memory
@@ -25,6 +28,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Use visited set tracking with depth limits
 **Rationale**:
+
 - Simple and proven approach for cycle detection
 - Already partially implemented in entrypoint_flow endpoint
 - Depth limits provide natural termination
@@ -36,6 +40,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Leverage existing Span objects from database results
 **Rationale**:
+
 - Database already returns span information (path, sha, start, end)
 - Consistent with constitutional requirement for citations
 - Span model already defined in MCP protocol
@@ -47,6 +52,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Maintain syscall number to function mapping dictionary
 **Rationale**:
+
 - Simple, fast lookups for common entry points
 - Already partially implemented in entrypoint_flow
 - Can be extended with ioctl, file_ops mappings later
@@ -58,6 +64,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Bidirectional traversal with subsystem pattern matching
 **Rationale**:
+
 - Find both callers (affected by changes) and callees (dependencies)
 - Use symbol name patterns to identify subsystems (vfs_, ext4_, net_)
 - Aggregate risk based on blast radius size
@@ -70,6 +77,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Apply result limits and connection pooling
 **Rationale**:
+
 - Constitutional requirement: p95 < 600ms
 - Database already uses connection pooling via asyncpg
 - LIMIT clauses prevent runaway queries
@@ -82,6 +90,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Graceful degradation with empty results on failures
 **Rationale**:
+
 - Better UX than errors for missing data
 - Allows partial functionality during index updates
 - Consistent with existing mock fallback pattern
@@ -93,6 +102,7 @@ This research document consolidates findings for implementing the actual MCP too
 
 **Decision**: Optional config parameter passed to database methods
 **Rationale**:
+
 - Database schema already has config_bitmap support
 - Optional parameter maintains backward compatibility
 - Can filter at query time efficiently
@@ -123,17 +133,20 @@ This research document consolidates findings for implementing the actual MCP too
 ## Testing Strategy
 
 ### Contract Tests
+
 - Verify response schemas match OpenAPI spec
 - Test with empty database (graceful handling)
 - Test with populated database (actual results)
 
 ### Integration Tests
+
 - Test against real PostgreSQL with testcontainers
 - Seed with known call graph data
 - Verify depth limiting works correctly
 - Test circular dependency handling
 
 ### Performance Tests
+
 - Measure query times with production-scale data
 - Verify p95 < 600ms constitutional requirement
 - Test connection pool behavior under load
@@ -141,14 +154,17 @@ This research document consolidates findings for implementing the actual MCP too
 ## Risk Mitigation
 
 ### Performance Risks
+
 - **Risk**: Deep traversals could timeout
 - **Mitigation**: Hard depth limits (max 5 levels)
 
 ### Data Quality Risks
+
 - **Risk**: Incomplete call graphs from parser
 - **Mitigation**: Graceful handling of missing edges
 
 ### Backward Compatibility
+
 - **Risk**: Breaking existing test suites
 - **Mitigation**: Keep mock fallbacks initially, remove after validation
 
@@ -163,6 +179,7 @@ This research document consolidates findings for implementing the actual MCP too
 ## Conclusions
 
 The implementation path is clear with existing infrastructure in place. The primary work involves:
+
 1. Enhancing database methods for depth traversal
 2. Adding cycle detection
 3. Implementing subsystem pattern matching

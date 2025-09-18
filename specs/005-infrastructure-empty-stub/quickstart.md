@@ -6,17 +6,20 @@
 ## Prerequisites
 
 1. KCS server running locally:
+
    ```bash
    source .venv/bin/activate
    kcs-mcp --host 0.0.0.0 --port 8080
    ```
 
 2. PostgreSQL with pgvector extension:
+
    ```bash
    docker compose up postgres
    ```
 
 3. Sample kernel repository:
+
    ```bash
    git clone https://github.com/torvalds/linux ~/test-kernel
    cd ~/test-kernel
@@ -260,21 +263,25 @@ echo "Exported $(echo $EXPORT_RESPONSE | jq '.node_count') nodes"
 ## Troubleshooting
 
 ### Config parsing fails
+
 - Check kernel source path is correct
 - Verify Kconfig files exist for architecture
 - Check config_type matches actual file
 
 ### Semantic search returns no results
+
 - Verify pgvector extension is enabled
 - Check embeddings are generated (may take time on first run)
 - Try broader search terms
 
 ### Graph traversal times out
+
 - Reduce max_depth parameter
 - Use more specific source/target functions
 - Enable config filtering to reduce search space
 
 ### Export files too large
+
 - Reduce chunk_size_mb parameter
 - Use subgraph scope instead of full
 - Increase max_depth gradually

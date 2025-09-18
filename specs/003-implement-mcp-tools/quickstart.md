@@ -42,6 +42,7 @@ curl -X POST http://localhost:8080/mcp/tools/who_calls \
 ```
 
 Expected response:
+
 ```json
 {
   "callers": [
@@ -84,6 +85,7 @@ curl -X POST http://localhost:8080/mcp/tools/list_dependencies \
 ```
 
 Expected response:
+
 ```json
 {
   "callees": [
@@ -115,6 +117,7 @@ curl -X POST http://localhost:8080/mcp/tools/entrypoint_flow \
 ```
 
 Expected response:
+
 ```json
 {
   "steps": [
@@ -170,6 +173,7 @@ curl -X POST http://localhost:8080/mcp/tools/impact_of \
 ```
 
 Expected response:
+
 ```json
 {
   "configs": ["x86_64:defconfig", "x86_64:allmodconfig"],
@@ -277,17 +281,20 @@ pytest tests/performance/test_mcp_tools_performance.py -v
 ### No Results Returned
 
 1. Check database has call graph data:
+
 ```sql
 SELECT COUNT(*) FROM call_edge;
 -- Should be > 0
 ```
 
-2. Verify symbol exists:
+1. Verify symbol exists:
+
 ```sql
 SELECT * FROM symbol WHERE name = 'vfs_read';
 ```
 
-3. Check server logs for errors:
+1. Check server logs for errors:
+
 ```bash
 journalctl -u kcs-mcp -f
 ```
@@ -295,27 +302,30 @@ journalctl -u kcs-mcp -f
 ### Slow Queries
 
 1. Check database indexes:
+
 ```sql
 \d call_edge
 -- Should show indexes on caller_id and callee_id
 ```
 
-2. Monitor query performance:
+1. Monitor query performance:
+
 ```sql
 EXPLAIN ANALYZE WITH RECURSIVE ...
 ```
 
-3. Reduce traversal depth if needed
+1. Reduce traversal depth if needed
 
 ### Authentication Errors
 
 1. Verify token is valid:
+
 ```bash
 curl http://localhost:8080/health  # Should work without auth
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/mcp/resources
 ```
 
-2. Check token expiration and refresh if needed
+1. Check token expiration and refresh if needed
 
 ## Performance Expectations
 
