@@ -81,7 +81,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 - [x] T015 Apply database migration 012_chunk_tracking.sql using psql
 - [x] T016 [P] Create Pydantic models for chunks in src/python/kcs_mcp/models/chunk_models.py
-- [ ] T017 [P] Database queries for chunk operations in src/python/kcs_mcp/database/chunk_queries.py
+- [x] T017 [P] Database queries for chunk operations in src/python/kcs_mcp/database/chunk_queries.py
 
 ### Rust Implementation
 
