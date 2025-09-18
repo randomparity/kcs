@@ -45,13 +45,15 @@
 
 ## Phase 3.1: Setup
 
-- [ ] T001 Create database migration for chunk tracking tables in src/sql/migrations/012_chunk_tracking.sql
+- [x] T001 Create database migration for chunk tracking tables in src/sql/migrations/012_chunk_tracking.sql
 - [ ] T002 [P] Create test fixture directory structure at tests/fixtures/chunks/
 - [ ] T003 [P] Generate sample chunk files for testing in tests/fixtures/chunks/sample_*.json
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
+### Critical Requirement
+
+These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Contract Tests
 
@@ -175,7 +177,7 @@ Task agent="general-purpose" "Add chunk status tracking with database persistenc
 
 ## Task Generation Rules
 
-*Applied during main() execution*
+### Applied during main() execution
 
 1. **From Contracts**:
    - chunk-api.yaml → 4 contract test tasks [P]
@@ -198,7 +200,7 @@ Task agent="general-purpose" "Add chunk status tracking with database persistenc
 
 ## Validation Checklist
 
-*GATE: Checked by main() before returning*
+### GATE: Checked by main() before returning
 
 - [x] All contracts have corresponding tests (T004-T007)
 - [x] All entities have model tasks (T016, T018-T020)
@@ -208,4 +210,5 @@ Task agent="general-purpose" "Add chunk status tracking with database persistenc
 - [x] No task modifies same file as another [P] task
 
 ---
-*Ready for execution - 42 tasks total*
+
+### Ready for execution - 42 tasks total
