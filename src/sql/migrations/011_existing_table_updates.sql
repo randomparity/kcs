@@ -16,37 +16,37 @@ BEGIN;
 ALTER TABLE symbol
 ADD COLUMN IF NOT EXISTS kernel_version VARCHAR(100),
 ADD COLUMN IF NOT EXISTS kernel_config VARCHAR(100),
-ADD COLUMN IF NOT EXISTS arch CONFIG_ARCH,
+ADD COLUMN IF NOT EXISTS arch config_arch,
 ADD COLUMN IF NOT EXISTS config_metadata JSONB DEFAULT '{}';
 
--- Update call_graph table with kernel version and config awareness
-ALTER TABLE call_graph
+-- Update call_edge table with kernel version and config awareness
+ALTER TABLE call_edge
 ADD COLUMN IF NOT EXISTS kernel_version VARCHAR(100),
 ADD COLUMN IF NOT EXISTS kernel_config VARCHAR(100),
-ADD COLUMN IF NOT EXISTS arch CONFIG_ARCH,
+ADD COLUMN IF NOT EXISTS arch config_arch,
 ADD COLUMN IF NOT EXISTS config_conditions JSONB DEFAULT '[]';
 
 -- Update entrypoint table with kernel version
 ALTER TABLE entrypoint
 ADD COLUMN IF NOT EXISTS kernel_version VARCHAR(100),
-ADD COLUMN IF NOT EXISTS arch CONFIG_ARCH;
+ADD COLUMN IF NOT EXISTS arch config_arch;
 
 -- Update file table with kernel version and arch
 ALTER TABLE file
 ADD COLUMN IF NOT EXISTS kernel_version VARCHAR(100),
-ADD COLUMN IF NOT EXISTS arch CONFIG_ARCH,
+ADD COLUMN IF NOT EXISTS arch config_arch,
 ADD COLUMN IF NOT EXISTS build_flags JSONB DEFAULT '{}';
 
--- Update dependency table with kernel version and config
-ALTER TABLE dependency
+-- Update config_dependency table with kernel version and config
+ALTER TABLE config_dependency
 ADD COLUMN IF NOT EXISTS kernel_version VARCHAR(100),
 ADD COLUMN IF NOT EXISTS kernel_config VARCHAR(100),
-ADD COLUMN IF NOT EXISTS arch CONFIG_ARCH;
+ADD COLUMN IF NOT EXISTS arch config_arch;
 
--- Update kconfig_map table with kernel version
-ALTER TABLE kconfig_map
+-- Update kconfig_option table with kernel version
+ALTER TABLE kconfig_option
 ADD COLUMN IF NOT EXISTS kernel_version VARCHAR(100),
-ADD COLUMN IF NOT EXISTS arch CONFIG_ARCH,
+ADD COLUMN IF NOT EXISTS arch config_arch,
 ADD COLUMN IF NOT EXISTS config_metadata JSONB DEFAULT '{}';
 
 -- ============================================================================
@@ -64,15 +64,15 @@ DROP CONSTRAINT IF EXISTS entrypoint_unique_per_config,
 ADD CONSTRAINT entrypoint_unique_per_version_config
 UNIQUE (kind, key, config, kernel_version);
 
-ALTER TABLE call_graph
-DROP CONSTRAINT IF EXISTS call_graph_unique_edge,
-ADD CONSTRAINT call_graph_unique_edge_config
+ALTER TABLE call_edge
+DROP CONSTRAINT IF EXISTS call_edge_unique_edge,
+ADD CONSTRAINT call_edge_unique_edge_config
 UNIQUE (caller_id, callee_id, call_site_line, kernel_version, kernel_config);
 
-ALTER TABLE dependency
-DROP CONSTRAINT IF EXISTS dependency_unique_per_file,
-ADD CONSTRAINT dependency_unique_per_file_config
-UNIQUE (file_id, depends_on_id, kernel_version, kernel_config);
+ALTER TABLE config_dependency
+DROP CONSTRAINT IF EXISTS config_dependency_unique_per_config,
+ADD CONSTRAINT config_dependency_unique_per_config_version
+UNIQUE (config_name, option_name, kernel_version, kernel_config);
 
 -- ============================================================================
 -- Add Cross-Config Mapping Table
@@ -85,11 +85,11 @@ CREATE TABLE IF NOT EXISTS symbol_cross_config (
     base_symbol_id BIGINT REFERENCES symbol (id) ON DELETE CASCADE,
     base_kernel_version VARCHAR(100) NOT NULL,
     base_kernel_config VARCHAR(100) NOT NULL,
-    base_arch CONFIG_ARCH NOT NULL,
+    base_arch config_arch NOT NULL,
     mapped_symbol_id BIGINT REFERENCES symbol (id) ON DELETE CASCADE,
     mapped_kernel_version VARCHAR(100) NOT NULL,
     mapped_kernel_config VARCHAR(100) NOT NULL,
-    mapped_arch CONFIG_ARCH NOT NULL,
+    mapped_arch config_arch NOT NULL,
     similarity_score FLOAT DEFAULT 1.0,
     mapping_type VARCHAR(50) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
@@ -109,10 +109,10 @@ CREATE TABLE IF NOT EXISTS kernel_config_compatibility (
     compat_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_version VARCHAR(100) NOT NULL,
     source_config VARCHAR(100) NOT NULL,
-    source_arch CONFIG_ARCH NOT NULL,
+    source_arch config_arch NOT NULL,
     target_version VARCHAR(100) NOT NULL,
     target_config VARCHAR(100) NOT NULL,
-    target_arch CONFIG_ARCH NOT NULL,
+    target_arch config_arch NOT NULL,
     compatibility_level VARCHAR(50) NOT NULL,
     compatibility_score FLOAT DEFAULT 0.0,
     differences JSONB DEFAULT '{}',
@@ -138,12 +138,12 @@ CREATE INDEX IF NOT EXISTS idx_symbol_arch ON symbol (arch);
 CREATE INDEX IF NOT EXISTS idx_symbol_config_metadata ON symbol USING gin (config_metadata);
 CREATE INDEX IF NOT EXISTS idx_symbol_version_config ON symbol (kernel_version, kernel_config);
 
--- Call graph table indexes
-CREATE INDEX IF NOT EXISTS idx_call_graph_kernel_version ON call_graph (kernel_version);
-CREATE INDEX IF NOT EXISTS idx_call_graph_kernel_config ON call_graph (kernel_config);
-CREATE INDEX IF NOT EXISTS idx_call_graph_arch ON call_graph (arch);
-CREATE INDEX IF NOT EXISTS idx_call_graph_config_conditions ON call_graph USING gin (config_conditions);
-CREATE INDEX IF NOT EXISTS idx_call_graph_version_config ON call_graph (kernel_version, kernel_config);
+-- Call edge table indexes
+CREATE INDEX IF NOT EXISTS idx_call_edge_kernel_version ON call_edge (kernel_version);
+CREATE INDEX IF NOT EXISTS idx_call_edge_kernel_config ON call_edge (kernel_config);
+CREATE INDEX IF NOT EXISTS idx_call_edge_arch ON call_edge (arch);
+CREATE INDEX IF NOT EXISTS idx_call_edge_config_conditions ON call_edge USING gin (config_conditions);
+CREATE INDEX IF NOT EXISTS idx_call_edge_version_config ON call_edge (kernel_version, kernel_config);
 
 -- Entry point table indexes
 CREATE INDEX IF NOT EXISTS idx_entrypoint_kernel_version ON entrypoint (kernel_version);
@@ -156,15 +156,15 @@ CREATE INDEX IF NOT EXISTS idx_file_arch ON file (arch);
 CREATE INDEX IF NOT EXISTS idx_file_build_flags ON file USING gin (build_flags);
 CREATE INDEX IF NOT EXISTS idx_file_version_config ON file (kernel_version, config);
 
--- Dependency table indexes
-CREATE INDEX IF NOT EXISTS idx_dependency_kernel_version ON dependency (kernel_version);
-CREATE INDEX IF NOT EXISTS idx_dependency_kernel_config ON dependency (kernel_config);
-CREATE INDEX IF NOT EXISTS idx_dependency_arch ON dependency (arch);
+-- Config dependency table indexes
+CREATE INDEX IF NOT EXISTS idx_config_dependency_kernel_version ON config_dependency (kernel_version);
+CREATE INDEX IF NOT EXISTS idx_config_dependency_kernel_config ON config_dependency (kernel_config);
+CREATE INDEX IF NOT EXISTS idx_config_dependency_arch ON config_dependency (arch);
 
--- Kconfig map table indexes
-CREATE INDEX IF NOT EXISTS idx_kconfig_kernel_version ON kconfig_map (kernel_version);
-CREATE INDEX IF NOT EXISTS idx_kconfig_arch ON kconfig_map (arch);
-CREATE INDEX IF NOT EXISTS idx_kconfig_metadata ON kconfig_map USING gin (config_metadata);
+-- Kconfig option table indexes
+CREATE INDEX IF NOT EXISTS idx_kconfig_option_kernel_version ON kconfig_option (kernel_version);
+CREATE INDEX IF NOT EXISTS idx_kconfig_option_arch ON kconfig_option (arch);
+CREATE INDEX IF NOT EXISTS idx_kconfig_option_metadata ON kconfig_option USING gin (config_metadata);
 
 -- Cross-config mapping indexes
 CREATE INDEX IF NOT EXISTS idx_cross_config_symbol ON symbol_cross_config (symbol_name);
@@ -205,7 +205,7 @@ BEGIN
     WHERE kernel_version IS NULL;
 
     -- Update other tables similarly
-    UPDATE call_graph
+    UPDATE call_edge
     SET kernel_version = default_version,
         kernel_config = 'x86_64:defconfig'
     WHERE kernel_version IS NULL;
@@ -218,12 +218,12 @@ BEGIN
     SET kernel_version = default_version
     WHERE kernel_version IS NULL;
 
-    UPDATE dependency
+    UPDATE config_dependency
     SET kernel_version = default_version,
         kernel_config = 'x86_64:defconfig'
     WHERE kernel_version IS NULL;
 
-    UPDATE kconfig_map
+    UPDATE kconfig_option
     SET kernel_version = default_version
     WHERE kernel_version IS NULL;
 END;
@@ -237,7 +237,7 @@ CREATE OR REPLACE FUNCTION find_equivalent_symbols(
 RETURNS TABLE (
     symbol_id BIGINT,
     kernel_config VARCHAR(100),
-    arch CONFIG_ARCH,
+    arch config_arch,
     file_path TEXT
 ) AS $$
 BEGIN
@@ -260,9 +260,9 @@ COMMENT ON COLUMN symbol.kernel_config IS 'Kernel configuration this symbol was 
 COMMENT ON COLUMN symbol.arch IS 'Architecture this symbol is compiled for';
 COMMENT ON COLUMN symbol.config_metadata IS 'Additional configuration-specific metadata';
 
-COMMENT ON COLUMN call_graph.kernel_version IS 'Kernel version this call edge belongs to';
-COMMENT ON COLUMN call_graph.kernel_config IS 'Kernel configuration this edge was parsed under';
-COMMENT ON COLUMN call_graph.config_conditions IS 'Configuration conditions affecting this call';
+COMMENT ON COLUMN call_edge.kernel_version IS 'Kernel version this call edge belongs to';
+COMMENT ON COLUMN call_edge.kernel_config IS 'Kernel configuration this edge was parsed under';
+COMMENT ON COLUMN call_edge.config_conditions IS 'Configuration conditions affecting this call';
 
 COMMENT ON COLUMN file.build_flags IS 'Compilation flags used for this file in specific config';
 
