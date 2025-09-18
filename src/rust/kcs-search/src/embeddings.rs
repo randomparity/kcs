@@ -302,4 +302,105 @@ mod tests {
         let emb3 = generator.generate("linux  \t kernel\n").unwrap();
         assert_eq!(emb1.vector, emb3.vector);
     }
+
+    #[test]
+    fn test_text_truncation() {
+        let config = EmbeddingConfig {
+            dimension: 384,
+            model_name: "test".to_string(),
+            normalize: false,
+            max_text_length: 10, // Very short limit for testing
+        };
+
+        let generator = EmbeddingGenerator::with_config(config).unwrap();
+        let long_text = "This is a very long text that should be truncated";
+        let embedding = generator.generate(long_text);
+
+        assert!(embedding.is_ok());
+        // Should still generate valid embedding even with truncation
+        assert_eq!(embedding.unwrap().dimension, 384);
+    }
+
+    #[test]
+    fn test_empty_text_handling() {
+        let generator = EmbeddingGenerator::new().unwrap();
+
+        let emb_empty = generator.generate("").unwrap();
+        let emb_spaces = generator.generate("   ").unwrap();
+
+        // Both should generate valid embeddings
+        assert_eq!(emb_empty.dimension, 384);
+        assert_eq!(emb_spaces.dimension, 384);
+
+        // Empty strings should produce the same embedding
+        assert_eq!(emb_empty.vector, emb_spaces.vector);
+    }
+
+    #[test]
+    fn test_semantic_features() {
+        let generator = EmbeddingGenerator::new().unwrap();
+
+        // Test that semantic features affect embeddings
+        let kernel_emb = generator.generate("kernel").unwrap();
+        let syscall_emb = generator.generate("syscall").unwrap();
+        let driver_emb = generator.generate("driver").unwrap();
+
+        // First few dimensions should be affected by semantic features
+        assert!(kernel_emb.vector[0] != 0.0);
+        assert!(syscall_emb.vector[1] != 0.0);
+        assert!(driver_emb.vector[2] != 0.0);
+    }
+
+    #[test]
+    fn test_similarity_symmetry() {
+        let generator = EmbeddingGenerator::new().unwrap();
+
+        let emb1 = generator.generate("test1").unwrap();
+        let emb2 = generator.generate("test2").unwrap();
+
+        let sim12 = emb1.cosine_similarity(&emb2).unwrap();
+        let sim21 = emb2.cosine_similarity(&emb1).unwrap();
+
+        // Cosine similarity should be symmetric
+        assert!((sim12 - sim21).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_batch_generate_consistency() {
+        let generator = EmbeddingGenerator::new().unwrap();
+
+        let texts = vec!["text1".to_string(), "text2".to_string()];
+
+        let batch_embeddings = generator.batch_generate(&texts).unwrap();
+        let individual_emb1 = generator.generate("text1").unwrap();
+        let individual_emb2 = generator.generate("text2").unwrap();
+
+        // Batch generation should produce same results as individual
+        assert_eq!(batch_embeddings[0].vector, individual_emb1.vector);
+        assert_eq!(batch_embeddings[1].vector, individual_emb2.vector);
+    }
+
+    #[test]
+    fn test_similarity_dimension_mismatch() {
+        let emb1 = Embedding::new(vec![1.0, 2.0, 3.0]);
+        let emb2 = Embedding::new(vec![1.0, 2.0]);
+
+        // Should return an error due to dimension mismatch
+        let result = emb1.cosine_similarity(&emb2);
+        assert!(result.is_err());
+
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Dimension mismatch"));
+    }
+
+    #[test]
+    fn test_zero_vector_similarity() {
+        let emb1 = Embedding::new(vec![0.0, 0.0, 0.0]);
+        let emb2 = Embedding::new(vec![1.0, 2.0, 3.0]);
+
+        let similarity = emb1.cosine_similarity(&emb2).unwrap();
+
+        // Similarity with zero vector should be 0
+        assert_eq!(similarity, 0.0);
+    }
 }

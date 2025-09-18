@@ -45,7 +45,7 @@
 - [x] **T023**: Implement embedding generator in kcs-search/src/embeddings.rs
 - [x] **T024**: Add query processor in kcs-search/src/query.rs
 - [x] **T025**: Implement pgvector integration in kcs-search/src/vector_db.rs
-- [ ] **T026**: Write unit tests for semantic search
+- [x] **T026**: Write unit tests for semantic search
 - [ ] **T027**: Create CLI interface for kcs-search
 
 ### Phase 3D: kcs-graph Enhancements
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 25
+- **Completed**: 26
 - **In Progress**: 0
 - **Blocked**: 0
 
