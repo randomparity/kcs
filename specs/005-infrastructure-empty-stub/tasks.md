@@ -73,10 +73,10 @@
 - [x] **T042**: Implement traverse_call_graph endpoint in src/python/kcs_mcp/tools.py
 - [x] **T043**: Implement export_graph endpoint in src/python/kcs_mcp/tools.py
 - [x] **T044**: Add database queries for kernel_config in src/python/kcs_mcp/database.py
-- [x] **T045**: Add database queries for specifications in src/python/kcs_mcp/database.py
-- [ ] **T046**: Add database queries for semantic search in src/python/kcs_mcp/database.py
-- [ ] **T047**: Add database queries for graph operations in src/python/kcs_mcp/database.py
-- [ ] **T048**: Update Pydantic models in src/python/kcs_mcp/models.py
+- [x] **T045**: Add database queries for specifications in src/python/kcs_mcp/database.py ✅
+- [x] **T046**: Add database queries for semantic search in src/python/kcs_mcp/database.py ✅
+- [x] **T047**: Add database queries for graph operations in src/python/kcs_mcp/database.py ✅
+- [x] **T048**: Update Pydantic models in src/python/kcs_mcp/models.py ✅
 
 ### Phase 5: Integration & Performance Testing
 
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 45
+- **Completed**: 48
 - **In Progress**: 0
 - **Blocked**: 0
 

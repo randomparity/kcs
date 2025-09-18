@@ -1674,6 +1674,1043 @@ class Database:
                 )
                 return []
 
+    async def log_semantic_query(
+        self,
+        query_text: str,
+        query_type: str,
+        result_count: int,
+        top_k: int,
+        execution_time_ms: int,
+        distance_threshold: float | None = None,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+        subsystem: str | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        results: list | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Log a semantic search query for analytics and optimization.
+
+        Args:
+            query_text: The search query text
+            query_type: Type of query (symbol, function, concept, etc.)
+            result_count: Number of results returned
+            top_k: Maximum results requested
+            execution_time_ms: Query execution time in milliseconds
+            distance_threshold: Optional distance threshold used
+            kernel_version: Kernel version context
+            kernel_config: Kernel configuration context
+            subsystem: Subsystem filter if used
+            user_id: Optional user identifier
+            session_id: Optional session identifier
+            results: Top results with scores
+            metadata: Additional metadata
+
+        Returns:
+            Query ID (UUID)
+        """
+        async with self.acquire() as conn:
+            import json
+
+            sql = """
+            INSERT INTO semantic_query_log (
+                query_text, query_type, result_count, top_k,
+                distance_threshold, execution_time_ms, kernel_version,
+                kernel_config, subsystem, user_id, session_id,
+                results, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING query_id
+            """
+
+            row = await conn.fetchrow(
+                sql,
+                query_text,
+                query_type,
+                result_count,
+                top_k,
+                distance_threshold,
+                execution_time_ms,
+                kernel_version,
+                kernel_config,
+                subsystem,
+                user_id,
+                session_id,
+                json.dumps(results or []),
+                json.dumps(metadata or {}),
+            )
+
+            return str(row["query_id"])
+
+    async def get_semantic_query_cache(
+        self,
+        query_hash: str,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+    ) -> dict | None:
+        """
+        Retrieve cached semantic search results.
+
+        Args:
+            query_hash: SHA256 hash of normalized query
+            kernel_version: Kernel version context
+            kernel_config: Kernel configuration context
+
+        Returns:
+            Cached results dict or None if not found/expired
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT results, cache_id
+            FROM semantic_query_cache
+            WHERE query_hash = $1
+              AND expires_at > NOW()
+              AND ($2::VARCHAR IS NULL OR kernel_version = $2)
+              AND ($3::VARCHAR IS NULL OR kernel_config = $3)
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+
+            row = await conn.fetchrow(sql, query_hash, kernel_version, kernel_config)
+
+            if row:
+                # Update cache hit statistics
+                await conn.execute("SELECT update_cache_hit($1)", row["cache_id"])
+
+                import json
+
+                results: dict = json.loads(row["results"])
+                return results
+
+            return None
+
+    async def store_semantic_query_cache(
+        self,
+        query_hash: str,
+        results: list,
+        ttl_hours: int = 24,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+    ) -> str:
+        """
+        Store semantic search results in cache.
+
+        Args:
+            query_hash: SHA256 hash of normalized query
+            results: Search results to cache
+            ttl_hours: Time to live in hours
+            kernel_version: Kernel version context
+            kernel_config: Kernel configuration context
+
+        Returns:
+            Cache ID (UUID)
+        """
+        async with self.acquire() as conn:
+            import json
+
+            sql = f"""
+            INSERT INTO semantic_query_cache (
+                query_hash, results, kernel_version, kernel_config,
+                expires_at
+            )
+            VALUES ($1, $2, $3, $4, NOW() + INTERVAL '{ttl_hours} hours')
+            ON CONFLICT (query_hash, kernel_version, kernel_config)
+            DO UPDATE SET
+                results = EXCLUDED.results,
+                expires_at = EXCLUDED.expires_at,
+                hit_count = semantic_query_cache.hit_count + 1,
+                last_accessed = NOW()
+            RETURNING cache_id
+            """
+
+            row = await conn.fetchrow(
+                sql,
+                query_hash,
+                json.dumps(results),
+                kernel_version,
+                kernel_config,
+            )
+
+            return str(row["cache_id"])
+
+    async def store_semantic_query_feedback(
+        self,
+        query_id: str,
+        result_rank: int,
+        result_id: str,
+        relevance_score: int | None = None,
+        is_correct: bool | None = None,
+        is_helpful: bool | None = None,
+        feedback_text: str | None = None,
+        user_id: str | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Store user feedback on semantic search results.
+
+        Args:
+            query_id: ID of the original query
+            result_rank: Position of this result in the results (0-based)
+            result_id: Identifier for the result (e.g., symbol ID)
+            relevance_score: User-provided relevance score (1-5)
+            is_correct: Whether the result is correct
+            is_helpful: Whether the result is helpful
+            feedback_text: Optional text feedback
+            user_id: Optional user identifier
+            metadata: Additional metadata
+
+        Returns:
+            Feedback ID (UUID)
+        """
+        async with self.acquire() as conn:
+            import json
+
+            sql = """
+            INSERT INTO semantic_query_feedback (
+                query_id, result_rank, result_id, relevance_score,
+                is_correct, is_helpful, feedback_text, user_id, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING feedback_id
+            """
+
+            row = await conn.fetchrow(
+                sql,
+                query_id,
+                result_rank,
+                result_id,
+                relevance_score,
+                is_correct,
+                is_helpful,
+                feedback_text,
+                user_id,
+                json.dumps(metadata or {}),
+            )
+
+            return str(row["feedback_id"])
+
+    async def get_semantic_query_stats(
+        self,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        query_type: str | None = None,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+    ) -> list[dict]:
+        """
+        Get semantic query analytics statistics.
+
+        Args:
+            start_time: Start time for statistics period (ISO format)
+            end_time: End time for statistics period (ISO format)
+            query_type: Filter by query type
+            kernel_version: Filter by kernel version
+            kernel_config: Filter by kernel configuration
+
+        Returns:
+            List of statistics records
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                period_start,
+                period_end,
+                query_type,
+                kernel_version,
+                kernel_config,
+                total_queries,
+                avg_execution_time_ms,
+                p50_execution_time_ms,
+                p95_execution_time_ms,
+                p99_execution_time_ms,
+                avg_result_count,
+                total_feedback_count,
+                avg_relevance_score,
+                cache_hit_rate,
+                unique_users,
+                top_queries,
+                metadata
+            FROM semantic_query_stats
+            WHERE 1=1
+            """
+
+            params = []
+            param_idx = 1
+
+            if start_time:
+                sql += f" AND period_start >= ${param_idx}::TIMESTAMP"
+                params.append(start_time)
+                param_idx += 1
+
+            if end_time:
+                sql += f" AND period_end <= ${param_idx}::TIMESTAMP"
+                params.append(end_time)
+                param_idx += 1
+
+            if query_type:
+                sql += f" AND query_type = ${param_idx}"
+                params.append(query_type)
+                param_idx += 1
+
+            if kernel_version:
+                sql += f" AND kernel_version = ${param_idx}"
+                params.append(kernel_version)
+                param_idx += 1
+
+            if kernel_config:
+                sql += f" AND kernel_config = ${param_idx}"
+                params.append(kernel_config)
+                param_idx += 1
+
+            sql += " ORDER BY period_start DESC"
+
+            rows = await conn.fetch(sql, *params)
+
+            import json
+
+            return [
+                {
+                    "period_start": row["period_start"].isoformat(),
+                    "period_end": row["period_end"].isoformat(),
+                    "query_type": row["query_type"],
+                    "kernel_version": row["kernel_version"],
+                    "kernel_config": row["kernel_config"],
+                    "total_queries": row["total_queries"],
+                    "avg_execution_time_ms": float(row["avg_execution_time_ms"])
+                    if row["avg_execution_time_ms"]
+                    else None,
+                    "p50_execution_time_ms": row["p50_execution_time_ms"],
+                    "p95_execution_time_ms": row["p95_execution_time_ms"],
+                    "p99_execution_time_ms": row["p99_execution_time_ms"],
+                    "avg_result_count": float(row["avg_result_count"])
+                    if row["avg_result_count"]
+                    else None,
+                    "total_feedback_count": row["total_feedback_count"],
+                    "avg_relevance_score": float(row["avg_relevance_score"])
+                    if row["avg_relevance_score"]
+                    else None,
+                    "cache_hit_rate": float(row["cache_hit_rate"])
+                    if row["cache_hit_rate"]
+                    else None,
+                    "unique_users": row["unique_users"],
+                    "top_queries": json.loads(row["top_queries"]),
+                    "metadata": json.loads(row["metadata"]),
+                }
+                for row in rows
+            ]
+
+    async def clean_semantic_cache(self) -> int:
+        """
+        Clean up expired semantic query cache entries.
+
+        Returns:
+            Number of entries deleted
+        """
+        async with self.acquire() as conn:
+            result = await conn.fetchval("SELECT clean_semantic_cache()")
+            return int(result) if result else 0
+
+    async def compute_semantic_query_stats(
+        self, start_time: str, end_time: str
+    ) -> None:
+        """
+        Compute and store semantic query statistics for a time period.
+
+        Args:
+            start_time: Start time for statistics period (ISO format)
+            end_time: End time for statistics period (ISO format)
+        """
+        async with self.acquire() as conn:
+            await conn.execute(
+                "SELECT compute_semantic_query_stats($1::TIMESTAMP, $2::TIMESTAMP)",
+                start_time,
+                end_time,
+            )
+
+    async def create_graph_export_job(
+        self,
+        export_name: str,
+        export_format: str,
+        kernel_version: str,
+        kernel_config: str,
+        subsystem: str | None = None,
+        entry_point: str | None = None,
+        max_depth: int = 10,
+        include_metadata: bool = True,
+        include_annotations: bool = True,
+        chunk_size: int | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Create a new graph export job.
+
+        Args:
+            export_name: Name for the export
+            export_format: Export format (json, graphml, gexf, dot, cytoscape, gephi)
+            kernel_version: Kernel version context
+            kernel_config: Kernel configuration context
+            subsystem: Optional subsystem filter
+            entry_point: Optional entry point filter
+            max_depth: Maximum traversal depth
+            include_metadata: Whether to include metadata
+            include_annotations: Whether to include annotations
+            chunk_size: Optional chunk size for large exports
+            metadata: Additional metadata
+
+        Returns:
+            Export ID (UUID)
+        """
+        async with self.acquire() as conn:
+            import json
+
+            sql = """
+            INSERT INTO graph_export (
+                export_name, export_format, kernel_version, kernel_config,
+                subsystem, entry_point, max_depth, include_metadata,
+                include_annotations, chunk_size, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING export_id
+            """
+
+            row = await conn.fetchrow(
+                sql,
+                export_name,
+                export_format,
+                kernel_version,
+                kernel_config,
+                subsystem,
+                entry_point,
+                max_depth,
+                include_metadata,
+                include_annotations,
+                chunk_size,
+                json.dumps(metadata or {}),
+            )
+
+            return str(row["export_id"])
+
+    async def get_graph_export_job(self, export_id: str) -> dict | None:
+        """
+        Get graph export job details.
+
+        Args:
+            export_id: Export job ID
+
+        Returns:
+            Export job details or None if not found
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                export_id, export_name, export_format, export_status,
+                kernel_version, kernel_config, subsystem, entry_point,
+                max_depth, include_metadata, include_annotations,
+                chunk_size, total_chunks, created_at, started_at,
+                completed_at, error_message, export_size_bytes,
+                node_count, edge_count, output_path, metadata
+            FROM graph_export
+            WHERE export_id = $1
+            """
+
+            row = await conn.fetchrow(sql, export_id)
+
+            if not row:
+                return None
+
+            import json
+
+            return {
+                "export_id": str(row["export_id"]),
+                "export_name": row["export_name"],
+                "export_format": row["export_format"],
+                "export_status": row["export_status"],
+                "kernel_version": row["kernel_version"],
+                "kernel_config": row["kernel_config"],
+                "subsystem": row["subsystem"],
+                "entry_point": row["entry_point"],
+                "max_depth": row["max_depth"],
+                "include_metadata": row["include_metadata"],
+                "include_annotations": row["include_annotations"],
+                "chunk_size": row["chunk_size"],
+                "total_chunks": row["total_chunks"],
+                "created_at": row["created_at"].isoformat()
+                if row["created_at"]
+                else None,
+                "started_at": row["started_at"].isoformat()
+                if row["started_at"]
+                else None,
+                "completed_at": row["completed_at"].isoformat()
+                if row["completed_at"]
+                else None,
+                "error_message": row["error_message"],
+                "export_size_bytes": row["export_size_bytes"],
+                "node_count": row["node_count"],
+                "edge_count": row["edge_count"],
+                "output_path": row["output_path"],
+                "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+            }
+
+    async def update_graph_export_status(
+        self,
+        export_id: str,
+        status: str,
+        error_message: str | None = None,
+        output_path: str | None = None,
+        export_size_bytes: int | None = None,
+        node_count: int | None = None,
+        edge_count: int | None = None,
+    ) -> None:
+        """
+        Update graph export job status and metadata.
+
+        Args:
+            export_id: Export job ID
+            status: New status (pending, running, completed, failed, cancelled)
+            error_message: Optional error message
+            output_path: Optional output file path
+            export_size_bytes: Optional export size in bytes
+            node_count: Optional total node count
+            edge_count: Optional total edge count
+        """
+        async with self.acquire() as conn:
+            # Use the database function for status update
+            await conn.execute(
+                "SELECT update_export_status($1, $2, $3)",
+                export_id,
+                status,
+                error_message,
+            )
+
+            # Update additional fields if provided
+            if any([output_path, export_size_bytes, node_count, edge_count]):
+                update_parts = []
+                params = []
+                param_idx = 1
+
+                if output_path:
+                    update_parts.append(f"output_path = ${param_idx}")
+                    params.append(output_path)
+                    param_idx += 1
+
+                if export_size_bytes is not None:
+                    update_parts.append(f"export_size_bytes = ${param_idx}")
+                    params.append(str(export_size_bytes))
+                    param_idx += 1
+
+                if node_count is not None:
+                    update_parts.append(f"node_count = ${param_idx}")
+                    params.append(str(node_count))
+                    param_idx += 1
+
+                if edge_count is not None:
+                    update_parts.append(f"edge_count = ${param_idx}")
+                    params.append(str(edge_count))
+                    param_idx += 1
+
+                if update_parts:
+                    sql = f"""
+                    UPDATE graph_export
+                    SET {", ".join(update_parts)}
+                    WHERE export_id = ${param_idx}
+                    """
+                    params.append(export_id)
+                    await conn.execute(sql, *params)
+
+    async def store_graph_export_chunk(
+        self,
+        export_id: str,
+        chunk_index: int,
+        chunk_data: bytes,
+        node_count: int | None = None,
+        edge_count: int | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Store a chunk of graph export data.
+
+        Args:
+            export_id: Export job ID
+            chunk_index: Chunk index (0-based)
+            chunk_data: Binary chunk data
+            node_count: Optional node count for this chunk
+            edge_count: Optional edge count for this chunk
+            metadata: Optional chunk metadata
+
+        Returns:
+            Chunk ID (UUID)
+        """
+        async with self.acquire() as conn:
+            import json
+
+            sql = """
+            INSERT INTO graph_export_chunk (
+                export_id, chunk_index, chunk_data, chunk_size_bytes,
+                node_count, edge_count, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING chunk_id
+            """
+
+            row = await conn.fetchrow(
+                sql,
+                export_id,
+                chunk_index,
+                chunk_data,
+                len(chunk_data),
+                node_count,
+                edge_count,
+                json.dumps(metadata or {}),
+            )
+
+            return str(row["chunk_id"])
+
+    async def get_graph_export_chunks(self, export_id: str) -> list[dict]:
+        """
+        Get all chunks for a graph export job.
+
+        Args:
+            export_id: Export job ID
+
+        Returns:
+            List of chunk information (without data)
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                chunk_id, chunk_index, chunk_size_bytes,
+                node_count, edge_count, created_at, metadata
+            FROM graph_export_chunk
+            WHERE export_id = $1
+            ORDER BY chunk_index
+            """
+
+            rows = await conn.fetch(sql, export_id)
+
+            import json
+
+            return [
+                {
+                    "chunk_id": str(row["chunk_id"]),
+                    "chunk_index": row["chunk_index"],
+                    "chunk_size_bytes": row["chunk_size_bytes"],
+                    "node_count": row["node_count"],
+                    "edge_count": row["edge_count"],
+                    "created_at": row["created_at"].isoformat(),
+                    "metadata": json.loads(row["metadata"]),
+                }
+                for row in rows
+            ]
+
+    async def get_graph_export_chunk_data(
+        self, export_id: str, chunk_index: int
+    ) -> bytes | None:
+        """
+        Get the binary data for a specific chunk.
+
+        Args:
+            export_id: Export job ID
+            chunk_index: Chunk index
+
+        Returns:
+            Binary chunk data or None if not found
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT chunk_data
+            FROM graph_export_chunk
+            WHERE export_id = $1 AND chunk_index = $2
+            """
+
+            row = await conn.fetchrow(sql, export_id, chunk_index)
+
+            if row:
+                return bytes(row["chunk_data"])
+            return None
+
+    async def list_graph_exports(
+        self,
+        status: str | None = None,
+        format: str | None = None,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        """
+        List graph export jobs with optional filtering.
+
+        Args:
+            status: Optional status filter
+            format: Optional format filter
+            kernel_version: Optional kernel version filter
+            kernel_config: Optional kernel config filter
+            limit: Maximum results to return
+            offset: Result offset for pagination
+
+        Returns:
+            List of export job summaries
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                export_id, export_name, export_format, export_status,
+                kernel_version, kernel_config, subsystem, entry_point,
+                created_at, completed_at, export_size_bytes,
+                node_count, edge_count, total_chunks
+            FROM graph_export
+            WHERE 1=1
+            """
+
+            params = []
+            param_idx = 1
+
+            if status:
+                sql += f" AND export_status = ${param_idx}"
+                params.append(status)
+                param_idx += 1
+
+            if format:
+                sql += f" AND export_format = ${param_idx}"
+                params.append(format)
+                param_idx += 1
+
+            if kernel_version:
+                sql += f" AND kernel_version = ${param_idx}"
+                params.append(kernel_version)
+                param_idx += 1
+
+            if kernel_config:
+                sql += f" AND kernel_config = ${param_idx}"
+                params.append(kernel_config)
+                param_idx += 1
+
+            sql += (
+                f" ORDER BY created_at DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+            )
+            params.extend([str(limit), str(offset)])
+
+            rows = await conn.fetch(sql, *params)
+
+            return [
+                {
+                    "export_id": str(row["export_id"]),
+                    "export_name": row["export_name"],
+                    "export_format": row["export_format"],
+                    "export_status": row["export_status"],
+                    "kernel_version": row["kernel_version"],
+                    "kernel_config": row["kernel_config"],
+                    "subsystem": row["subsystem"],
+                    "entry_point": row["entry_point"],
+                    "created_at": row["created_at"].isoformat(),
+                    "completed_at": row["completed_at"].isoformat()
+                    if row["completed_at"]
+                    else None,
+                    "export_size_bytes": row["export_size_bytes"],
+                    "node_count": row["node_count"],
+                    "edge_count": row["edge_count"],
+                    "total_chunks": row["total_chunks"],
+                }
+                for row in rows
+            ]
+
+    async def create_graph_export_template(
+        self,
+        template_name: str,
+        template_description: str | None,
+        export_format: str,
+        default_config: dict,
+        filter_rules: list | None = None,
+        style_config: dict | None = None,
+        layout_algorithm: str | None = None,
+        is_public: bool = False,
+        created_by: str | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Create a reusable graph export template.
+
+        Args:
+            template_name: Unique template name
+            template_description: Optional description
+            export_format: Export format
+            default_config: Default configuration
+            filter_rules: Optional filter rules
+            style_config: Optional style configuration
+            layout_algorithm: Optional layout algorithm
+            is_public: Whether template is public
+            created_by: Optional creator identifier
+            metadata: Optional metadata
+
+        Returns:
+            Template ID (UUID)
+        """
+        async with self.acquire() as conn:
+            import json
+
+            sql = """
+            INSERT INTO graph_export_template (
+                template_name, template_description, export_format,
+                default_config, filter_rules, style_config,
+                layout_algorithm, is_public, created_by, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING template_id
+            """
+
+            row = await conn.fetchrow(
+                sql,
+                template_name,
+                template_description,
+                export_format,
+                json.dumps(default_config),
+                json.dumps(filter_rules or []),
+                json.dumps(style_config or {}),
+                layout_algorithm,
+                is_public,
+                created_by,
+                json.dumps(metadata or {}),
+            )
+
+            return str(row["template_id"])
+
+    async def get_graph_export_template(
+        self, template_id: str | None = None, template_name: str | None = None
+    ) -> dict | None:
+        """
+        Get graph export template by ID or name.
+
+        Args:
+            template_id: Template UUID
+            template_name: Template name
+
+        Returns:
+            Template details or None if not found
+        """
+        async with self.acquire() as conn:
+            if template_id:
+                sql = """
+                SELECT
+                    template_id, template_name, template_description,
+                    export_format, default_config, filter_rules,
+                    style_config, layout_algorithm, created_at,
+                    updated_at, is_public, created_by, metadata
+                FROM graph_export_template
+                WHERE template_id = $1
+                """
+                row = await conn.fetchrow(sql, template_id)
+            elif template_name:
+                sql = """
+                SELECT
+                    template_id, template_name, template_description,
+                    export_format, default_config, filter_rules,
+                    style_config, layout_algorithm, created_at,
+                    updated_at, is_public, created_by, metadata
+                FROM graph_export_template
+                WHERE template_name = $1
+                """
+                row = await conn.fetchrow(sql, template_name)
+            else:
+                raise ValueError("Must provide either template_id or template_name")
+
+            if not row:
+                return None
+
+            import json
+
+            return {
+                "template_id": str(row["template_id"]),
+                "template_name": row["template_name"],
+                "template_description": row["template_description"],
+                "export_format": row["export_format"],
+                "default_config": json.loads(row["default_config"]),
+                "filter_rules": json.loads(row["filter_rules"]),
+                "style_config": json.loads(row["style_config"]),
+                "layout_algorithm": row["layout_algorithm"],
+                "created_at": row["created_at"].isoformat(),
+                "updated_at": row["updated_at"].isoformat(),
+                "is_public": row["is_public"],
+                "created_by": row["created_by"],
+                "metadata": json.loads(row["metadata"]),
+            }
+
+    async def list_graph_export_templates(
+        self,
+        format: str | None = None,
+        is_public: bool | None = None,
+        created_by: str | None = None,
+    ) -> list[dict]:
+        """
+        List available graph export templates.
+
+        Args:
+            format: Optional format filter
+            is_public: Optional public/private filter
+            created_by: Optional creator filter
+
+        Returns:
+            List of template summaries
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                template_id, template_name, template_description,
+                export_format, created_at, updated_at,
+                is_public, created_by
+            FROM graph_export_template
+            WHERE 1=1
+            """
+
+            params = []
+            param_idx = 1
+
+            if format:
+                sql += f" AND export_format = ${param_idx}"
+                params.append(format)
+                param_idx += 1
+
+            if is_public is not None:
+                sql += f" AND is_public = ${param_idx}"
+                params.append(str(is_public))
+                param_idx += 1
+
+            if created_by:
+                sql += f" AND created_by = ${param_idx}"
+                params.append(created_by)
+                param_idx += 1
+
+            sql += " ORDER BY updated_at DESC"
+
+            rows = await conn.fetch(sql, *params)
+
+            return [
+                {
+                    "template_id": str(row["template_id"]),
+                    "template_name": row["template_name"],
+                    "template_description": row["template_description"],
+                    "export_format": row["export_format"],
+                    "created_at": row["created_at"].isoformat(),
+                    "updated_at": row["updated_at"].isoformat(),
+                    "is_public": row["is_public"],
+                    "created_by": row["created_by"],
+                }
+                for row in rows
+            ]
+
+    async def get_graph_export_statistics(self, export_id: str) -> dict | None:
+        """
+        Get aggregated statistics for a graph export.
+
+        Args:
+            export_id: Export job ID
+
+        Returns:
+            Statistics dict or None if not found
+        """
+        async with self.acquire() as conn:
+            # Use the database function
+            result = await conn.fetchval(
+                "SELECT calculate_export_statistics($1)", export_id
+            )
+
+            if result:
+                import json
+
+                stats: dict = json.loads(result)
+                return stats
+
+            return None
+
+    async def clean_graph_export_history(self) -> int:
+        """
+        Clean up old graph export history entries.
+
+        Returns:
+            Number of entries deleted
+        """
+        async with self.acquire() as conn:
+            result = await conn.fetchval("SELECT clean_export_history()")
+            return int(result) if result else 0
+
+    async def create_graph_visualization_preset(
+        self,
+        preset_name: str,
+        tool_name: str,
+        preset_type: str,
+        configuration: dict,
+        description: str | None = None,
+        is_default: bool = False,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Create a graph visualization preset.
+
+        Args:
+            preset_name: Preset name
+            tool_name: Target visualization tool
+            preset_type: Type of preset (layout, style, filter, analysis, complete)
+            configuration: Tool-specific configuration
+            description: Optional description
+            is_default: Whether this is the default preset
+            metadata: Optional metadata
+
+        Returns:
+            Preset ID (UUID)
+        """
+        async with self.acquire() as conn:
+            import json
+
+            sql = """
+            INSERT INTO graph_visualization_preset (
+                preset_name, tool_name, preset_type, configuration,
+                description, is_default, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING preset_id
+            """
+
+            row = await conn.fetchrow(
+                sql,
+                preset_name,
+                tool_name,
+                preset_type,
+                json.dumps(configuration),
+                description,
+                is_default,
+                json.dumps(metadata or {}),
+            )
+
+            return str(row["preset_id"])
+
+    async def get_default_visualization_preset(
+        self, tool_name: str, preset_type: str
+    ) -> dict | None:
+        """
+        Get the default visualization preset for a tool and type.
+
+        Args:
+            tool_name: Visualization tool name
+            preset_type: Preset type
+
+        Returns:
+            Configuration dict or None if not found
+        """
+        async with self.acquire() as conn:
+            # Use the database function
+            result = await conn.fetchval(
+                "SELECT get_default_preset($1, $2)", tool_name, preset_type
+            )
+
+            if result:
+                import json
+
+                config: dict = json.loads(result)
+                return config
+
+            return None
+
 
 # Global database instance
 _database: Database | None = None
@@ -2208,6 +3245,450 @@ class MockDatabase(Database):
         start_idx = offset
         end_idx = offset + top_k
         return mock_results[start_idx:end_idx]
+
+    async def log_semantic_query(
+        self,
+        query_text: str,
+        query_type: str,
+        result_count: int,
+        top_k: int,
+        execution_time_ms: int,
+        distance_threshold: float | None = None,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+        subsystem: str | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        results: list | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock semantic query logging."""
+        logger.info(
+            "Mock logging semantic query",
+            query_text=query_text,
+            query_type=query_type,
+            result_count=result_count,
+            execution_time_ms=execution_time_ms,
+        )
+        return "query-12345-uuid"
+
+    async def get_semantic_query_cache(
+        self,
+        query_hash: str,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+    ) -> dict | None:
+        """Mock semantic query cache retrieval."""
+        if query_hash == "cache_miss_hash":
+            return None
+
+        return {
+            "results": [
+                {
+                    "symbol": "cached_function",
+                    "path": "fs/cached.c",
+                    "sha": "cached123",
+                    "start": 10,
+                    "end": 20,
+                    "snippet": "cached function",
+                    "score": 0.9,
+                }
+            ],
+            "total_results": 1,
+            "cached_at": "2024-01-01T00:00:00",
+        }
+
+    async def store_semantic_query_cache(
+        self,
+        query_hash: str,
+        results: list,
+        ttl_hours: int = 24,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+    ) -> str:
+        """Mock semantic query cache storage."""
+        logger.info(
+            "Mock storing semantic query cache",
+            query_hash=query_hash,
+            results_count=len(results),
+            ttl_hours=ttl_hours,
+        )
+        return "cache-12345-uuid"
+
+    async def store_semantic_query_feedback(
+        self,
+        query_id: str,
+        result_rank: int,
+        result_id: str,
+        relevance_score: int | None = None,
+        is_correct: bool | None = None,
+        is_helpful: bool | None = None,
+        feedback_text: str | None = None,
+        user_id: str | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock semantic query feedback storage."""
+        logger.info(
+            "Mock storing semantic query feedback",
+            query_id=query_id,
+            result_rank=result_rank,
+            result_id=result_id,
+            relevance_score=relevance_score,
+        )
+        return "feedback-12345-uuid"
+
+    async def get_semantic_query_stats(
+        self,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        query_type: str | None = None,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+    ) -> list[dict]:
+        """Mock semantic query statistics retrieval."""
+        return [
+            {
+                "period_start": "2024-01-01T00:00:00",
+                "period_end": "2024-01-01T23:59:59",
+                "query_type": query_type or "function",
+                "kernel_version": kernel_version or "6.1.0",
+                "kernel_config": kernel_config or "x86_64:defconfig",
+                "total_queries": 100,
+                "avg_execution_time_ms": 45.5,
+                "p50_execution_time_ms": 40,
+                "p95_execution_time_ms": 85,
+                "p99_execution_time_ms": 120,
+                "avg_result_count": 8.2,
+                "total_feedback_count": 25,
+                "avg_relevance_score": 4.1,
+                "cache_hit_rate": 0.65,
+                "unique_users": 12,
+                "top_queries": [
+                    {"query": "vfs_read", "count": 15},
+                    {"query": "memory allocation", "count": 12},
+                ],
+                "metadata": {"source": "mock"},
+            }
+        ]
+
+    async def clean_semantic_cache(self) -> int:
+        """Mock semantic cache cleanup."""
+        logger.info("Mock cleaning semantic cache")
+        return 5  # Mock number of deleted entries
+
+    async def compute_semantic_query_stats(
+        self, start_time: str, end_time: str
+    ) -> None:
+        """Mock semantic query statistics computation."""
+        logger.info(
+            "Mock computing semantic query statistics",
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    async def create_graph_export_job(
+        self,
+        export_name: str,
+        export_format: str,
+        kernel_version: str,
+        kernel_config: str,
+        subsystem: str | None = None,
+        entry_point: str | None = None,
+        max_depth: int = 10,
+        include_metadata: bool = True,
+        include_annotations: bool = True,
+        chunk_size: int | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock graph export job creation."""
+        logger.info(
+            "Mock creating graph export job",
+            export_name=export_name,
+            export_format=export_format,
+            kernel_version=kernel_version,
+            max_depth=max_depth,
+        )
+        return "export-12345-uuid"
+
+    async def get_graph_export_job(self, export_id: str) -> dict | None:
+        """Mock graph export job retrieval."""
+        if export_id == "nonexistent-export":
+            return None
+
+        return {
+            "export_id": export_id,
+            "export_name": "Test Export",
+            "export_format": "json",
+            "export_status": "completed",
+            "kernel_version": "6.1.0",
+            "kernel_config": "x86_64:defconfig",
+            "subsystem": None,
+            "entry_point": "sys_read",
+            "max_depth": 5,
+            "include_metadata": True,
+            "include_annotations": True,
+            "chunk_size": None,
+            "total_chunks": 1,
+            "created_at": "2024-01-01T00:00:00",
+            "started_at": "2024-01-01T00:01:00",
+            "completed_at": "2024-01-01T00:05:00",
+            "error_message": None,
+            "export_size_bytes": 1024,
+            "node_count": 50,
+            "edge_count": 75,
+            "output_path": "/tmp/export.json",
+            "metadata": {"source": "mock"},
+        }
+
+    async def update_graph_export_status(
+        self,
+        export_id: str,
+        status: str,
+        error_message: str | None = None,
+        output_path: str | None = None,
+        export_size_bytes: int | None = None,
+        node_count: int | None = None,
+        edge_count: int | None = None,
+    ) -> None:
+        """Mock graph export status update."""
+        logger.info(
+            "Mock updating graph export status",
+            export_id=export_id,
+            status=status,
+            has_error=error_message is not None,
+        )
+
+    async def store_graph_export_chunk(
+        self,
+        export_id: str,
+        chunk_index: int,
+        chunk_data: bytes,
+        node_count: int | None = None,
+        edge_count: int | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock graph export chunk storage."""
+        logger.info(
+            "Mock storing graph export chunk",
+            export_id=export_id,
+            chunk_index=chunk_index,
+            chunk_size=len(chunk_data),
+        )
+        return f"chunk-{chunk_index}-uuid"
+
+    async def get_graph_export_chunks(self, export_id: str) -> list[dict]:
+        """Mock graph export chunks retrieval."""
+        return [
+            {
+                "chunk_id": "chunk-0-uuid",
+                "chunk_index": 0,
+                "chunk_size_bytes": 1024,
+                "node_count": 50,
+                "edge_count": 75,
+                "created_at": "2024-01-01T00:05:00",
+                "metadata": {"format": "json"},
+            }
+        ]
+
+    async def get_graph_export_chunk_data(
+        self, export_id: str, chunk_index: int
+    ) -> bytes | None:
+        """Mock graph export chunk data retrieval."""
+        if chunk_index == 0:
+            return b'{"nodes": [], "edges": []}'
+        return None
+
+    async def list_graph_exports(
+        self,
+        status: str | None = None,
+        format: str | None = None,
+        kernel_version: str | None = None,
+        kernel_config: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        """Mock graph exports listing."""
+        mock_exports: list[dict] = [
+            {
+                "export_id": "export-1",
+                "export_name": "Test Export 1",
+                "export_format": "json",
+                "export_status": "completed",
+                "kernel_version": "6.1.0",
+                "kernel_config": "x86_64:defconfig",
+                "subsystem": "fs",
+                "entry_point": "sys_read",
+                "created_at": "2024-01-01T00:00:00",
+                "completed_at": "2024-01-01T00:05:00",
+                "export_size_bytes": 1024,
+                "node_count": 50,
+                "edge_count": 75,
+                "total_chunks": 1,
+            },
+            {
+                "export_id": "export-2",
+                "export_name": "Test Export 2",
+                "export_format": "graphml",
+                "export_status": "running",
+                "kernel_version": "6.1.0",
+                "kernel_config": "x86_64:defconfig",
+                "subsystem": "net",
+                "entry_point": "sys_socket",
+                "created_at": "2024-01-01T01:00:00",
+                "completed_at": None,
+                "export_size_bytes": None,
+                "node_count": None,
+                "edge_count": None,
+                "total_chunks": None,
+            },
+        ]
+
+        # Apply basic filtering
+        results = mock_exports
+        if status:
+            results = [e for e in results if e["export_status"] == status]
+        if format:
+            results = [e for e in results if e["export_format"] == format]
+
+        # Apply pagination
+        start_idx = offset
+        end_idx = offset + limit
+        return results[start_idx:end_idx]
+
+    async def create_graph_export_template(
+        self,
+        template_name: str,
+        template_description: str | None,
+        export_format: str,
+        default_config: dict,
+        filter_rules: list | None = None,
+        style_config: dict | None = None,
+        layout_algorithm: str | None = None,
+        is_public: bool = False,
+        created_by: str | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock graph export template creation."""
+        logger.info(
+            "Mock creating graph export template",
+            template_name=template_name,
+            export_format=export_format,
+            is_public=is_public,
+        )
+        return "template-12345-uuid"
+
+    async def get_graph_export_template(
+        self, template_id: str | None = None, template_name: str | None = None
+    ) -> dict | None:
+        """Mock graph export template retrieval."""
+        if template_id == "nonexistent-template" or template_name == "nonexistent":
+            return None
+
+        return {
+            "template_id": template_id or "template-12345-uuid",
+            "template_name": template_name or "Default JSON Template",
+            "template_description": "Default template for JSON exports",
+            "export_format": "json",
+            "default_config": {"pretty": True, "include_metadata": True},
+            "filter_rules": [{"type": "exclude", "pattern": "test_*"}],
+            "style_config": {"node_color": "blue", "edge_color": "gray"},
+            "layout_algorithm": "hierarchical",
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+            "is_public": True,
+            "created_by": "system",
+            "metadata": {"version": "1.0"},
+        }
+
+    async def list_graph_export_templates(
+        self,
+        format: str | None = None,
+        is_public: bool | None = None,
+        created_by: str | None = None,
+    ) -> list[dict]:
+        """Mock graph export templates listing."""
+        mock_templates = [
+            {
+                "template_id": "template-1",
+                "template_name": "Default JSON Template",
+                "template_description": "Default template for JSON exports",
+                "export_format": "json",
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+                "is_public": True,
+                "created_by": "system",
+            },
+            {
+                "template_id": "template-2",
+                "template_name": "GraphML Template",
+                "template_description": "Template for GraphML exports",
+                "export_format": "graphml",
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+                "is_public": False,
+                "created_by": "user123",
+            },
+        ]
+
+        # Apply basic filtering
+        results = mock_templates
+        if format:
+            results = [t for t in results if t["export_format"] == format]
+        if is_public is not None:
+            results = [t for t in results if t["is_public"] == is_public]
+        if created_by:
+            results = [t for t in results if t["created_by"] == created_by]
+
+        return results
+
+    async def get_graph_export_statistics(self, export_id: str) -> dict | None:
+        """Mock graph export statistics retrieval."""
+        if export_id == "nonexistent-export":
+            return None
+
+        return {
+            "total_chunks": 1,
+            "total_size_bytes": 1024,
+            "total_nodes": 50,
+            "total_edges": 75,
+            "avg_chunk_size": 1024,
+        }
+
+    async def clean_graph_export_history(self) -> int:
+        """Mock graph export history cleanup."""
+        logger.info("Mock cleaning graph export history")
+        return 3  # Mock number of deleted entries
+
+    async def create_graph_visualization_preset(
+        self,
+        preset_name: str,
+        tool_name: str,
+        preset_type: str,
+        configuration: dict,
+        description: str | None = None,
+        is_default: bool = False,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock graph visualization preset creation."""
+        logger.info(
+            "Mock creating graph visualization preset",
+            preset_name=preset_name,
+            tool_name=tool_name,
+            preset_type=preset_type,
+        )
+        return "preset-12345-uuid"
+
+    async def get_default_visualization_preset(
+        self, tool_name: str, preset_type: str
+    ) -> dict | None:
+        """Mock default visualization preset retrieval."""
+        return {
+            "layout": "hierarchical",
+            "node_size": 10,
+            "edge_width": 2,
+            "colors": {"node": "#4287f5", "edge": "#666666"},
+            "animation": {"enabled": True, "duration": 1000},
+        }
 
 
 def set_database(database: Database) -> None:

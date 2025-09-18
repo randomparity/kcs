@@ -866,3 +866,244 @@ class ExportGraphResponse(BaseModel):
 
     # Async export fields
     job_info: AsyncJobInfo | None = Field(None, description="Async job information")
+
+
+# Semantic Query Logging and Analytics Models
+class SemanticQueryFeedbackRequest(BaseModel):
+    """Request for providing feedback on semantic search results."""
+
+    query_id: str = Field(..., description="Original query identifier")
+    result_rank: int = Field(..., description="Position of result (0-based)", ge=0)
+    result_id: str = Field(..., description="Result identifier (e.g., symbol ID)")
+    relevance_score: int | None = Field(
+        None, description="User relevance score (1-5)", ge=1, le=5
+    )
+    is_correct: bool | None = Field(None, description="Whether result is correct")
+    is_helpful: bool | None = Field(None, description="Whether result is helpful")
+    feedback_text: str | None = Field(
+        None, description="Optional text feedback", max_length=1000
+    )
+    user_id: str | None = Field(None, description="Optional user identifier")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+
+
+class SemanticQueryFeedbackResponse(BaseModel):
+    """Response for semantic query feedback submission."""
+
+    feedback_id: str = Field(..., description="Unique feedback identifier")
+    recorded_at: str = Field(..., description="Feedback timestamp (ISO format)")
+
+
+class SemanticQueryStatsRequest(BaseModel):
+    """Request for semantic query analytics statistics."""
+
+    start_time: str | None = Field(None, description="Start time (ISO format)")
+    end_time: str | None = Field(None, description="End time (ISO format)")
+    query_type: str | None = Field(None, description="Filter by query type")
+    kernel_version: str | None = Field(None, description="Filter by kernel version")
+    kernel_config: str | None = Field(None, description="Filter by kernel config")
+
+
+class TopQuery(BaseModel):
+    """Top query information."""
+
+    query: str = Field(..., description="Query text")
+    count: int = Field(..., description="Number of times executed", ge=0)
+
+
+class SemanticQueryStats(BaseModel):
+    """Semantic query analytics statistics."""
+
+    period_start: str = Field(..., description="Period start time (ISO format)")
+    period_end: str = Field(..., description="Period end time (ISO format)")
+    query_type: str | None = Field(None, description="Query type")
+    kernel_version: str | None = Field(None, description="Kernel version")
+    kernel_config: str | None = Field(None, description="Kernel configuration")
+    total_queries: int = Field(..., description="Total queries executed", ge=0)
+    avg_execution_time_ms: float | None = Field(
+        None, description="Average execution time", ge=0
+    )
+    p50_execution_time_ms: int | None = Field(
+        None, description="50th percentile execution time", ge=0
+    )
+    p95_execution_time_ms: int | None = Field(
+        None, description="95th percentile execution time", ge=0
+    )
+    p99_execution_time_ms: int | None = Field(
+        None, description="99th percentile execution time", ge=0
+    )
+    avg_result_count: float | None = Field(
+        None, description="Average results per query", ge=0
+    )
+    total_feedback_count: int | None = Field(
+        None, description="Total feedback submissions", ge=0
+    )
+    avg_relevance_score: float | None = Field(
+        None, description="Average relevance score", ge=1, le=5
+    )
+    cache_hit_rate: float | None = Field(None, description="Cache hit rate", ge=0, le=1)
+    unique_users: int | None = Field(None, description="Unique users", ge=0)
+    top_queries: list[TopQuery] = Field(..., description="Most frequent queries")
+    metadata: dict[str, Any] = Field(..., description="Additional metadata")
+
+
+class SemanticQueryStatsResponse(BaseModel):
+    """Response for semantic query analytics."""
+
+    stats: list[SemanticQueryStats] = Field(..., description="Statistics records")
+    generated_at: str = Field(..., description="Report generation timestamp")
+
+
+# Graph Export Management Models
+class GraphExportJobRequest(BaseModel):
+    """Request for creating a graph export job."""
+
+    export_name: str = Field(..., description="Export job name", min_length=1)
+    export_format: str = Field(
+        ...,
+        description="Export format",
+        pattern="^(json|graphml|gexf|dot|cytoscape|gephi)$",
+    )
+    kernel_version: str = Field(..., description="Kernel version context")
+    kernel_config: str = Field(..., description="Kernel configuration context")
+    subsystem: str | None = Field(None, description="Optional subsystem filter")
+    entry_point: str | None = Field(None, description="Optional entry point filter")
+    max_depth: int | None = Field(
+        10, description="Maximum traversal depth", ge=1, le=100
+    )
+    include_metadata: bool | None = Field(True, description="Include metadata")
+    include_annotations: bool | None = Field(True, description="Include annotations")
+    chunk_size: int | None = Field(
+        None, description="Chunk size for large exports", ge=1, le=10000
+    )
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+
+
+class GraphExportJobResponse(BaseModel):
+    """Response for graph export job creation."""
+
+    export_id: str = Field(..., description="Unique export job identifier")
+    status: str = Field(..., description="Initial job status")
+    created_at: str = Field(..., description="Job creation timestamp")
+
+
+class GraphExportJobStatus(BaseModel):
+    """Graph export job status information."""
+
+    export_id: str = Field(..., description="Export job identifier")
+    export_name: str = Field(..., description="Export job name")
+    export_format: str = Field(..., description="Export format")
+    export_status: str = Field(..., description="Current status")
+    kernel_version: str = Field(..., description="Kernel version")
+    kernel_config: str = Field(..., description="Kernel configuration")
+    subsystem: str | None = Field(None, description="Subsystem filter")
+    entry_point: str | None = Field(None, description="Entry point filter")
+    max_depth: int = Field(..., description="Maximum depth")
+    include_metadata: bool = Field(..., description="Include metadata")
+    include_annotations: bool = Field(..., description="Include annotations")
+    chunk_size: int | None = Field(None, description="Chunk size")
+    total_chunks: int | None = Field(None, description="Total chunks")
+    created_at: str = Field(..., description="Creation timestamp")
+    started_at: str | None = Field(None, description="Start timestamp")
+    completed_at: str | None = Field(None, description="Completion timestamp")
+    error_message: str | None = Field(None, description="Error message if failed")
+    export_size_bytes: int | None = Field(None, description="Export size in bytes")
+    node_count: int | None = Field(None, description="Total nodes")
+    edge_count: int | None = Field(None, description="Total edges")
+    output_path: str | None = Field(None, description="Output file path")
+    metadata: dict[str, Any] = Field(..., description="Additional metadata")
+
+
+class GraphExportListRequest(BaseModel):
+    """Request for listing graph export jobs."""
+
+    status: str | None = Field(None, description="Filter by status")
+    format: str | None = Field(None, description="Filter by format")
+    kernel_version: str | None = Field(None, description="Filter by kernel version")
+    kernel_config: str | None = Field(None, description="Filter by kernel config")
+    limit: int | None = Field(50, description="Maximum results", ge=1, le=1000)
+    offset: int | None = Field(0, description="Result offset", ge=0)
+
+
+class GraphExportListResponse(BaseModel):
+    """Response for listing graph export jobs."""
+
+    exports: list[GraphExportJobStatus] = Field(..., description="Export job list")
+    total_count: int | None = Field(None, description="Total available exports")
+    has_more: bool | None = Field(None, description="Whether more results available")
+
+
+class GraphExportTemplateRequest(BaseModel):
+    """Request for creating a graph export template."""
+
+    template_name: str = Field(..., description="Unique template name", min_length=1)
+    template_description: str | None = Field(None, description="Template description")
+    export_format: str = Field(
+        ...,
+        description="Export format",
+        pattern="^(json|graphml|gexf|dot|cytoscape|gephi)$",
+    )
+    default_config: dict[str, Any] = Field(..., description="Default configuration")
+    filter_rules: list[dict[str, Any]] | None = Field(None, description="Filter rules")
+    style_config: dict[str, Any] | None = Field(None, description="Style configuration")
+    layout_algorithm: str | None = Field(None, description="Layout algorithm")
+    is_public: bool | None = Field(False, description="Whether template is public")
+    created_by: str | None = Field(None, description="Creator identifier")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+
+
+class GraphExportTemplateResponse(BaseModel):
+    """Response for graph export template operations."""
+
+    template_id: str = Field(..., description="Unique template identifier")
+    template_name: str = Field(..., description="Template name")
+    template_description: str | None = Field(None, description="Template description")
+    export_format: str = Field(..., description="Export format")
+    default_config: dict[str, Any] = Field(..., description="Default configuration")
+    filter_rules: list[dict[str, Any]] = Field(..., description="Filter rules")
+    style_config: dict[str, Any] = Field(..., description="Style configuration")
+    layout_algorithm: str | None = Field(None, description="Layout algorithm")
+    created_at: str = Field(..., description="Creation timestamp")
+    updated_at: str = Field(..., description="Last update timestamp")
+    is_public: bool = Field(..., description="Whether template is public")
+    created_by: str | None = Field(None, description="Creator identifier")
+    metadata: dict[str, Any] = Field(..., description="Additional metadata")
+
+
+class GraphVisualizationPresetRequest(BaseModel):
+    """Request for creating a graph visualization preset."""
+
+    preset_name: str = Field(..., description="Preset name", min_length=1)
+    tool_name: str = Field(
+        ...,
+        description="Target visualization tool",
+        pattern="^(cytoscape|gephi|graphviz|d3|vis.js|sigma.js)$",
+    )
+    preset_type: str = Field(
+        ...,
+        description="Preset type",
+        pattern="^(layout|style|filter|analysis|complete)$",
+    )
+    configuration: dict[str, Any] = Field(
+        ..., description="Tool-specific configuration"
+    )
+    description: str | None = Field(None, description="Preset description")
+    is_default: bool | None = Field(False, description="Whether this is default")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+
+
+class GraphVisualizationPresetResponse(BaseModel):
+    """Response for graph visualization preset operations."""
+
+    preset_id: str = Field(..., description="Unique preset identifier")
+    preset_name: str = Field(..., description="Preset name")
+    tool_name: str = Field(..., description="Target visualization tool")
+    preset_type: str = Field(..., description="Preset type")
+    configuration: dict[str, Any] = Field(
+        ..., description="Tool-specific configuration"
+    )
+    description: str | None = Field(None, description="Preset description")
+    is_default: bool = Field(..., description="Whether this is default")
+    created_at: str = Field(..., description="Creation timestamp")
+    updated_at: str = Field(..., description="Last update timestamp")
+    metadata: dict[str, Any] = Field(..., description="Additional metadata")
