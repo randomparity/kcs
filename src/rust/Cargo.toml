@@ -8,6 +8,7 @@ members = [
     "kcs-drift",
     "kcs-config",
     "kcs-search",
+    "kcs-serializer",
     "kcs-python-bridge"
 ]
 
