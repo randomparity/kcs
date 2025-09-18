@@ -10,6 +10,7 @@
 Metadata file describing all chunks generated from a kernel indexing operation.
 
 **Fields**:
+
 - `version`: String - Manifest schema version (e.g., "1.0.0")
 - `created`: DateTime - When manifest was generated
 - `kernel_version`: String - Linux kernel version indexed
@@ -20,6 +21,7 @@ Metadata file describing all chunks generated from a kernel indexing operation.
 - `chunks`: Array[ChunkMetadata] - List of all chunks
 
 **Validation**:
+
 - version must match supported schema versions
 - created must be valid ISO 8601 timestamp
 - total_chunks must equal length of chunks array
@@ -30,6 +32,7 @@ Metadata file describing all chunks generated from a kernel indexing operation.
 Metadata for an individual chunk file within the manifest.
 
 **Fields**:
+
 - `id`: String - Unique chunk identifier (e.g., "kernel_001")
 - `sequence`: Integer - Order within subsystem (1-based)
 - `file`: String - Relative path to chunk file
@@ -41,6 +44,7 @@ Metadata for an individual chunk file within the manifest.
 - `file_count`: Integer - Number of source files represented
 
 **Validation**:
+
 - id must be unique within manifest
 - size_bytes must not exceed configured chunk_size limit
 - checksum must be 64 character hex string
@@ -51,6 +55,7 @@ Metadata for an individual chunk file within the manifest.
 The actual JSON file containing parsed kernel data.
 
 **Fields**:
+
 - `manifest_version`: String - Version of manifest this belongs to
 - `chunk_id`: String - Matches id in manifest
 - `subsystem`: String - Kernel subsystem
@@ -59,6 +64,7 @@ The actual JSON file containing parsed kernel data.
 - `call_graph`: Array[Edge] - Call relationships (if present)
 
 **Validation**:
+
 - manifest_version must match parent manifest
 - chunk_id must exist in manifest
 - JSON must be valid and complete
@@ -68,6 +74,7 @@ The actual JSON file containing parsed kernel data.
 Database record tracking chunk processing state.
 
 **Fields**:
+
 - `chunk_id`: String (Primary Key) - Chunk identifier
 - `manifest_version`: String - Version of manifest
 - `status`: Enum - One of: pending, processing, completed, failed
@@ -79,6 +86,7 @@ Database record tracking chunk processing state.
 - `checksum_verified`: Boolean - Whether checksum matched
 
 **Validation**:
+
 - status transitions: pending → processing → completed/failed
 - completed_at required when status is completed/failed
 - error_message required when status is failed

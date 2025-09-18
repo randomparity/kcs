@@ -13,6 +13,7 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
 
 **Decision**: Fixed 50MB chunk size with configurable override
 **Rationale**:
+
 - Balances memory usage (250MB max per chunk at 5x multiplier)
 - Generates ~60 chunks for typical kernel (manageable file count)
 - Fits in typical system buffers and caches
@@ -25,6 +26,7 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
 
 **Decision**: Streaming JSON writer with size-based cutoff
 **Rationale**:
+
 - No need to load entire dataset in memory
 - Clean JSON array boundaries at chunk points
 - Compatible with existing serde_json serialization
@@ -37,6 +39,7 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
 
 **Decision**: SHA256 for chunk integrity validation
 **Rationale**:
+
 - Cryptographically secure against tampering
 - Standard library support in Rust and Python
 - Fast enough for 50MB chunks (~100ms per chunk)
@@ -49,6 +52,7 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
 
 **Decision**: `{subsystem}_{sequence}.json` pattern
 **Rationale**:
+
 - Human-readable subsystem identification
 - Natural sort order with zero-padded sequence
 - Supports parallel processing by subsystem
@@ -62,10 +66,12 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
 
 **Decision**: JSON manifest with chunk metadata and dependencies
 **Rationale**:
+
 - Consistent with chunk format (all JSON)
 - Easy to parse and validate
 - Supports incremental updates via version field
 **Schema**:
+
 ```json
 {
   "version": "1.0.0",
@@ -85,7 +91,9 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
   ]
 }
 ```
+
 **Alternatives considered**:
+
 - SQLite database: Overkill for metadata, adds dependency
 - CSV format: Limited structure for nested data
 - YAML: Additional parser dependency
@@ -94,6 +102,7 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
 
 **Decision**: Worker pool with configurable parallelism (default 4)
 **Rationale**:
+
 - Matches typical CPU core count
 - Prevents database connection exhaustion
 - Allows system resource tuning
@@ -109,10 +118,12 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
 
 **Decision**: Database table tracking processed chunks
 **Rationale**:
+
 - Survives process crashes
 - Enables cluster-wide coordination
 - Simple SQL queries for status
 **Schema**:
+
 ```sql
 CREATE TABLE chunk_processing (
     chunk_id VARCHAR(255) PRIMARY KEY,
@@ -124,7 +135,9 @@ CREATE TABLE chunk_processing (
     retry_count INT DEFAULT 0
 );
 ```
+
 **Alternatives considered**:
+
 - File-based markers: Could get out of sync
 - Memory-only tracking: Lost on restart
 - Redis/cache: Additional infrastructure dependency
@@ -133,6 +146,7 @@ CREATE TABLE chunk_processing (
 
 **Decision**: One transaction per chunk with savepoints
 **Rationale**:
+
 - Atomic chunk processing (all or nothing)
 - Allows partial rollback on errors
 - Bounded transaction size prevents lock escalation

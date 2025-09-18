@@ -33,37 +33,40 @@ Implement multi-file JSON output strategy to replace the current single 2.8GB JS
 
 **Language/Version**: Rust 1.75+ (parsers), Python 3.11+ (MCP server)
 **Primary Dependencies**:
-  - Rust: tree-sitter, clang, rayon, serde_json, PyO3
-  - Python: FastAPI, asyncpg, structlog, pydantic
-  - Database: PostgreSQL 14+ with pgvector extension
+
+- Rust: tree-sitter, clang, rayon, serde_json, PyO3
+- Python: FastAPI, asyncpg, structlog, pydantic
+- Database: PostgreSQL 14+ with pgvector extension
 **Storage**: PostgreSQL for parsed data, filesystem for JSON chunks
 **Testing**: cargo test (Rust), pytest (Python), k6 (performance)
 **Target Platform**: Linux server (Ubuntu 22.04+)
 **Project Type**: single - Multi-language pipeline (Rust + Python + SQL)
 **Performance Goals**:
-  - Full kernel index ≤30 minutes (increased from 20min due to chunking overhead)
-  - Chunk processing p95 ≤600ms per chunk
-  - Memory usage ≤250MB per chunk (5x chunk size)
+- Full kernel index ≤30 minutes (increased from 20min due to chunking overhead)
+- Chunk processing p95 ≤600ms per chunk
+- Memory usage ≤250MB per chunk (5x chunk size)
 **Constraints**:
-  - Read-only kernel access
-  - Backward compatibility with existing MCP endpoints
-  - Must support incremental updates
+- Read-only kernel access
+- Backward compatibility with existing MCP endpoints
+- Must support incremental updates
 **Scale/Scope**:
-  - ~70,000 kernel source files
-  - ~60 chunks @ 50MB each
-  - Support parallel processing of 4-8 chunks
+- ~70,000 kernel source files
+- ~60 chunks @ 50MB each
+- Support parallel processing of 4-8 chunks
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 **Simplicity**:
+
 - Projects: 1 (existing KCS project with multi-language components)
 - Using framework directly? Yes - direct use of serde_json, asyncpg
 - Single data model? Yes - extending existing Symbol/EntryPoint models
 - Avoiding patterns? Yes - no new patterns, using existing streaming approach
 
 **Architecture**:
+
 - EVERY feature as library? Yes - chunking in kcs-serializer library
 - Libraries listed:
   - kcs-serializer: JSON chunking and manifest generation
@@ -74,6 +77,7 @@ Implement multi-file JSON output strategy to replace the current single 2.8GB JS
 - Library docs: Will update existing llms.txt with chunk options
 
 **Testing (NON-NEGOTIABLE)**:
+
 - RED-GREEN-Refactor cycle enforced? Yes
 - Git commits show tests before implementation? Yes
 - Order: Contract→Integration→E2E→Unit strictly followed? Yes
@@ -82,11 +86,13 @@ Implement multi-file JSON output strategy to replace the current single 2.8GB JS
 - FORBIDDEN: No implementation before tests
 
 **Observability**:
+
 - Structured logging included? Yes - structlog for chunk progress
 - Frontend logs → backend? N/A (CLI tool)
 - Error context sufficient? Yes - chunk ID, file path, error details
 
 **Versioning**:
+
 - Version number assigned? Using existing KCS versioning
 - BUILD increments on every change? Yes
 - Breaking changes handled? Backward compatible - single file mode retained
@@ -145,6 +151,7 @@ tools/
    - Parallel processing coordination mechanism
 
 2. **Generate and dispatch research agents**:
+
    ```
    Task: "Research JSON streaming chunking strategies in Rust"
    Task: "Find best practices for resumable batch processing"
@@ -198,6 +205,7 @@ tools/
 *This section describes what the /tasks command will do - DO NOT execute during /plan*
 
 **Task Generation Strategy**:
+
 - Load `/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs:
   - Contract tests for manifest and status endpoints [P]
@@ -208,6 +216,7 @@ tools/
   - Update index_kernel.sh with chunking flags
 
 **Ordering Strategy**:
+
 - TDD order: Tests before implementation
 - Dependency order: Rust serializer → Python loader → Shell script
 - Mark [P] for parallel execution where possible
@@ -233,6 +242,7 @@ tools/
 *This checklist is updated during execution flow*
 
 **Phase Status**:
+
 - [x] Phase 0: Research complete (/plan command)
 - [x] Phase 1: Design complete (/plan command)
 - [x] Phase 2: Task planning complete (/plan command - approach described)
@@ -241,6 +251,7 @@ tools/
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
+
 - [x] Initial Constitution Check: PASS
 - [x] Post-Design Constitution Check: PASS
 - [x] All NEEDS CLARIFICATION resolved

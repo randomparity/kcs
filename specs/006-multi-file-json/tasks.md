@@ -54,18 +54,21 @@
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
 
 ### Contract Tests
+
 - [ ] T004 [P] Contract test GET /mcp/chunks/manifest in tests/contract/test_chunk_manifest.py
 - [ ] T005 [P] Contract test GET /mcp/chunks/{id}/status in tests/contract/test_chunk_status.py
 - [ ] T006 [P] Contract test POST /mcp/chunks/{id}/process in tests/contract/test_chunk_process.py
 - [ ] T007 [P] Contract test POST /mcp/chunks/process/batch in tests/contract/test_chunk_batch.py
 
 ### Integration Tests
+
 - [ ] T008 [P] Integration test full 60-chunk indexing scenario in tests/integration/test_full_chunking.py
 - [ ] T009 [P] Integration test resume from chunk 15 failure in tests/integration/test_resume_processing.py
 - [ ] T010 [P] Integration test incremental subsystem update in tests/integration/test_incremental_chunks.py
 - [ ] T011 [P] Integration test chunk boundary validation in tests/integration/test_chunk_boundaries.py
 
 ### Rust Tests
+
 - [ ] T012 [P] Unit test chunk writer with size limits in src/rust/kcs-serializer/src/chunk_writer_test.rs
 - [ ] T013 [P] Unit test manifest generation in src/rust/kcs-serializer/src/manifest_test.rs
 - [ ] T014 [P] Unit test SHA256 checksum calculation in src/rust/kcs-serializer/src/checksum_test.rs
@@ -73,11 +76,13 @@
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 
 ### Database Layer
+
 - [ ] T015 Apply database migration 012_chunk_tracking.sql using psql
 - [ ] T016 [P] Create Pydantic models for chunks in src/python/kcs_mcp/models/chunk_models.py
 - [ ] T017 [P] Database queries for chunk operations in src/python/kcs_mcp/database/chunk_queries.py
 
 ### Rust Implementation
+
 - [ ] T018 [P] Implement ChunkWriter in src/rust/kcs-serializer/src/chunk_writer.rs
 - [ ] T019 [P] Implement ManifestBuilder in src/rust/kcs-serializer/src/manifest.rs
 - [ ] T020 [P] Add checksum module in src/rust/kcs-serializer/src/checksum.rs
@@ -85,12 +90,14 @@
 - [ ] T022 Add chunk coordination to kcs-python-bridge in src/rust/kcs-python-bridge/src/lib.rs
 
 ### Python Implementation
+
 - [ ] T023 [P] Create chunk_loader module in src/python/kcs_mcp/chunk_loader.py
 - [ ] T024 [P] Implement chunk processing with resume in src/python/kcs_mcp/chunk_processor.py
 - [ ] T025 Add chunk endpoints to FastAPI in src/python/kcs_mcp/tools.py
 - [ ] T026 [P] Add chunk status tracking in src/python/kcs_mcp/chunk_tracker.py
 
 ### Shell Scripts
+
 - [ ] T027 Update index_kernel.sh with chunking flags in tools/index_kernel.sh
 - [ ] T028 [P] Create process_chunks.py script in tools/process_chunks.py
 
@@ -105,16 +112,19 @@
 ## Phase 3.5: Polish
 
 ### Performance Tests
+
 - [ ] T034 [P] Performance test 50MB chunk generation in tests/performance/test_chunk_generation.py
 - [ ] T035 [P] Performance test parallel chunk loading in tests/performance/test_parallel_loading.py
 - [ ] T036 [P] Memory usage test per chunk in tests/performance/test_memory_usage.py
 
 ### Documentation
+
 - [ ] T037 [P] Update tools/README.md with chunking examples
 - [ ] T038 [P] Add troubleshooting guide for chunk failures in docs/troubleshooting.md
 - [ ] T039 [P] Update CLAUDE.md with chunk workflow (already done in plan phase)
 
 ### Validation
+
 - [ ] T040 Run quickstart.md end-to-end test scenario
 - [ ] T041 Verify all contract tests pass with implementation
 - [ ] T042 Check performance meets targets (<30 min full index)
@@ -130,7 +140,8 @@
 
 ## Parallel Execution Examples
 
-### Launch all contract tests together (T004-T007):
+### Launch all contract tests together (T004-T007)
+
 ```bash
 Task agent="general-purpose" "Write contract test for GET /mcp/chunks/manifest endpoint in tests/contract/test_chunk_manifest.py using OpenAPI schema from contracts/chunk-api.yaml"
 Task agent="general-purpose" "Write contract test for GET /mcp/chunks/{id}/status endpoint in tests/contract/test_chunk_status.py using OpenAPI schema"
@@ -138,14 +149,16 @@ Task agent="general-purpose" "Write contract test for POST /mcp/chunks/{id}/proc
 Task agent="general-purpose" "Write contract test for POST /mcp/chunks/process/batch endpoint in tests/contract/test_chunk_batch.py using OpenAPI schema"
 ```
 
-### Launch Rust implementations in parallel (T018-T020):
+### Launch Rust implementations in parallel (T018-T020)
+
 ```bash
 Task agent="general-purpose" "Implement ChunkWriter with 50MB size limit and streaming JSON in src/rust/kcs-serializer/src/chunk_writer.rs"
 Task agent="general-purpose" "Implement ManifestBuilder to generate chunk manifest with metadata in src/rust/kcs-serializer/src/manifest.rs"
 Task agent="general-purpose" "Add SHA256 checksum calculation module in src/rust/kcs-serializer/src/checksum.rs"
 ```
 
-### Launch Python modules in parallel (T023-T024, T026):
+### Launch Python modules in parallel (T023-T024, T026)
+
 ```bash
 Task agent="general-purpose" "Create chunk_loader module with async chunk reading in src/python/kcs_mcp/chunk_loader.py"
 Task agent="general-purpose" "Implement chunk processor with resume capability in src/python/kcs_mcp/chunk_processor.py"

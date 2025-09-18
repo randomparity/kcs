@@ -9,29 +9,29 @@
 
 ```text
 1. Parse user description from Input
-   ’ Extract: memory issues, processing bottlenecks, file size problems
+   ï¿½ Extract: memory issues, processing bottlenecks, file size problems
 2. Extract key concepts from description
-   ’ Actors: indexing tools, database loader, system administrators
-   ’ Actions: parse kernel, chunk output, process in parallel
-   ’ Data: kernel symbols, entry points, call graphs
-   ’ Constraints: 2.8GB file size, memory limits, processing timeouts
+   ï¿½ Actors: indexing tools, database loader, system administrators
+   ï¿½ Actions: parse kernel, chunk output, process in parallel
+   ï¿½ Data: kernel symbols, entry points, call graphs
+   ï¿½ Constraints: 2.8GB file size, memory limits, processing timeouts
 3. For each unclear aspect:
-   ’ Performance targets marked for clarification
-   ’ Failure recovery specifics marked for clarification
+   ï¿½ Performance targets marked for clarification
+   ï¿½ Failure recovery specifics marked for clarification
 4. Fill User Scenarios & Testing section
-   ’ User flow: kernel indexing with manageable output files
+   ï¿½ User flow: kernel indexing with manageable output files
 5. Generate Functional Requirements
-   ’ Each requirement made testable with specific thresholds
+   ï¿½ Each requirement made testable with specific thresholds
 6. Identify Key Entities
-   ’ Output chunks, manifest files, processing status
+   ï¿½ Output chunks, manifest files, processing status
 7. Run Review Checklist
-   ’ WARN: Spec has performance target uncertainties
+   ï¿½ WARN: Spec has performance target uncertainties
 8. Return: SUCCESS (spec ready for planning)
 ```
 
 ---
 
-## ¡ Quick Guidelines
+## ï¿½ Quick Guidelines
 
 -  Focus on WHAT users need and WHY
 - L Avoid HOW to implement (no tech stack, APIs, code structure)
@@ -79,7 +79,7 @@ As a system administrator indexing Linux kernel source code, I need the indexing
 - **FR-008**: System MUST validate chunk integrity before processing using checksums
 - **FR-009**: System MUST handle incremental updates by only regenerating affected subsystem chunks
 - **FR-010**: System MUST complete full kernel indexing within 30 minutes
-- **FR-011**: System MUST limit memory usage per chunk to 5 times chunk size 
+- **FR-011**: System MUST limit memory usage per chunk to 5 times chunk size
 - **FR-012**: System MUST provide clear error messages identifying which chunk failed and why
 
 ### Key Entities *(include if feature involves data)*
