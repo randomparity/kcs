@@ -47,7 +47,7 @@
 
 - [x] T001 Create database migration for chunk tracking tables in src/sql/migrations/012_chunk_tracking.sql
 - [x] T002 [P] Create test fixture directory structure at tests/fixtures/chunks/
-- [ ] T003 [P] Generate sample chunk files for testing in tests/fixtures/chunks/sample_*.json
+- [x] T003 [P] Generate sample chunk files for testing in tests/fixtures/chunks/sample_*.json
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 

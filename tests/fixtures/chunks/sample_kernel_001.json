@@ -1,0 +1,82 @@
+{
+  "manifest_version": "1.0.0",
+  "chunk_id": "kernel_001",
+  "subsystem": "kernel",
+  "symbols": [
+    {
+      "id": "sym_001",
+      "name": "printk",
+      "type": "function",
+      "file_path": "kernel/printk/printk.c",
+      "line": 2145,
+      "signature": "asmlinkage __visible int printk(const char *fmt, ...)",
+      "visibility": "global",
+      "is_static": false,
+      "is_inline": false,
+      "metadata": {
+        "export_type": "EXPORT_SYMBOL"
+      }
+    },
+    {
+      "id": "sym_002",
+      "name": "schedule",
+      "type": "function",
+      "file_path": "kernel/sched/core.c",
+      "line": 6589,
+      "signature": "asmlinkage __visible void __sched schedule(void)",
+      "visibility": "global",
+      "is_static": false,
+      "is_inline": false,
+      "metadata": {
+        "export_type": "EXPORT_SYMBOL"
+      }
+    },
+    {
+      "id": "sym_003",
+      "name": "kmalloc",
+      "type": "function",
+      "file_path": "include/linux/slab.h",
+      "line": 536,
+      "signature": "static __always_inline void *kmalloc(size_t size, gfp_t flags)",
+      "visibility": "local",
+      "is_static": true,
+      "is_inline": true,
+      "metadata": {}
+    }
+  ],
+  "entry_points": [
+    {
+      "id": "ep_001",
+      "name": "sys_read",
+      "type": "syscall",
+      "file_path": "fs/read_write.c",
+      "line": 652,
+      "signature": "SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)",
+      "syscall_number": 0,
+      "metadata": {
+        "syscall_nr": "__NR_read"
+      }
+    },
+    {
+      "id": "ep_002",
+      "name": "sys_write",
+      "type": "syscall",
+      "file_path": "fs/read_write.c",
+      "line": 676,
+      "signature": "SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t, count)",
+      "syscall_number": 1,
+      "metadata": {
+        "syscall_nr": "__NR_write"
+      }
+    }
+  ],
+  "call_graph": [
+    {
+      "caller_id": "sym_002",
+      "callee_id": "sym_001",
+      "call_type": "direct",
+      "file_path": "kernel/sched/core.c",
+      "line": 6590
+    }
+  ]
+}

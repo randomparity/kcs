@@ -1,0 +1,15 @@
+{
+  "manifest_version": "1.0.0",
+  "chunk_id": "corrupt_001",
+  "subsystem": "test",
+  "symbols": [
+    {
+      "id": "sym_bad",
+      "name": "bad_function",
+      "type": "function"
+      // Missing required fields and invalid JSON (comment not allowed)
+    }
+  ],
+  "entry_points": [
+    unclosed array
+}

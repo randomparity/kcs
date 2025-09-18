@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "created": "2025-01-18T10:00:00Z",
+  "kernel_version": "6.7.0",
+  "kernel_path": "/home/test/src/linux",
+  "config": "x86_64:defconfig",
+  "total_chunks": 3,
+  "total_size_bytes": 157286400,
+  "chunks": [
+    {
+      "id": "kernel_001",
+      "sequence": 1,
+      "file": "sample_kernel_001.json",
+      "subsystem": "kernel",
+      "size_bytes": 52428800,
+      "checksum_sha256": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+      "symbol_count": 15000,
+      "entry_point_count": 50,
+      "file_count": 120
+    },
+    {
+      "id": "drivers_net_001",
+      "sequence": 1,
+      "file": "sample_drivers_net_001.json",
+      "subsystem": "drivers/net",
+      "size_bytes": 52428800,
+      "checksum_sha256": "b665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae4",
+      "symbol_count": 12000,
+      "entry_point_count": 30,
+      "file_count": 85
+    },
+    {
+      "id": "fs_001",
+      "sequence": 1,
+      "file": "sample_fs_001.json",
+      "subsystem": "fs",
+      "size_bytes": 52428800,
+      "checksum_sha256": "c665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae5",
+      "symbol_count": 18000,
+      "entry_point_count": 70,
+      "file_count": 150
+    }
+  ]
+}

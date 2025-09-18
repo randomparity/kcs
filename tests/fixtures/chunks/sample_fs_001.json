@@ -1,0 +1,70 @@
+{
+  "manifest_version": "1.0.0",
+  "chunk_id": "fs_001",
+  "subsystem": "fs",
+  "symbols": [
+    {
+      "id": "sym_201",
+      "name": "vfs_read",
+      "type": "function",
+      "file_path": "fs/read_write.c",
+      "line": 447,
+      "signature": "ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)",
+      "visibility": "global",
+      "is_static": false,
+      "is_inline": false,
+      "metadata": {
+        "export_type": "EXPORT_SYMBOL"
+      }
+    },
+    {
+      "id": "sym_202",
+      "name": "vfs_write",
+      "type": "function",
+      "file_path": "fs/read_write.c",
+      "line": 553,
+      "signature": "ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)",
+      "visibility": "global",
+      "is_static": false,
+      "is_inline": false,
+      "metadata": {
+        "export_type": "EXPORT_SYMBOL"
+      }
+    },
+    {
+      "id": "sym_203",
+      "name": "do_sync_read",
+      "type": "function",
+      "file_path": "fs/read_write.c",
+      "line": 395,
+      "signature": "static ssize_t do_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos)",
+      "visibility": "local",
+      "is_static": true,
+      "is_inline": false,
+      "metadata": {}
+    }
+  ],
+  "entry_points": [
+    {
+      "id": "ep_201",
+      "name": "ext4_file_operations",
+      "type": "file_operations",
+      "file_path": "fs/ext4/file.c",
+      "line": 885,
+      "signature": "const struct file_operations ext4_file_operations",
+      "operations": ["read_iter", "write_iter", "ioctl", "mmap", "open", "release"],
+      "metadata": {
+        "filesystem": "ext4"
+      }
+    }
+  ],
+  "call_graph": [
+    {
+      "caller_id": "sym_201",
+      "callee_id": "sym_203",
+      "call_type": "indirect",
+      "file_path": "fs/read_write.c",
+      "line": 460
+    }
+  ]
+}
