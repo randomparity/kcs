@@ -42,7 +42,7 @@
 ### Phase 3C: kcs-search Crate Implementation
 
 - [x] **T022**: Create kcs-search crate structure with Cargo.toml
-- [ ] **T023**: Implement embedding generator in kcs-search/src/embeddings.rs
+- [x] **T023**: Implement embedding generator in kcs-search/src/embeddings.rs
 - [ ] **T024**: Add query processor in kcs-search/src/query.rs
 - [ ] **T025**: Implement pgvector integration in kcs-search/src/vector_db.rs
 - [ ] **T026**: Write unit tests for semantic search
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 22
+- **Completed**: 23
 - **In Progress**: 0
 - **Blocked**: 0
 
