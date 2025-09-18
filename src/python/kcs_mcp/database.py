@@ -649,25 +649,29 @@ class Database:
 
     async def store_kernel_config(
         self,
-        config_id: str,
-        arch: str,
         config_name: str,
-        config_path: str,
-        options: dict,
-        dependencies: list,
-        metadata: dict,
+        architecture: str,
+        config_type: str,
+        enabled_features: list[str],
+        disabled_features: list[str],
+        module_features: list[str],
+        dependencies: dict,
+        kernel_version: str,
+        metadata: dict | None = None,
     ) -> None:
         """
         Store kernel configuration data in the database.
 
         Args:
-            config_id: Unique configuration identifier
-            arch: Target architecture
-            config_name: Configuration name
-            config_path: Path to config file
-            options: Configuration options dict
-            dependencies: Dependency list
-            metadata: Additional metadata
+            config_name: Unique configuration identifier (e.g., "x86_64:defconfig")
+            architecture: Target architecture
+            config_type: Type of configuration (defconfig, allmodconfig, etc.)
+            enabled_features: List of CONFIG_* options that are enabled (=y)
+            disabled_features: List of CONFIG_* options that are disabled (=n)
+            module_features: List of CONFIG_* options built as modules (=m)
+            dependencies: Map of feature dependencies and constraints
+            kernel_version: Kernel version this configuration applies to
+            metadata: Additional architecture-specific settings and metadata
         """
         async with self.acquire() as conn:
             async with conn.transaction():
@@ -676,31 +680,339 @@ class Database:
                 # Insert into kernel_config table
                 config_sql = """
                 INSERT INTO kernel_config (
-                    config_id, arch, config_name, config_path,
-                    options, dependencies, metadata, parsed_at
+                    config_name, architecture, config_type, enabled_features,
+                    disabled_features, module_features, dependencies,
+                    kernel_version, metadata, created_at, updated_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-                ON CONFLICT (config_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+                ON CONFLICT (config_name)
                 DO UPDATE SET
-                    arch = EXCLUDED.arch,
-                    config_name = EXCLUDED.config_name,
-                    config_path = EXCLUDED.config_path,
-                    options = EXCLUDED.options,
+                    architecture = EXCLUDED.architecture,
+                    config_type = EXCLUDED.config_type,
+                    enabled_features = EXCLUDED.enabled_features,
+                    disabled_features = EXCLUDED.disabled_features,
+                    module_features = EXCLUDED.module_features,
                     dependencies = EXCLUDED.dependencies,
+                    kernel_version = EXCLUDED.kernel_version,
                     metadata = EXCLUDED.metadata,
-                    parsed_at = NOW()
+                    updated_at = NOW()
                 """
 
                 await conn.execute(
                     config_sql,
-                    config_id,
-                    arch,
                     config_name,
-                    config_path,
-                    json.dumps({k: v.dict() for k, v in options.items()}),
-                    json.dumps([dep.dict() for dep in dependencies]),
-                    json.dumps(metadata),
+                    architecture,
+                    config_type,
+                    json.dumps(enabled_features),
+                    json.dumps(disabled_features),
+                    json.dumps(module_features),
+                    json.dumps(dependencies),
+                    kernel_version,
+                    json.dumps(metadata or {}),
                 )
+
+    async def get_kernel_config(self, config_name: str) -> dict[str, Any] | None:
+        """
+        Get kernel configuration details by name.
+
+        Args:
+            config_name: Configuration name (e.g., "x86_64:defconfig")
+
+        Returns:
+            Configuration data dict or None if not found
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                config_name,
+                architecture,
+                config_type,
+                enabled_features,
+                disabled_features,
+                module_features,
+                dependencies,
+                kernel_version,
+                metadata,
+                created_at,
+                updated_at
+            FROM kernel_config
+            WHERE config_name = $1
+            """
+
+            row = await conn.fetchrow(sql, config_name)
+
+            if not row:
+                return None
+
+            import json
+
+            return {
+                "config_name": row["config_name"],
+                "architecture": row["architecture"],
+                "config_type": row["config_type"],
+                "enabled_features": json.loads(row["enabled_features"]),
+                "disabled_features": json.loads(row["disabled_features"]),
+                "module_features": json.loads(row["module_features"]),
+                "dependencies": json.loads(row["dependencies"]),
+                "kernel_version": row["kernel_version"],
+                "metadata": json.loads(row["metadata"]),
+                "created_at": row["created_at"].isoformat(),
+                "updated_at": row["updated_at"].isoformat(),
+            }
+
+    async def search_kernel_configs(
+        self,
+        architecture: str | None = None,
+        config_type: str | None = None,
+        kernel_version: str | None = None,
+        feature: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """
+        Search kernel configurations with filters.
+
+        Args:
+            architecture: Filter by architecture
+            config_type: Filter by configuration type
+            kernel_version: Filter by kernel version
+            feature: Filter by feature presence (enabled or module)
+            limit: Maximum results to return
+
+        Returns:
+            List of matching configurations
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                config_name,
+                architecture,
+                config_type,
+                kernel_version,
+                created_at,
+                updated_at,
+                jsonb_array_length(enabled_features) as enabled_count,
+                jsonb_array_length(module_features) as module_count
+            FROM kernel_config
+            WHERE 1=1
+            """
+            params = []
+            param_idx = 1
+
+            if architecture:
+                sql += f" AND architecture = ${param_idx}"
+                params.append(architecture)
+                param_idx += 1
+
+            if config_type:
+                sql += f" AND config_type = ${param_idx}"
+                params.append(config_type)
+                param_idx += 1
+
+            if kernel_version:
+                sql += f" AND kernel_version = ${param_idx}"
+                params.append(kernel_version)
+                param_idx += 1
+
+            if feature:
+                sql += f" AND (enabled_features @> ${param_idx}::jsonb OR module_features @> ${param_idx}::jsonb)"
+                params.append(f'["{feature}"]')
+                param_idx += 1
+
+            sql += f" ORDER BY created_at DESC LIMIT ${param_idx}"
+            params.append(str(limit))
+
+            rows = await conn.fetch(sql, *params)
+
+            return [
+                {
+                    "config_name": row["config_name"],
+                    "architecture": row["architecture"],
+                    "config_type": row["config_type"],
+                    "kernel_version": row["kernel_version"],
+                    "created_at": row["created_at"].isoformat(),
+                    "updated_at": row["updated_at"].isoformat(),
+                    "enabled_count": row["enabled_count"],
+                    "module_count": row["module_count"],
+                }
+                for row in rows
+            ]
+
+    async def get_config_features(
+        self, config_name: str, feature_type: str = "enabled"
+    ) -> list[str]:
+        """
+        Get features of a specific type for a configuration.
+
+        Args:
+            config_name: Configuration name
+            feature_type: Type of features ("enabled", "disabled", "module")
+
+        Returns:
+            List of feature names
+        """
+        async with self.acquire() as conn:
+            column_map = {
+                "enabled": "enabled_features",
+                "disabled": "disabled_features",
+                "module": "module_features",
+            }
+
+            if feature_type not in column_map:
+                raise ValueError(f"Invalid feature_type: {feature_type}")
+
+            sql = f"""
+            SELECT {column_map[feature_type]}
+            FROM kernel_config
+            WHERE config_name = $1
+            """
+
+            row = await conn.fetchrow(sql, config_name)
+
+            if not row:
+                return []
+
+            import json
+
+            features = json.loads(row[column_map[feature_type]])
+            return features if isinstance(features, list) else []
+
+    async def is_feature_enabled(self, config_name: str, feature: str) -> bool:
+        """
+        Check if a feature is enabled in a configuration.
+
+        Args:
+            config_name: Configuration name
+            feature: Feature name (with or without CONFIG_ prefix)
+
+        Returns:
+            True if feature is enabled, False otherwise
+        """
+        async with self.acquire() as conn:
+            # Normalize feature name to include CONFIG_ prefix
+            if not feature.startswith("CONFIG_"):
+                feature = f"CONFIG_{feature}"
+
+            # Use the database function created in migration
+            sql = "SELECT is_feature_enabled($1, $2)"
+            result = await conn.fetchval(sql, config_name, feature)
+
+            return bool(result)
+
+    async def get_active_features(self, config_name: str) -> dict[str, list[str]]:
+        """
+        Get all active features (enabled + modules) for a configuration.
+
+        Args:
+            config_name: Configuration name
+
+        Returns:
+            Dict with 'enabled' and 'modules' lists
+        """
+        async with self.acquire() as conn:
+            # Use the database function created in migration
+            sql = "SELECT get_active_features($1)"
+            result = await conn.fetchval(sql, config_name)
+
+            if result:
+                import json
+
+                features = json.loads(result)
+                if isinstance(features, dict):
+                    return features
+
+            return {"enabled": [], "modules": []}
+
+    async def store_config_dependency(
+        self,
+        config_name: str,
+        option_name: str,
+        depends_on: list[str] | None = None,
+        selects: list[str] | None = None,
+        implies: list[str] | None = None,
+        conflicts_with: list[str] | None = None,
+    ) -> None:
+        """
+        Store configuration dependency information.
+
+        Args:
+            config_name: Configuration name
+            option_name: Configuration option name
+            depends_on: List of options this depends on
+            selects: List of options this selects
+            implies: List of options this implies
+            conflicts_with: List of options this conflicts with
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                import json
+
+                # First delete existing entry if it exists
+                await conn.execute(
+                    "DELETE FROM config_dependency WHERE config_name = $1 AND option_name = $2",
+                    config_name,
+                    option_name,
+                )
+
+                # Insert into config_dependency table
+                dep_sql = """
+                INSERT INTO config_dependency (
+                    config_name, option_name, depends_on, selects,
+                    implies, conflicts_with, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                """
+
+                await conn.execute(
+                    dep_sql,
+                    config_name,
+                    option_name,
+                    json.dumps(depends_on or []),
+                    json.dumps(selects or []),
+                    json.dumps(implies or []),
+                    json.dumps(conflicts_with or []),
+                )
+
+    async def get_config_dependencies(
+        self, config_name: str, option_name: str
+    ) -> dict[str, Any] | None:
+        """
+        Get dependency information for a configuration option.
+
+        Args:
+            config_name: Configuration name
+            option_name: Configuration option name
+
+        Returns:
+            Dependency information dict or None if not found
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT
+                option_name,
+                depends_on,
+                selects,
+                implies,
+                conflicts_with,
+                created_at
+            FROM config_dependency
+            WHERE config_name = $1 AND option_name = $2
+            """
+
+            row = await conn.fetchrow(sql, config_name, option_name)
+
+            if not row:
+                return None
+
+            import json
+
+            return {
+                "option_name": row["option_name"],
+                "depends_on": json.loads(row["depends_on"]),
+                "selects": json.loads(row["selects"]),
+                "implies": json.loads(row["implies"]),
+                "conflicts_with": json.loads(row["conflicts_with"]),
+                "created_at": row["created_at"].isoformat(),
+            }
 
     async def store_validation_result(
         self,
@@ -1009,23 +1321,145 @@ class MockDatabase(Database):
 
     async def store_kernel_config(
         self,
-        config_id: str,
-        arch: str,
         config_name: str,
-        config_path: str,
-        options: dict,
-        dependencies: list,
-        metadata: dict,
+        architecture: str,
+        config_type: str,
+        enabled_features: list[str],
+        disabled_features: list[str],
+        module_features: list[str],
+        dependencies: dict,
+        kernel_version: str,
+        metadata: dict | None = None,
     ) -> None:
         """Mock kernel config storage."""
         # Just log that it was called
         logger.info(
             "Mock storing kernel config",
-            config_id=config_id,
-            arch=arch,
             config_name=config_name,
-            options_count=len(options),
+            architecture=architecture,
+            config_type=config_type,
+            features_count=len(enabled_features) + len(module_features),
         )
+
+    async def get_kernel_config(self, config_name: str) -> dict[str, Any] | None:
+        """Mock kernel config retrieval."""
+        if config_name == "nonexistent_config":
+            return None
+
+        return {
+            "config_name": config_name,
+            "architecture": "x86_64",
+            "config_type": "defconfig",
+            "enabled_features": ["CONFIG_X86_64", "CONFIG_NET", "CONFIG_BLOCK"],
+            "disabled_features": ["CONFIG_DEBUG_KERNEL", "CONFIG_EMBEDDED"],
+            "module_features": ["CONFIG_EXT4_FS", "CONFIG_USB"],
+            "dependencies": {"CONFIG_NET": ["CONFIG_NETDEVICES"]},
+            "kernel_version": "6.1.0",
+            "metadata": {"compiler": "gcc", "build_date": "2024-01-01"},
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+        }
+
+    async def search_kernel_configs(
+        self,
+        architecture: str | None = None,
+        config_type: str | None = None,
+        kernel_version: str | None = None,
+        feature: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Mock kernel config search."""
+        mock_configs = [
+            {
+                "config_name": "x86_64:defconfig",
+                "architecture": "x86_64",
+                "config_type": "defconfig",
+                "kernel_version": "6.1.0",
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+                "enabled_count": 100,
+                "module_count": 50,
+            },
+            {
+                "config_name": "arm64:defconfig",
+                "architecture": "arm64",
+                "config_type": "defconfig",
+                "kernel_version": "6.1.0",
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+                "enabled_count": 95,
+                "module_count": 45,
+            },
+        ]
+
+        # Apply basic filtering for mock
+        results = mock_configs
+        if architecture:
+            results = [c for c in results if c["architecture"] == architecture]
+        if config_type:
+            results = [c for c in results if c["config_type"] == config_type]
+
+        return results[:limit]
+
+    async def get_config_features(
+        self, config_name: str, feature_type: str = "enabled"
+    ) -> list[str]:
+        """Mock config features retrieval."""
+        mock_features = {
+            "enabled": ["CONFIG_X86_64", "CONFIG_NET", "CONFIG_BLOCK"],
+            "disabled": ["CONFIG_DEBUG_KERNEL", "CONFIG_EMBEDDED"],
+            "module": ["CONFIG_EXT4_FS", "CONFIG_USB"],
+        }
+        return mock_features.get(feature_type, [])
+
+    async def is_feature_enabled(self, config_name: str, feature: str) -> bool:
+        """Mock feature enabled check."""
+        # Normalize feature name
+        if not feature.startswith("CONFIG_"):
+            feature = f"CONFIG_{feature}"
+
+        enabled_features = ["CONFIG_X86_64", "CONFIG_NET", "CONFIG_BLOCK"]
+        return feature in enabled_features
+
+    async def get_active_features(self, config_name: str) -> dict[str, list[str]]:
+        """Mock active features retrieval."""
+        return {
+            "enabled": ["CONFIG_X86_64", "CONFIG_NET", "CONFIG_BLOCK"],
+            "modules": ["CONFIG_EXT4_FS", "CONFIG_USB"],
+        }
+
+    async def store_config_dependency(
+        self,
+        config_name: str,
+        option_name: str,
+        depends_on: list[str] | None = None,
+        selects: list[str] | None = None,
+        implies: list[str] | None = None,
+        conflicts_with: list[str] | None = None,
+    ) -> None:
+        """Mock config dependency storage."""
+        logger.info(
+            "Mock storing config dependency",
+            config_name=config_name,
+            option_name=option_name,
+            depends_count=len(depends_on or []),
+        )
+
+    async def get_config_dependencies(
+        self, config_name: str, option_name: str
+    ) -> dict[str, Any] | None:
+        """Mock config dependency retrieval."""
+        if option_name == "CONFIG_NONEXISTENT":
+            return None
+
+        return {
+            "option_name": option_name,
+            "depends_on": ["CONFIG_NETDEVICES"] if option_name == "CONFIG_NET" else [],
+            "selects": [],
+            "implies": [],
+            "conflicts_with": [],
+            "created_at": "2024-01-01T00:00:00",
+        }
 
     async def store_validation_result(
         self,
