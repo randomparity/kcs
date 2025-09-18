@@ -647,6 +647,61 @@ class Database:
 
                 return inserted_count
 
+    async def store_kernel_config(
+        self,
+        config_id: str,
+        arch: str,
+        config_name: str,
+        config_path: str,
+        options: dict,
+        dependencies: list,
+        metadata: dict,
+    ) -> None:
+        """
+        Store kernel configuration data in the database.
+
+        Args:
+            config_id: Unique configuration identifier
+            arch: Target architecture
+            config_name: Configuration name
+            config_path: Path to config file
+            options: Configuration options dict
+            dependencies: Dependency list
+            metadata: Additional metadata
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                import json
+
+                # Insert into kernel_config table
+                config_sql = """
+                INSERT INTO kernel_config (
+                    config_id, arch, config_name, config_path,
+                    options, dependencies, metadata, parsed_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                ON CONFLICT (config_id)
+                DO UPDATE SET
+                    arch = EXCLUDED.arch,
+                    config_name = EXCLUDED.config_name,
+                    config_path = EXCLUDED.config_path,
+                    options = EXCLUDED.options,
+                    dependencies = EXCLUDED.dependencies,
+                    metadata = EXCLUDED.metadata,
+                    parsed_at = NOW()
+                """
+
+                await conn.execute(
+                    config_sql,
+                    config_id,
+                    arch,
+                    config_name,
+                    config_path,
+                    json.dumps({k: v.dict() for k, v in options.items()}),
+                    json.dumps([dep.dict() for dep in dependencies]),
+                    json.dumps(metadata),
+                )
+
 
 # Global database instance
 _database: Database | None = None
@@ -760,6 +815,26 @@ class MockDatabase(Database):
     ) -> int:
         """Mock batch file insertion."""
         return len(parsed_files)
+
+    async def store_kernel_config(
+        self,
+        config_id: str,
+        arch: str,
+        config_name: str,
+        config_path: str,
+        options: dict,
+        dependencies: list,
+        metadata: dict,
+    ) -> None:
+        """Mock kernel config storage."""
+        # Just log that it was called
+        logger.info(
+            "Mock storing kernel config",
+            config_id=config_id,
+            arch=arch,
+            config_name=config_name,
+            options_count=len(options),
+        )
 
 
 def set_database(database: Database) -> None:

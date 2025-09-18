@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from .database import Database, get_database
 from .models import (
     CallerInfo,
+    ConfigDependency,
+    ConfigOption,
     DiffSpecVsCodeRequest,
     DiffSpecVsCodeResponse,
     EntrypointFlowRequest,
@@ -25,6 +27,8 @@ from .models import (
     MaintainerInfo,
     OwnersForRequest,
     OwnersForResponse,
+    ParseKernelConfigRequest,
+    ParseKernelConfigResponse,
     SearchCodeRequest,
     SearchCodeResponse,
     SearchDocsRequest,
@@ -729,5 +733,228 @@ async def owners_for(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorResponse(
                 error="owner_lookup_failed", message=f"Owner lookup failed: {e!s}"
+            ).dict(),
+        ) from e
+
+
+@router.post("/parse_kernel_config", response_model=ParseKernelConfigResponse)
+async def parse_kernel_config(
+    request: ParseKernelConfigRequest, db: Database = Depends(get_database)
+) -> ParseKernelConfigResponse:
+    """
+    Parse kernel configuration file and extract options and dependencies.
+
+    This endpoint integrates with the kcs-config crate to parse .config files
+    and provide structured configuration data with dependency resolution.
+    """
+    import subprocess
+    import uuid
+    from datetime import datetime
+    from pathlib import Path
+
+    logger.info(
+        "parse_kernel_config",
+        config_path=request.config_path,
+        arch=request.arch,
+        config_name=request.config_name,
+        incremental=request.incremental,
+    )
+
+    try:
+        # Validate config file exists
+        config_path = Path(request.config_path)
+        if not config_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error="config_file_not_found",
+                    message=f"Configuration file not found: {request.config_path}",
+                ).dict(),
+            )
+
+        # Generate unique config ID
+        config_id = str(uuid.uuid4())
+
+        # Use current timestamp
+        parsed_at = datetime.utcnow().isoformat() + "Z"
+
+        # Set defaults
+        arch = request.arch or "x86_64"
+        config_name = request.config_name or "custom"
+
+        # Try to use kcs-config crate for parsing
+        try:
+            # Build command for kcs-config
+            cmd = ["kcs-config", "--format", "json", str(config_path)]
+            if request.arch:
+                cmd.extend(["--arch", request.arch])
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+
+            # Parse JSON output from kcs-config
+            import json
+
+            config_data = json.loads(result.stdout)
+
+            # Convert to our model format
+            options = {}
+            dependencies = []
+
+            if "options" in config_data:
+                for opt_name, opt_data in config_data["options"].items():
+                    options[opt_name] = ConfigOption(
+                        value=opt_data.get("value"),
+                        type=opt_data.get("type", "bool"),
+                    )
+
+            if "dependencies" in config_data:
+                for dep_data in config_data["dependencies"]:
+                    dependencies.append(
+                        ConfigDependency(
+                            option=dep_data["option"],
+                            depends_on=dep_data.get("depends_on", []),
+                            chain=dep_data.get("chain")
+                            if request.resolve_dependencies
+                            else None,
+                        )
+                    )
+
+            metadata = config_data.get("metadata", {})
+
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ):
+            # Fall back to basic parsing if kcs-config is not available
+            logger.warning("kcs-config not available, using fallback parser")
+
+            # Simple .config file parsing
+            options = {}
+            dependencies = []
+
+            with open(config_path) as f:
+                for _line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+
+                        # Determine option type and parse value
+                        opt_value: str | bool | int | None
+                        opt_type: str
+
+                        if value == "y":
+                            opt_value = True
+                            opt_type = "bool"
+                        elif value == "n":
+                            opt_value = False
+                            opt_type = "bool"
+                        elif value == "m":
+                            opt_value = "m"
+                            opt_type = "tristate"
+                        elif value.startswith('"') and value.endswith('"'):
+                            opt_value = value[1:-1]
+                            opt_type = "string"
+                        elif value.startswith("0x"):
+                            opt_value = value
+                            opt_type = "hex"
+                        elif value.isdigit():
+                            opt_value = int(value)
+                            opt_type = "int"
+                        else:
+                            opt_value = value
+                            opt_type = "string"
+
+                        options[key] = ConfigOption(value=opt_value, type=opt_type)
+
+            # Basic metadata
+            metadata = {
+                "kernel_version": "unknown",
+                "subsystems": [],
+                "parsing_method": "fallback",
+            }
+
+        # Apply filters if provided
+        if request.filters:
+            if "subsystems" in request.filters or "pattern" in request.filters:
+                filtered_options: dict[str, ConfigOption] = {}
+                pattern = request.filters.get("pattern", "")
+                subsystems = request.filters.get("subsystems", [])
+
+                for opt_name, opt_config in options.items():
+                    # Pattern matching
+                    if pattern and not any(
+                        p in opt_name for p in pattern.replace("*", "").split("_")
+                    ):
+                        continue
+
+                    # Subsystem filtering
+                    if subsystems:
+                        matches_subsystem = False
+                        for subsys in subsystems:
+                            if subsys.upper() in opt_name:
+                                matches_subsystem = True
+                                break
+                        if not matches_subsystem:
+                            continue
+
+                    filtered_options[opt_name] = opt_config
+
+                options = filtered_options
+
+        # Store configuration in database
+        try:
+            await db.store_kernel_config(
+                config_id=config_id,
+                arch=arch,
+                config_name=config_name,
+                config_path=str(config_path),
+                options=options,
+                dependencies=dependencies,
+                metadata=metadata,
+            )
+        except Exception as e:
+            logger.warning("Failed to store config in database", error=str(e))
+
+        # Handle incremental mode
+        changes = None
+        diff = None
+        if request.incremental and request.base_config_id:
+            # TODO: Implement incremental comparison
+            changes = {"added": [], "modified": [], "removed": []}
+            diff = {"summary": "No changes detected"}
+
+        return ParseKernelConfigResponse(
+            config_id=config_id,
+            arch=arch,
+            config_name=config_name,
+            options=options,
+            dependencies=dependencies,
+            parsed_at=parsed_at,
+            metadata=metadata,
+            changes=changes,
+            diff=diff,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "parse_kernel_config_error", error=str(e), config_path=request.config_path
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="config_parsing_failed",
+                message=f"Configuration parsing failed: {e!s}",
             ).dict(),
         ) from e

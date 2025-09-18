@@ -234,6 +234,62 @@ class OwnersForResponse(BaseModel):
     maintainers: list[MaintainerInfo]
 
 
+class ParseKernelConfigRequest(BaseModel):
+    """Request for kernel configuration parsing."""
+
+    config_path: str = Field(
+        ..., description="Path to kernel config file", min_length=1
+    )
+    arch: str | None = Field(
+        None,
+        description="Target architecture",
+        pattern="^(x86_64|arm64|arm|riscv|powerpc|s390|mips)$",
+    )
+    config_name: str | None = Field(None, description="Configuration name")
+    incremental: bool | None = Field(False, description="Incremental parsing mode")
+    base_config_id: str | None = Field(
+        None, description="Base config UUID for incremental"
+    )
+    filters: dict[str, Any] | None = Field(None, description="Filtering options")
+    resolve_dependencies: bool | None = Field(False, description="Resolve dependencies")
+    max_depth: int | None = Field(3, description="Max dependency depth", ge=1, le=10)
+
+
+class ConfigOption(BaseModel):
+    """Kernel configuration option."""
+
+    value: str | bool | int | None = Field(..., description="Option value")
+    type: str = Field(
+        ...,
+        description="Option type",
+        pattern="^(bool|tristate|string|int|hex)$",
+    )
+
+
+class ConfigDependency(BaseModel):
+    """Configuration dependency relationship."""
+
+    option: str = Field(..., description="Dependent option name")
+    depends_on: list[str] = Field(..., description="List of dependencies")
+    chain: list[str] | None = Field(None, description="Dependency chain")
+
+
+class ParseKernelConfigResponse(BaseModel):
+    """Response for kernel configuration parsing."""
+
+    config_id: str = Field(..., description="Unique configuration identifier (UUID)")
+    arch: str = Field(..., description="Target architecture")
+    config_name: str = Field(..., description="Configuration name")
+    options: dict[str, ConfigOption] = Field(..., description="Configuration options")
+    dependencies: list[ConfigDependency] = Field(..., description="Option dependencies")
+    parsed_at: str = Field(..., description="Parse timestamp (ISO format)")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+    changes: dict[str, Any] | None = Field(
+        None, description="Changes for incremental mode"
+    )
+    diff: dict[str, Any] | None = Field(None, description="Diff for incremental mode")
+
+
 # Error response
 class ErrorResponse(BaseModel):
     """Standard error response."""
