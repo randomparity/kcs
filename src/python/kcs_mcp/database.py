@@ -649,33 +649,79 @@ class Database:
 
     async def store_kernel_config(
         self,
+        config_id: str,
+        arch: str,
         config_name: str,
-        architecture: str,
-        config_type: str,
-        enabled_features: list[str],
-        disabled_features: list[str],
-        module_features: list[str],
-        dependencies: dict,
-        kernel_version: str,
+        config_path: str,
+        options: dict[str, Any],
+        dependencies: list[Any],
         metadata: dict | None = None,
-    ) -> None:
+        kernel_version: str | None = None,
+    ) -> str:
         """
         Store kernel configuration data in the database.
 
         Args:
-            config_name: Unique configuration identifier (e.g., "x86_64:defconfig")
-            architecture: Target architecture
-            config_type: Type of configuration (defconfig, allmodconfig, etc.)
-            enabled_features: List of CONFIG_* options that are enabled (=y)
-            disabled_features: List of CONFIG_* options that are disabled (=n)
-            module_features: List of CONFIG_* options built as modules (=m)
-            dependencies: Map of feature dependencies and constraints
-            kernel_version: Kernel version this configuration applies to
-            metadata: Additional architecture-specific settings and metadata
+            config_id: Unique configuration identifier (UUID)
+            arch: Target architecture
+            config_name: Configuration name
+            config_path: Path to the configuration file
+            options: Dictionary of configuration options
+            dependencies: List of configuration dependencies
+            metadata: Additional metadata
+            kernel_version: Kernel version (optional)
+
+        Returns:
+            Configuration ID
         """
         async with self.acquire() as conn:
             async with conn.transaction():
                 import json
+
+                # Convert options dict to the expected format for the database
+                # Extract enabled, disabled, and module features from options
+                enabled_features = []
+                disabled_features = []
+                module_features = []
+
+                for opt_name, opt_value in options.items():
+                    if hasattr(opt_value, "value") and hasattr(opt_value, "type"):
+                        # It's a ConfigOption object
+                        value = opt_value.value
+                        if value is True:
+                            enabled_features.append(opt_name)
+                        elif value is False:
+                            disabled_features.append(opt_name)
+                        elif value == "m":
+                            module_features.append(opt_name)
+                    else:
+                        # It's a direct value
+                        if opt_value is True:
+                            enabled_features.append(opt_name)
+                        elif opt_value is False:
+                            disabled_features.append(opt_name)
+                        elif opt_value == "m":
+                            module_features.append(opt_name)
+
+                # Convert dependencies list to dict format expected by database
+                dependencies_dict = {}
+                for dep in dependencies:
+                    if hasattr(dep, "option") and hasattr(dep, "depends_on"):
+                        # It's a ConfigDependency object
+                        dependencies_dict[dep.option] = dep.depends_on
+                    elif isinstance(dep, dict):
+                        # It's already a dict
+                        if "option" in dep and "depends_on" in dep:
+                            dependencies_dict[dep["option"]] = dep["depends_on"]
+
+                # Determine config_type from config_name or default to "custom"
+                config_type = "custom"
+                if "defconfig" in config_name.lower():
+                    config_type = "defconfig"
+                elif "allmodconfig" in config_name.lower():
+                    config_type = "allmodconfig"
+                elif "allyesconfig" in config_name.lower():
+                    config_type = "allyesconfig"
 
                 # Insert into kernel_config table
                 config_sql = """
@@ -698,18 +744,30 @@ class Database:
                     updated_at = NOW()
                 """
 
+                # Construct the final config name that includes architecture
+                full_config_name = f"{arch}:{config_name}"
+
                 await conn.execute(
                     config_sql,
-                    config_name,
-                    architecture,
+                    full_config_name,
+                    arch,
                     config_type,
                     json.dumps(enabled_features),
                     json.dumps(disabled_features),
                     json.dumps(module_features),
-                    json.dumps(dependencies),
-                    kernel_version,
-                    json.dumps(metadata or {}),
+                    json.dumps(dependencies_dict),
+                    kernel_version or "unknown",
+                    json.dumps(
+                        {
+                            **(metadata or {}),
+                            "config_id": config_id,
+                            "config_path": config_path,
+                            "original_options": {k: str(v) for k, v in options.items()},
+                        }
+                    ),
                 )
+
+                return config_id
 
     async def get_kernel_config(self, config_name: str) -> dict[str, Any] | None:
         """
@@ -2827,25 +2885,27 @@ class MockDatabase(Database):
 
     async def store_kernel_config(
         self,
+        config_id: str,
+        arch: str,
         config_name: str,
-        architecture: str,
-        config_type: str,
-        enabled_features: list[str],
-        disabled_features: list[str],
-        module_features: list[str],
-        dependencies: dict,
-        kernel_version: str,
+        config_path: str,
+        options: dict[str, Any],
+        dependencies: list[Any],
         metadata: dict | None = None,
-    ) -> None:
+        kernel_version: str | None = None,
+    ) -> str:
         """Mock kernel config storage."""
         # Just log that it was called
         logger.info(
             "Mock storing kernel config",
+            config_id=config_id,
+            arch=arch,
             config_name=config_name,
-            architecture=architecture,
-            config_type=config_type,
-            features_count=len(enabled_features) + len(module_features),
+            config_path=config_path,
+            options_count=len(options),
+            dependencies_count=len(dependencies),
         )
+        return config_id
 
     async def get_kernel_config(self, config_name: str) -> dict[str, Any] | None:
         """Mock kernel config retrieval."""
