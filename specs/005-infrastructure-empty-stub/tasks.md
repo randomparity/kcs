@@ -37,7 +37,7 @@
 - [x] **T018**: Implement report_generator module in kcs-drift/src/report_generator.rs
 - [x] **T019**: Add drift analysis integration in kcs-drift/src/lib.rs
 - [x] **T020**: Write unit tests for drift detection
-- [ ] **T021**: Create integration test for spec validation
+- [x] **T021**: Create integration test for spec validation
 
 ### Phase 3C: kcs-search Crate Implementation
 
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 20
+- **Completed**: 21
 - **In Progress**: 0
 - **Blocked**: 0
 
