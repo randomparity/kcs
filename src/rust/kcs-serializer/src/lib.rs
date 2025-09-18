@@ -20,6 +20,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+pub mod checksum;
 pub mod chunk_writer;
 pub mod chunker;
 pub mod graphml_export;
@@ -36,6 +37,7 @@ mod manifest_test;
 mod checksum_test;
 
 // Re-export main types for convenience
+pub use checksum::{ChecksumCalculator, ChecksumConfig, ChecksumError, ChecksumResult, HashAlgorithm};
 pub use chunk_writer::{ChunkWriter, ChunkWriterConfig, ChunkWriterError, ChunkInfo, FileInfo};
 pub use chunker::{ChunkOptions, GraphChunk, GraphChunker};
 pub use graphml_export::GraphMLExporter;

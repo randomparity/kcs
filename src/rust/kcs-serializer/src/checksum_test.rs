@@ -4,165 +4,7 @@
 //! SHA256 hash calculation for chunk integrity verification.
 
 use anyhow::Result;
-use std::collections::HashMap;
-
-// Supporting types and configurations for testing
-// These would normally be defined in checksum.rs
-
-#[derive(Debug, Clone)]
-pub struct ChecksumConfig {
-    pub algorithm: HashAlgorithm,
-    pub verify_on_read: bool,
-    pub buffer_size: usize,
-    pub parallel_processing: bool,
-    pub cache_checksums: bool,
-}
-
-impl Default for ChecksumConfig {
-    fn default() -> Self {
-        Self {
-            algorithm: HashAlgorithm::Sha256,
-            verify_on_read: false,
-            buffer_size: 64 * 1024, // 64KB buffer
-            parallel_processing: false,
-            cache_checksums: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum HashAlgorithm {
-    Sha256,
-    Sha1,
-    Md5,
-}
-
-#[derive(Debug)]
-pub enum ChecksumError {
-    InvalidInput(String),
-    IoError(std::io::Error),
-    VerificationFailed { expected: String, actual: String },
-    UnsupportedAlgorithm(String),
-}
-
-impl std::fmt::Display for ChecksumError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
-            Self::IoError(e) => write!(f, "IO error: {}", e),
-            Self::VerificationFailed { expected, actual } => {
-                write!(f, "Checksum verification failed: expected {}, got {}", expected, actual)
-            }
-            Self::UnsupportedAlgorithm(algo) => write!(f, "Unsupported algorithm: {}", algo),
-        }
-    }
-}
-
-impl std::error::Error for ChecksumError {}
-
-#[derive(Debug)]
-pub struct ChecksumCalculator {
-    config: ChecksumConfig,
-    checksum_cache: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChecksumResult {
-    pub algorithm: HashAlgorithm,
-    pub hash: String,
-    pub data_size: usize,
-    pub calculation_time_ms: u64,
-    pub from_cache: bool,
-}
-
-// Stub implementations for testing - these will fail until T020 is implemented
-impl ChecksumCalculator {
-    pub fn new(_config: ChecksumConfig) -> Result<Self, ChecksumError> {
-        // This will fail until T020 is implemented
-        Err(ChecksumError::InvalidInput(
-            "ChecksumCalculator not yet implemented - awaiting T020".to_string(),
-        ))
-    }
-
-    pub fn calculate_sha256(&mut self, _data: &[u8]) -> Result<String, ChecksumError> {
-        Err(ChecksumError::InvalidInput(
-            "calculate_sha256 not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn calculate_sha256_file(&mut self, _file_path: &std::path::Path) -> Result<String, ChecksumError> {
-        Err(ChecksumError::InvalidInput(
-            "calculate_sha256_file not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn calculate_with_metadata(&mut self, _data: &[u8]) -> Result<ChecksumResult, ChecksumError> {
-        Err(ChecksumError::InvalidInput(
-            "calculate_with_metadata not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn verify_checksum(&mut self, _data: &[u8], _expected: &str) -> Result<bool, ChecksumError> {
-        Err(ChecksumError::InvalidInput(
-            "verify_checksum not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn verify_file_checksum(&mut self, _file_path: &std::path::Path, _expected: &str) -> Result<bool, ChecksumError> {
-        Err(ChecksumError::InvalidInput(
-            "verify_file_checksum not yet implemented".to_string(),
-        ))
-    }
-
-    pub fn clear_cache(&mut self) {
-        self.checksum_cache.clear();
-    }
-
-    pub fn get_cache_size(&self) -> usize {
-        self.checksum_cache.len()
-    }
-
-    pub fn calculate_streaming(&mut self, _reader: Box<dyn std::io::Read>) -> Result<String, ChecksumError> {
-        Err(ChecksumError::InvalidInput(
-            "calculate_streaming not yet implemented".to_string(),
-        ))
-    }
-}
-
-// Utility functions for testing
-pub fn create_test_data(size: usize, pattern: u8) -> Vec<u8> {
-    vec![pattern; size]
-}
-
-pub fn create_random_data(size: usize) -> Vec<u8> {
-    // Simple pseudorandom data for testing
-    (0..size).map(|i| (i * 37 + 13) as u8).collect()
-}
-
-// Known test vectors for SHA256 validation
-pub struct KnownTestVector {
-    pub input: &'static str,
-    pub expected_sha256: &'static str,
-}
-
-pub const SHA256_TEST_VECTORS: &[KnownTestVector] = &[
-    KnownTestVector {
-        input: "",
-        expected_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    },
-    KnownTestVector {
-        input: "abc",
-        expected_sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    },
-    KnownTestVector {
-        input: "The quick brown fox jumps over the lazy dog",
-        expected_sha256: "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592",
-    },
-    KnownTestVector {
-        input: "The quick brown fox jumps over the lazy dog.",
-        expected_sha256: "ef537f25c895bfa782526529a9b63d97aa631564d5d789c2b765448c8635fb6c",
-    },
-];
+use crate::checksum::*;
 
 #[cfg(test)]
 mod tests {
@@ -482,7 +324,9 @@ mod tests {
 
         // Verify format matches OpenAPI schema requirement (64 char hex)
         assert_eq!(checksum.len(), 64);
-        assert!(checksum.chars().all(|c| c.is_ascii_hexdigit() && c.is_lowercase()));
+        assert!(checksum.chars().all(|c| c.is_ascii_hexdigit()));
+        // Verify lowercase format (no uppercase letters A-F)
+        assert!(checksum.chars().all(|c| !c.is_ascii_uppercase()));
 
         // Verify checksum can be used in ChunkMetadata
         let _metadata = format!(
