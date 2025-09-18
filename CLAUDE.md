@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis via MCP protocol for AI coding assistants.
+Kernel Context Server (KCS) - Provides ground-truth Linux kernel analysis via MCP protocol for AI
+coding assistants.
 
 ## Architecture Overview
 
@@ -269,6 +270,7 @@ All endpoints in `src/python/kcs_mcp/tools.py` follow:
 ## Current Development Status
 
 ### Infrastructure Components (Branch: 005-infrastructure-empty-stub)
+
 - **kcs-config**: Empty stub - kernel config parsing not implemented
 - **kcs-drift**: Module exists but `drift_detector` and `report_generator` commented out
 - **kcs-search**: Semantic search DB schema ready, implementation pending
@@ -276,6 +278,7 @@ All endpoints in `src/python/kcs_mcp/tools.py` follow:
 - **kcs-serializer**: Graph export placeholder only
 
 ### Working Features
+
 - Basic tree-sitter parsing with call graph extraction (use `--include-calls` flag)
 - Entry point detection for syscalls and file_ops
 - PostgreSQL with pgvector configured

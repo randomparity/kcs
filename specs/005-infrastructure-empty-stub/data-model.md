@@ -11,24 +11,27 @@
 Represents platform-specific build settings and enabled features for a kernel build.
 
 **Fields**:
-- `config_name`: String - Configuration identifier (e.g., "x86_64:defconfig")
-- `architecture`: Enum - Target architecture (x86, x86_64, arm64, riscv, powerpc)
-- `config_type`: Enum - Configuration type (defconfig, allmodconfig, custom)
-- `enabled_features`: Set<String> - CONFIG_* options that are enabled
-- `disabled_features`: Set<String> - CONFIG_* options explicitly disabled
-- `module_features`: Set<String> - CONFIG_* options built as modules
-- `dependencies`: Map<String, Vec<String>> - Feature dependency graph
-- `kernel_version`: String - Kernel version this config applies to
+
+- `config_name`: `String` - Configuration identifier (e.g., "x86_64:defconfig")
+- `architecture`: `Enum` - Target architecture (x86, x86_64, arm64, riscv, powerpc)
+- `config_type`: `Enum` - Configuration type (defconfig, allmodconfig, custom)
+- `enabled_features`: `Set<String>` - CONFIG_* options that are enabled
+- `disabled_features`: `Set<String>` - CONFIG_* options explicitly disabled
+- `module_features`: `Set<String>` - CONFIG_* options built as modules
+- `dependencies`: `Map<String, Vec<String>>` - Feature dependency graph
+- `kernel_version`: `String` - Kernel version this config applies to
 - `created_at`: Timestamp - When configuration was parsed
 - `metadata`: JSONB - Additional architecture-specific settings
 
 **Validation Rules**:
+
 - config_name must be unique per kernel_version
 - architecture must be valid Linux architecture
 - Features must follow CONFIG_* naming convention
 - Dependencies must not have cycles
 
 **State Transitions**:
+
 - Created → Active (when successfully parsed)
 - Active → Deprecated (when kernel version changes)
 - Active → Invalid (when parsing errors detected)
@@ -38,18 +41,20 @@ Represents platform-specific build settings and enabled features for a kernel bu
 Contains formal or informal descriptions of expected kernel behavior.
 
 **Fields**:
+
 - `spec_id`: UUID - Unique identifier
 - `name`: String - Specification name
 - `version`: String - Spec version
 - `type`: Enum - Specification type (api, behavior, interface, constraint)
 - `content`: Text - Raw specification content
-- `parsed_requirements`: Vec<Requirement> - Extracted requirements
-- `kernel_versions`: Vec<String> - Applicable kernel versions
+- `parsed_requirements`: `Vec<Requirement>` - Extracted requirements
+- `kernel_versions`: `Vec<String>` - Applicable kernel versions
 - `created_at`: Timestamp
 - `updated_at`: Timestamp
 - `metadata`: JSONB - Additional spec metadata
 
 **Validation Rules**:
+
 - Name and version combination must be unique
 - Content must not be empty
 - At least one requirement must be extractable
@@ -60,27 +65,30 @@ Contains formal or informal descriptions of expected kernel behavior.
 Represents detected differences between specification and implementation.
 
 **Fields**:
+
 - `report_id`: UUID - Unique identifier
 - `spec_id`: UUID - Reference to SpecificationDocument
 - `commit_sha`: String - Kernel commit analyzed
 - `config_name`: String - Configuration used for analysis
 - `total_requirements`: Integer - Number of requirements checked
-- `violations`: Vec<Violation> - Detected violations
-- `conformances`: Vec<Conformance> - Confirmed conformances
-- `unknown`: Vec<Unknown> - Requirements that couldn't be verified
+- `violations`: `Vec<Violation>` - Detected violations
+- `conformances`: `Vec<Conformance>` - Confirmed conformances
+- `unknown`: `Vec<Unknown>` - Requirements that couldn't be verified
 - `severity`: Enum - Overall severity (critical, major, minor, info)
 - `generated_at`: Timestamp
 - `metadata`: JSONB - Additional analysis metadata
 
 **Nested Type - Violation**:
+
 - `requirement_id`: String - Requirement that was violated
 - `description`: Text - What was expected
 - `actual_behavior`: Text - What was found
 - `location`: Span - File:line:sha where violation found
 - `severity`: Enum - Violation severity
-- `suggested_fix`: Optional<Text> - Remediation suggestion
+- `suggested_fix`: `Optional<Text>` - Remediation suggestion
 
 **Validation Rules**:
+
 - Must reference valid spec_id
 - Commit SHA must be valid git hash
 - Sum of violations + conformances + unknown must equal total_requirements
@@ -91,16 +99,18 @@ Represents detected differences between specification and implementation.
 A search request with semantic understanding beyond keywords.
 
 **Fields**:
+
 - `query_id`: UUID - Unique identifier
 - `query_text`: String - Original query text
 - `query_type`: Enum - Type of query (concept, similar_to, explains, implements)
 - `query_embedding`: Vector(768) - Embedding representation
-- `kernel_context`: Optional<String> - Specific kernel subsystem/area
-- `config_filter`: Optional<String> - Configuration to filter by
+- `kernel_context`: `Optional<String>` - Specific kernel subsystem/area
+- `config_filter`: `Optional<String>` - Configuration to filter by
 - `timestamp`: Timestamp
 - `metadata`: JSONB - Additional query context
 
 **Validation Rules**:
+
 - Query text must not be empty
 - Embedding dimension must be 768 (for ada-002 compatibility)
 - Config filter must reference valid configuration if provided
@@ -110,17 +120,19 @@ A search request with semantic understanding beyond keywords.
 Represents a function in the call graph.
 
 **Fields**:
+
 - `node_id`: String - Unique identifier (function_name:file_path:line)
 - `function_name`: String - Function name
 - `file_path`: String - Source file containing function
 - `line_number`: Integer - Line where function defined
 - `signature`: String - Full function signature
 - `is_entry_point`: Boolean - Whether this is a kernel entry point
-- `entry_type`: Optional<Enum> - Type if entry point (syscall, ioctl, file_ops, sysfs)
-- `config_visibility`: Vec<String> - Configs where this function exists
+- `entry_type`: `Optional<Enum>` - Type if entry point (syscall, ioctl, file_ops, sysfs)
+- `config_visibility`: `Vec<String>` - Configs where this function exists
 - `metadata`: JSONB - Additional function metadata
 
 **Validation Rules**:
+
 - node_id must be unique
 - file_path must be relative to kernel root
 - line_number must be positive
@@ -131,16 +143,18 @@ Represents a function in the call graph.
 Represents a function call relationship.
 
 **Fields**:
+
 - `edge_id`: UUID - Unique identifier
 - `caller_id`: String - Reference to CallGraphNode
 - `callee_id`: String - Reference to CallGraphNode
 - `call_type`: Enum - Type of call (direct, indirect, macro, inline)
 - `call_site`: Span - Location of the call
 - `is_conditional`: Boolean - Whether call is conditional
-- `config_dependent`: Optional<String> - CONFIG option controlling this edge
+- `config_dependent`: `Optional<String>` - CONFIG option controlling this edge
 - `metadata`: JSONB - Additional edge metadata
 
 **Validation Rules**:
+
 - caller_id and callee_id must reference valid nodes
 - Cannot have self-loops unless explicitly marked as recursive
 - call_site must be within caller's function body
@@ -150,18 +164,20 @@ Represents a function call relationship.
 A traversal path through the call graph.
 
 **Fields**:
+
 - `path_id`: UUID - Unique identifier
 - `source_node`: String - Starting node ID
 - `target_node`: String - Ending node ID
-- `path_nodes`: Vec<String> - Ordered list of node IDs in path
-- `path_edges`: Vec<UUID> - Ordered list of edge IDs traversed
+- `path_nodes`: `Vec<String>` - Ordered list of node IDs in path
+- `path_edges`: `Vec<UUID>` - Ordered list of edge IDs traversed
 - `total_depth`: Integer - Number of hops in path
 - `has_cycles`: Boolean - Whether path contains cycles
-- `cycle_nodes`: Optional<Vec<String>> - Nodes involved in cycles
-- `config_compatibility`: Vec<String> - Configs where full path exists
+- `cycle_nodes`: `Optional<Vec<String>>` - Nodes involved in cycles
+- `config_compatibility`: `Vec<String>` - Configs where full path exists
 - `metadata`: JSONB - Path metadata (weights, metrics)
 
 **Validation Rules**:
+
 - path_nodes must start with source_node and end with target_node
 - path_edges length must be path_nodes length - 1
 - total_depth must match path_edges length
@@ -172,6 +188,7 @@ A traversal path through the call graph.
 Serialized graph data for external consumption.
 
 **Fields**:
+
 - `export_id`: UUID - Unique identifier
 - `format`: Enum - Export format (json_graph, graphml, dot, gexf)
 - `scope`: Enum - Export scope (full, subgraph, paths_only)
@@ -179,11 +196,12 @@ Serialized graph data for external consumption.
 - `edge_count`: Integer - Number of edges in export
 - `file_size_bytes`: Integer - Size of serialized data
 - `chunk_count`: Integer - Number of chunks if split
-- `compression`: Optional<Enum> - Compression used (none, gzip, brotli)
+- `compression`: `Optional<Enum>` - Compression used (none, gzip, brotli)
 - `created_at`: Timestamp
 - `metadata`: JSONB - Export parameters and options
 
 **Validation Rules**:
+
 - file_size_bytes must be under 1GB for jq compatibility
 - chunk_count > 1 only if file would exceed size limit
 - format must match actual serialization format
@@ -295,12 +313,14 @@ erDiagram
 ## Access Patterns
 
 ### High-Frequency Queries
+
 1. Find symbols by config: Index on config_visibility
 2. Traverse call graph: Index on caller_id, callee_id
 3. Semantic search: HNSW index on embeddings
 4. Drift by spec: Index on spec_id, commit_sha
 
 ### Write Patterns
+
 1. Bulk insert during indexing: Use COPY for symbols
 2. Incremental drift reports: Append-only pattern
 3. Graph exports: Async generation with progress tracking
@@ -308,6 +328,7 @@ erDiagram
 ## Migration Safety
 
 All changes are additive:
+
 - New tables don't affect existing functionality
 - Column additions have defaults for existing rows
 - Indexes added without blocking operations
