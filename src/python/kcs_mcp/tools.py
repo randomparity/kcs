@@ -64,6 +64,14 @@ from .models import (
     WhoCallsRequest,
     WhoCallsResponse,
 )
+from .models.chunk_models import (
+    ChunkManifest,
+    ProcessBatchRequest,
+    ProcessBatchResponse,
+    ProcessChunkRequest,
+    ProcessChunkResponse,
+    ProcessingStatus,
+)
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -2548,5 +2556,369 @@ async def export_graph(
             detail=ErrorResponse(
                 error="export_failed",
                 message=f"Graph export failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+# Chunk Processing Endpoints
+
+
+@router.get("/chunks/manifest", response_model=ChunkManifest)
+async def get_chunk_manifest(db: Database = Depends(get_database)) -> ChunkManifest:
+    """
+    Retrieve chunk manifest.
+
+    Get the current manifest listing all available chunks for processing.
+    Returns the most recent manifest version from the database.
+    """
+    logger.info("get_chunk_manifest")
+
+    try:
+        # Import ChunkQueries dynamically to avoid circular imports
+        from .database.chunk_queries import ChunkQueries
+
+        chunk_queries = ChunkQueries(db)
+        manifest_data = await chunk_queries.get_manifest()
+
+        if not manifest_data:
+            logger.warning("No manifest found in database")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error="manifest_not_found",
+                    message="No chunk manifest found",
+                ).dict(),
+            )
+
+        # Convert manifest_data dict to ChunkManifest model
+        manifest = ChunkManifest.model_validate(manifest_data)
+
+        logger.info(
+            "Chunk manifest retrieved",
+            version=manifest.version,
+            total_chunks=manifest.total_chunks,
+        )
+
+        return manifest
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_chunk_manifest_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="manifest_retrieval_failed",
+                message=f"Failed to retrieve manifest: {e!s}",
+            ).dict(),
+        ) from e
+
+
+@router.get("/chunks/{chunk_id}/status", response_model=ProcessingStatus)
+async def get_chunk_status(
+    chunk_id: str, db: Database = Depends(get_database)
+) -> ProcessingStatus:
+    """
+    Get chunk processing status.
+
+    Check the current processing state of a specific chunk including
+    start time, completion time, error messages, and retry count.
+    """
+    logger.info("get_chunk_status", chunk_id=chunk_id)
+
+    try:
+        # Import ChunkQueries dynamically to avoid circular imports
+        from .database.chunk_queries import ChunkQueries
+
+        chunk_queries = ChunkQueries(db)
+        status_data = await chunk_queries.get_chunk_status(chunk_id)
+
+        if not status_data:
+            logger.warning("Chunk status not found", chunk_id=chunk_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error="chunk_not_found",
+                    message=f"Chunk '{chunk_id}' not found",
+                ).dict(),
+            )
+
+        # Convert status_data dict to ProcessingStatus model
+        processing_status = ProcessingStatus.model_validate(status_data)
+
+        logger.info(
+            "Chunk status retrieved",
+            chunk_id=chunk_id,
+            status=processing_status.status,
+        )
+
+        return processing_status
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_chunk_status_error", chunk_id=chunk_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="status_retrieval_failed",
+                message=f"Failed to retrieve status for chunk '{chunk_id}': {e!s}",
+            ).dict(),
+        ) from e
+
+
+@router.post("/chunks/{chunk_id}/process", response_model=ProcessChunkResponse)
+async def process_chunk(
+    chunk_id: str,
+    request: ProcessChunkRequest,
+    db: Database = Depends(get_database),
+) -> ProcessChunkResponse:
+    """
+    Process a chunk.
+
+    Trigger processing of a specific chunk into the database.
+    Can be forced to reprocess even if already completed.
+    """
+    logger.info("process_chunk", chunk_id=chunk_id, force=request.force)
+
+    try:
+        # Import required modules dynamically to avoid circular imports
+        from .chunk_processor import ChunkProcessor
+        from .database.chunk_queries import ChunkQueries
+
+        chunk_queries = ChunkQueries(db)
+
+        # Check if chunk is already being processed
+        existing_status = await chunk_queries.get_chunk_status(chunk_id)
+        if existing_status and not request.force:
+            if existing_status["status"] == "processing":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=ErrorResponse(
+                        error="chunk_already_processing",
+                        message=f"Chunk '{chunk_id}' is already being processed",
+                    ).dict(),
+                )
+            elif existing_status["status"] == "completed":
+                return ProcessChunkResponse(
+                    message=f"Chunk '{chunk_id}' already completed",
+                    chunk_id=chunk_id,
+                    status="completed",
+                )
+
+        # Get manifest to find chunk metadata
+        manifest_data = await chunk_queries.get_manifest()
+        if not manifest_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error="no_manifest",
+                    message="No manifest available for chunk processing",
+                ).dict(),
+            )
+
+        manifest = ChunkManifest.model_validate(manifest_data)
+
+        # Find chunk metadata in manifest
+        chunk_metadata = None
+        for chunk in manifest.chunks:
+            if chunk.id == chunk_id:
+                chunk_metadata = chunk
+                break
+
+        if not chunk_metadata:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error="chunk_not_in_manifest",
+                    message=f"Chunk '{chunk_id}' not found in manifest",
+                ).dict(),
+            )
+
+        # Initialize processor and start processing
+        chunk_processor = ChunkProcessor(
+            database_queries=chunk_queries,
+            verify_checksums=True,
+        )
+
+        # Start processing asynchronously (in background for 202 response)
+        # For now, we'll process synchronously but could be made async
+        try:
+            result = await chunk_processor.process_chunk(
+                chunk_metadata=chunk_metadata,
+                manifest_version=manifest.version,
+                force=request.force,
+            )
+
+            response = ProcessChunkResponse(
+                message=f"Chunk '{chunk_id}' processing completed",
+                chunk_id=chunk_id,
+                status=result["status"],
+            )
+
+            logger.info(
+                "Chunk processing completed",
+                chunk_id=chunk_id,
+                status=result["status"],
+                symbols_processed=result.get("symbols_processed", 0),
+            )
+
+            return response
+
+        except Exception as processing_error:
+            # Update status to failed if processing fails
+            await chunk_queries.update_chunk_status(
+                chunk_id=chunk_id,
+                status="failed",
+                error_message=str(processing_error),
+            )
+
+            logger.error(
+                "Chunk processing failed",
+                chunk_id=chunk_id,
+                error=str(processing_error),
+            )
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error="processing_failed",
+                    message=f"Processing failed for chunk '{chunk_id}': {processing_error!s}",
+                ).dict(),
+            ) from processing_error
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("process_chunk_error", chunk_id=chunk_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="processing_request_failed",
+                message=f"Failed to process chunk '{chunk_id}': {e!s}",
+            ).dict(),
+        ) from e
+
+
+@router.post("/chunks/process/batch", response_model=ProcessBatchResponse)
+async def process_batch(
+    request: ProcessBatchRequest, db: Database = Depends(get_database)
+) -> ProcessBatchResponse:
+    """
+    Process multiple chunks.
+
+    Trigger parallel processing of multiple chunks with configurable
+    parallelism level. Returns immediately with processing status.
+    """
+    logger.info(
+        "process_batch",
+        chunk_count=len(request.chunk_ids),
+        parallelism=request.parallelism,
+    )
+
+    try:
+        # Import required modules dynamically to avoid circular imports
+        from .chunk_processor import ChunkProcessor
+        from .database.chunk_queries import ChunkQueries
+
+        chunk_queries = ChunkQueries(db)
+
+        # Get manifest to find chunk metadata
+        manifest_data = await chunk_queries.get_manifest()
+        if not manifest_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error="no_manifest",
+                    message="No manifest available for batch processing",
+                ).dict(),
+            )
+
+        manifest = ChunkManifest.model_validate(manifest_data)
+
+        # Find chunk metadata for all requested chunks
+        chunk_metadata_list = []
+        chunk_id_to_metadata = {chunk.id: chunk for chunk in manifest.chunks}
+
+        for chunk_id in request.chunk_ids:
+            if chunk_id not in chunk_id_to_metadata:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse(
+                        error="chunk_not_in_manifest",
+                        message=f"Chunk '{chunk_id}' not found in manifest",
+                    ).dict(),
+                )
+            chunk_metadata_list.append(chunk_id_to_metadata[chunk_id])
+
+        # Initialize processor and start batch processing
+        chunk_processor = ChunkProcessor(
+            database_queries=chunk_queries,
+            verify_checksums=True,
+        )
+
+        # Start batch processing (this could be made truly async for large batches)
+        try:
+            batch_result = await chunk_processor.process_chunks_batch(
+                chunks=chunk_metadata_list,
+                manifest_version=manifest.version,
+                max_parallelism=request.parallelism,
+                force=False,  # Batch processing doesn't force by default
+            )
+
+            # Determine which chunks are now processing based on results
+            processing_chunks = []
+            for chunk_id in request.chunk_ids:
+                if chunk_id in batch_result["results"]:
+                    result = batch_result["results"][chunk_id]
+                    if result["status"] == "success" or result.get("retryable", False):
+                        processing_chunks.append(chunk_id)
+                else:
+                    # If not in results, it might be processing
+                    processing_chunks.append(chunk_id)
+
+            response = ProcessBatchResponse(
+                message=f"Batch processing started for {len(request.chunk_ids)} chunks",
+                total_chunks=len(request.chunk_ids),
+                processing=processing_chunks,
+            )
+
+            logger.info(
+                "Batch processing completed",
+                total_chunks=len(request.chunk_ids),
+                successful_chunks=batch_result["successful_chunks"],
+                failed_chunks=batch_result["failed_chunks"],
+            )
+
+            return response
+
+        except Exception as processing_error:
+            logger.error(
+                "Batch processing failed",
+                chunk_ids=request.chunk_ids,
+                error=str(processing_error),
+            )
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(
+                    error="batch_processing_failed",
+                    message=f"Batch processing failed: {processing_error!s}",
+                ).dict(),
+            ) from processing_error
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "process_batch_error",
+            chunk_ids=request.chunk_ids,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="batch_request_failed",
+                message=f"Failed to process batch: {e!s}",
             ).dict(),
         ) from e
