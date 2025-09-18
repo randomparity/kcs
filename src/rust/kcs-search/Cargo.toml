@@ -22,9 +22,10 @@ tokio.workspace = true
 # Semantic search specific dependencies
 # Note: Using simpler embedding approach to avoid complex ML dependencies
 # Full implementation would use fastembed or similar
-sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono"] }
 pgvector = "0.3"
 regex = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "3.8"
