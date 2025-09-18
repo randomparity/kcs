@@ -68,7 +68,7 @@
 ### Phase 4: Python MCP Integration
 
 - [x] **T039**: Implement parse_kernel_config endpoint in src/python/kcs_mcp/tools.py
-- [ ] **T040**: Implement validate_spec endpoint in src/python/kcs_mcp/tools.py
+- [x] **T040**: Implement validate_spec endpoint in src/python/kcs_mcp/tools.py
 - [ ] **T041**: Implement semantic_search endpoint in src/python/kcs_mcp/tools.py
 - [ ] **T042**: Implement traverse_call_graph endpoint in src/python/kcs_mcp/tools.py
 - [ ] **T043**: Implement export_graph endpoint in src/python/kcs_mcp/tools.py
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 39
+- **Completed**: 40
 - **In Progress**: 0
 - **Blocked**: 0
 
