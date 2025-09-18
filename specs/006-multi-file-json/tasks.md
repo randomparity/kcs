@@ -95,7 +95,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 - [x] T023 [P] Create chunk_loader module in src/python/kcs_mcp/chunk_loader.py
 - [x] T024 [P] Implement chunk processing with resume in src/python/kcs_mcp/chunk_processor.py
-- [ ] T025 Add chunk endpoints to FastAPI in src/python/kcs_mcp/tools.py
+- [x] T025 Add chunk endpoints to FastAPI in src/python/kcs_mcp/tools.py
 - [ ] T026 [P] Add chunk status tracking in src/python/kcs_mcp/chunk_tracker.py
 
 ### Shell Scripts
