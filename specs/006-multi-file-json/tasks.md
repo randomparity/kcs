@@ -89,7 +89,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 - [x] T019 [P] Implement ManifestBuilder in src/rust/kcs-serializer/src/manifest.rs
 - [x] T020 [P] Add checksum module in src/rust/kcs-serializer/src/checksum.rs
 - [x] T021 Update kcs-parser with --chunk-size flag in src/rust/kcs-parser/src/cli.rs
-- [ ] T022 Add chunk coordination to kcs-python-bridge in src/rust/kcs-python-bridge/src/lib.rs
+- [x] T022 Add chunk coordination to kcs-python-bridge in src/rust/kcs-python-bridge/src/lib.rs
 
 ### Python Implementation
 

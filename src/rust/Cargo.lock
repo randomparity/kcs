@@ -1193,6 +1193,7 @@ dependencies = [
  "anyhow",
  "kcs-extractor",
  "kcs-parser",
+ "kcs-serializer",
  "pyo3",
  "serde",
  "serde_json",
