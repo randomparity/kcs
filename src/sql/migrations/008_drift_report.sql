@@ -12,6 +12,11 @@ BEGIN;
 -- Drift Report Table
 -- ============================================================================
 
+-- Drop existing drift_report table and related types if they exist (from migration 003)
+-- and create new comprehensive version
+DROP TABLE IF EXISTS drift_report CASCADE;
+DROP TYPE IF EXISTS drift_severity CASCADE;
+
 -- Main table for drift analysis reports
 CREATE TABLE drift_report (
     report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
