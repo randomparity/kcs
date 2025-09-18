@@ -525,8 +525,7 @@ mod tests {
 
         // Try to connect (this might fail if no test database is available)
         if VectorDatabase::new(&db_url).await.is_ok() {
-            // Connection successful
-            assert!(true);
+            // Connection successful - test passes
         } else {
             // Skip test if database is not available
             eprintln!("Skipping database test - no test database available");

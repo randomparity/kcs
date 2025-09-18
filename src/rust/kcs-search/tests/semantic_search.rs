@@ -1,9 +1,8 @@
 //! Integration tests for semantic search functionality
 
 use kcs_search::{
-    embeddings::{Embedding, EmbeddingGenerator},
-    query::{QueryConfig, QueryProcessor},
-    EmbeddingModel, SearchEngine, SearchQuery, SearchResult,
+    embeddings::EmbeddingGenerator, query::QueryProcessor, EmbeddingModel, SearchEngine,
+    SearchQuery,
 };
 
 #[tokio::test]
