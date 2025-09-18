@@ -1139,6 +1139,7 @@ dependencies = [
  "clap",
  "pgvector",
  "pretty_assertions",
+ "regex",
  "serde",
  "serde_json",
  "sqlx",

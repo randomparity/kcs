@@ -43,7 +43,7 @@
 
 - [x] **T022**: Create kcs-search crate structure with Cargo.toml
 - [x] **T023**: Implement embedding generator in kcs-search/src/embeddings.rs
-- [ ] **T024**: Add query processor in kcs-search/src/query.rs
+- [x] **T024**: Add query processor in kcs-search/src/query.rs
 - [ ] **T025**: Implement pgvector integration in kcs-search/src/vector_db.rs
 - [ ] **T026**: Write unit tests for semantic search
 - [ ] **T027**: Create CLI interface for kcs-search
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 23
+- **Completed**: 24
 - **In Progress**: 0
 - **Blocked**: 0
 
