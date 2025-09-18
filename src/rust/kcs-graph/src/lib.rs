@@ -10,8 +10,10 @@ pub mod builder;
 pub mod config;
 pub mod cycles;
 pub mod queries;
+pub mod traversal;
 
 pub use cycles::{Cycle, CycleAnalysis, CycleDetector};
+pub use traversal::{GraphTraversal, TraversalOptions, TraversalResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Symbol {
@@ -40,7 +42,7 @@ pub struct CallEdge {
     pub config_guard: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum CallType {
     Direct,
     Indirect,
