@@ -699,6 +699,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "criterion",
  "indexmap",
  "kcs-parser",
  "petgraph",

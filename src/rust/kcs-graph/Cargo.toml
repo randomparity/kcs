@@ -22,3 +22,8 @@ chrono = { version = "0.4", features = ["serde"] }
 [dev-dependencies]
 tempfile = "3.0"
 kcs-parser = { path = "../kcs-parser" }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "traversal"
+harness = false
