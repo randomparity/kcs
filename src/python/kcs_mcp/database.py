@@ -1014,6 +1014,475 @@ class Database:
                 "created_at": row["created_at"].isoformat(),
             }
 
+    async def store_specification(
+        self,
+        name: str,
+        version: str,
+        spec_type: str,
+        content: str,
+        parsed_requirements: list[dict] | None = None,
+        kernel_versions: list[str] | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Store a specification document in the database.
+
+        Args:
+            name: Name of the specification document
+            version: Version of the specification
+            spec_type: Type of specification (api, behavior, interface, etc.)
+            content: Raw specification content
+            parsed_requirements: List of requirements extracted from the specification
+            kernel_versions: List of kernel versions this specification applies to
+            metadata: Additional metadata including source, author, references
+
+        Returns:
+            Specification UUID
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                import json
+
+                # Insert into specification table
+                spec_sql = """
+                INSERT INTO specification (
+                    name, version, type, content, parsed_requirements,
+                    kernel_versions, metadata, created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+                ON CONFLICT (name, version)
+                DO UPDATE SET
+                    type = EXCLUDED.type,
+                    content = EXCLUDED.content,
+                    parsed_requirements = EXCLUDED.parsed_requirements,
+                    kernel_versions = EXCLUDED.kernel_versions,
+                    metadata = EXCLUDED.metadata,
+                    updated_at = NOW()
+                RETURNING spec_id
+                """
+
+                row = await conn.fetchrow(
+                    spec_sql,
+                    name,
+                    version,
+                    spec_type,
+                    content,
+                    json.dumps(parsed_requirements or []),
+                    json.dumps(kernel_versions or []),
+                    json.dumps(metadata or {}),
+                )
+
+                return str(row["spec_id"])
+
+    async def get_specification(
+        self,
+        spec_id: str | None = None,
+        name: str | None = None,
+        version: str | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Get specification details by ID or name/version.
+
+        Args:
+            spec_id: Specification UUID
+            name: Specification name (requires version)
+            version: Specification version (requires name)
+
+        Returns:
+            Specification data dict or None if not found
+        """
+        async with self.acquire() as conn:
+            if spec_id:
+                sql = """
+                SELECT
+                    spec_id, name, version, type, content,
+                    parsed_requirements, kernel_versions, metadata,
+                    created_at, updated_at
+                FROM specification
+                WHERE spec_id = $1
+                """
+                row = await conn.fetchrow(sql, spec_id)
+            elif name and version:
+                sql = """
+                SELECT
+                    spec_id, name, version, type, content,
+                    parsed_requirements, kernel_versions, metadata,
+                    created_at, updated_at
+                FROM specification
+                WHERE name = $1 AND version = $2
+                """
+                row = await conn.fetchrow(sql, name, version)
+            else:
+                raise ValueError("Must provide either spec_id or both name and version")
+
+            if not row:
+                return None
+
+            import json
+
+            return {
+                "spec_id": str(row["spec_id"]),
+                "name": row["name"],
+                "version": row["version"],
+                "type": row["type"],
+                "content": row["content"],
+                "parsed_requirements": json.loads(row["parsed_requirements"]),
+                "kernel_versions": json.loads(row["kernel_versions"]),
+                "metadata": json.loads(row["metadata"]),
+                "created_at": row["created_at"].isoformat(),
+                "updated_at": row["updated_at"].isoformat(),
+            }
+
+    async def search_specifications(
+        self,
+        query: str | None = None,
+        spec_type: str | None = None,
+        kernel_version: str | None = None,
+        name_pattern: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Search specifications with various filters.
+
+        Args:
+            query: Full-text search query for content
+            spec_type: Filter by specification type
+            kernel_version: Filter by kernel version support
+            name_pattern: Pattern match for specification name
+            limit: Maximum results to return
+
+        Returns:
+            List of matching specifications
+        """
+        async with self.acquire() as conn:
+            if query:
+                # Use the database function for full-text search
+                sql = "SELECT * FROM search_specifications($1, $2)"
+                rows = await conn.fetch(sql, query, limit)
+
+                # Get full details for each result
+                results = []
+                for row in rows:
+                    spec = await self.get_specification(spec_id=str(row["spec_id"]))
+                    if spec:
+                        spec["search_rank"] = float(row["rank"])
+                        results.append(spec)
+                return results
+            else:
+                # Build manual search query
+                sql = """
+                SELECT
+                    spec_id, name, version, type, kernel_versions,
+                    created_at, updated_at
+                FROM specification
+                WHERE 1=1
+                """
+                params = []
+                param_idx = 1
+
+                if spec_type:
+                    sql += f" AND type = ${param_idx}"
+                    params.append(spec_type)
+                    param_idx += 1
+
+                if kernel_version:
+                    sql += f" AND kernel_versions @> ${param_idx}::jsonb"
+                    params.append(f'["{kernel_version}"]')
+                    param_idx += 1
+
+                if name_pattern:
+                    sql += f" AND name ILIKE ${param_idx}"
+                    params.append(f"%{name_pattern}%")
+                    param_idx += 1
+
+                sql += f" ORDER BY created_at DESC LIMIT ${param_idx}"
+                params.append(str(limit))
+
+                rows = await conn.fetch(sql, *params)
+
+                import json
+
+                return [
+                    {
+                        "spec_id": str(row["spec_id"]),
+                        "name": row["name"],
+                        "version": row["version"],
+                        "type": row["type"],
+                        "kernel_versions": json.loads(row["kernel_versions"]),
+                        "created_at": row["created_at"].isoformat(),
+                        "updated_at": row["updated_at"].isoformat(),
+                    }
+                    for row in rows
+                ]
+
+    async def get_specifications_for_kernel(
+        self, kernel_version: str
+    ) -> list[dict[str, Any]]:
+        """
+        Find all specifications that apply to a specific kernel version.
+
+        Args:
+            kernel_version: Kernel version string
+
+        Returns:
+            List of applicable specifications
+        """
+        async with self.acquire() as conn:
+            # Use the database function
+            sql = "SELECT * FROM find_specs_for_kernel($1)"
+            rows = await conn.fetch(sql, kernel_version)
+
+            return [
+                {
+                    "spec_id": str(row["spec_id"]),
+                    "name": row["name"],
+                    "version": row["version"],
+                    "type": row["type"],
+                }
+                for row in rows
+            ]
+
+    async def store_specification_requirement(
+        self,
+        spec_id: str,
+        requirement_key: str,
+        description: str,
+        category: str | None = None,
+        priority: str | None = None,
+        testable: bool = True,
+        test_criteria: list[dict] | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """
+        Store a specification requirement.
+
+        Args:
+            spec_id: Specification UUID
+            requirement_key: Unique key for the requirement (e.g., FR-001)
+            description: Full description of the requirement
+            category: Category of requirement
+            priority: Priority level (must, should, could, etc.)
+            testable: Whether requirement can be automatically tested
+            test_criteria: List of specific test criteria
+            metadata: Additional metadata
+
+        Returns:
+            Requirement UUID
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                import json
+
+                # First check if requirement already exists
+                existing_req = await conn.fetchrow(
+                    "SELECT requirement_id FROM specification_requirement WHERE spec_id = $1 AND requirement_key = $2",
+                    spec_id,
+                    requirement_key,
+                )
+
+                if existing_req:
+                    # Update existing requirement
+                    req_sql = """
+                    UPDATE specification_requirement SET
+                        description = $3,
+                        category = $4,
+                        priority = $5,
+                        testable = $6,
+                        test_criteria = $7,
+                        metadata = $8
+                    WHERE spec_id = $1 AND requirement_key = $2
+                    RETURNING requirement_id
+                    """
+                    row = await conn.fetchrow(
+                        req_sql,
+                        spec_id,
+                        requirement_key,
+                        description,
+                        category,
+                        priority,
+                        testable,
+                        json.dumps(test_criteria or []),
+                        json.dumps(metadata or {}),
+                    )
+                else:
+                    # Insert new requirement
+                    req_sql = """
+                    INSERT INTO specification_requirement (
+                        spec_id, requirement_key, description, category,
+                        priority, testable, test_criteria, metadata, created_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                    RETURNING requirement_id
+                    """
+                    row = await conn.fetchrow(
+                        req_sql,
+                        spec_id,
+                        requirement_key,
+                        description,
+                        category,
+                        priority,
+                        testable,
+                        json.dumps(test_criteria or []),
+                        json.dumps(metadata or {}),
+                    )
+
+                return str(row["requirement_id"])
+
+    async def get_specification_requirements(
+        self, spec_id: str
+    ) -> list[dict[str, Any]]:
+        """
+        Get all requirements for a specification.
+
+        Args:
+            spec_id: Specification UUID
+
+        Returns:
+            List of requirements
+        """
+        async with self.acquire() as conn:
+            # Use the database function
+            sql = "SELECT get_specification_requirements($1)"
+            result = await conn.fetchval(sql, spec_id)
+
+            if result:
+                import json
+
+                requirements = json.loads(result)
+                if isinstance(requirements, list):
+                    return requirements
+
+            return []
+
+    async def store_specification_tags(
+        self, spec_id: str, tags: dict[str, str | None]
+    ) -> None:
+        """
+        Store tags for a specification.
+
+        Args:
+            spec_id: Specification UUID
+            tags: Dictionary of tag_name -> tag_value pairs
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                # Clear existing tags for this specification
+                await conn.execute(
+                    "DELETE FROM specification_tag WHERE spec_id = $1", spec_id
+                )
+
+                # Insert new tags
+                if tags:
+                    tag_sql = """
+                    INSERT INTO specification_tag (spec_id, tag_name, tag_value, created_at)
+                    VALUES ($1, $2, $3, NOW())
+                    """
+
+                    for tag_name, tag_value in tags.items():
+                        await conn.execute(tag_sql, spec_id, tag_name, tag_value)
+
+    async def get_specification_tags(self, spec_id: str) -> dict[str, str | None]:
+        """
+        Get all tags for a specification.
+
+        Args:
+            spec_id: Specification UUID
+
+        Returns:
+            Dictionary of tag_name -> tag_value pairs
+        """
+        async with self.acquire() as conn:
+            sql = """
+            SELECT tag_name, tag_value
+            FROM specification_tag
+            WHERE spec_id = $1
+            ORDER BY tag_name
+            """
+
+            rows = await conn.fetch(sql, spec_id)
+
+            return {row["tag_name"]: row["tag_value"] for row in rows}
+
+    async def search_specifications_by_tags(
+        self, tags: dict[str, str | None], limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """
+        Search specifications by tags.
+
+        Args:
+            tags: Dictionary of tag_name -> tag_value pairs to search for
+            limit: Maximum results to return
+
+        Returns:
+            List of matching specifications
+        """
+        async with self.acquire() as conn:
+            if not tags:
+                return []
+
+            # Build dynamic query for tag matching
+            sql = """
+            SELECT DISTINCT s.spec_id, s.name, s.version, s.type,
+                   s.created_at, s.updated_at
+            FROM specification s
+            JOIN specification_tag st ON s.spec_id = st.spec_id
+            WHERE
+            """
+
+            conditions = []
+            params = []
+            param_idx = 1
+
+            for tag_name, tag_value in tags.items():
+                if tag_value is None:
+                    conditions.append(f"st.tag_name = ${param_idx}")
+                    params.append(tag_name)
+                    param_idx += 1
+                else:
+                    conditions.append(
+                        f"(st.tag_name = ${param_idx} AND st.tag_value = ${param_idx + 1})"
+                    )
+                    params.extend([tag_name, tag_value])
+                    param_idx += 2
+
+            sql += " AND ".join(f"({cond})" for cond in conditions)
+            sql += f" ORDER BY s.created_at DESC LIMIT ${param_idx}"
+            params.append(str(limit))
+
+            rows = await conn.fetch(sql, *params)
+
+            return [
+                {
+                    "spec_id": str(row["spec_id"]),
+                    "name": row["name"],
+                    "version": row["version"],
+                    "type": row["type"],
+                    "created_at": row["created_at"].isoformat(),
+                    "updated_at": row["updated_at"].isoformat(),
+                }
+                for row in rows
+            ]
+
+    async def delete_specification(self, spec_id: str) -> bool:
+        """
+        Delete a specification and all its related data.
+
+        Args:
+            spec_id: Specification UUID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        async with self.acquire() as conn:
+            async with conn.transaction():
+                # Delete the specification (cascade will handle related tables)
+                result = await conn.execute(
+                    "DELETE FROM specification WHERE spec_id = $1", spec_id
+                )
+
+                # Check if any rows were affected
+                return str(result) == "DELETE 1"
+
     async def store_validation_result(
         self,
         validation_id: str,
@@ -1460,6 +1929,206 @@ class MockDatabase(Database):
             "conflicts_with": [],
             "created_at": "2024-01-01T00:00:00",
         }
+
+    async def store_specification(
+        self,
+        name: str,
+        version: str,
+        spec_type: str,
+        content: str,
+        parsed_requirements: list[dict] | None = None,
+        kernel_versions: list[str] | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock specification storage."""
+        logger.info(
+            "Mock storing specification",
+            name=name,
+            version=version,
+            spec_type=spec_type,
+            content_length=len(content),
+            requirements_count=len(parsed_requirements or []),
+        )
+        return "spec-12345-uuid"
+
+    async def get_specification(
+        self,
+        spec_id: str | None = None,
+        name: str | None = None,
+        version: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Mock specification retrieval."""
+        if spec_id == "nonexistent-spec" or name == "nonexistent_spec":
+            return None
+
+        return {
+            "spec_id": spec_id or "spec-12345-uuid",
+            "name": name or "Linux Syscall API",
+            "version": version or "1.0.0",
+            "type": "api",
+            "content": "# Linux Syscall API Specification\nThis specification defines the expected behavior...",
+            "parsed_requirements": [
+                {
+                    "key": "API-001",
+                    "description": "Must return EINVAL for invalid parameters",
+                }
+            ],
+            "kernel_versions": ["6.1.0", "6.2.0"],
+            "metadata": {"author": "Linux Foundation", "source": "kernel.org"},
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+        }
+
+    async def search_specifications(
+        self,
+        query: str | None = None,
+        spec_type: str | None = None,
+        kernel_version: str | None = None,
+        name_pattern: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Mock specification search."""
+        mock_specs = [
+            {
+                "spec_id": "spec-api-12345",
+                "name": "Linux Syscall API",
+                "version": "1.0.0",
+                "type": "api",
+                "kernel_versions": ["6.1.0", "6.2.0"],
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+            },
+            {
+                "spec_id": "spec-behavior-67890",
+                "name": "VFS Behavior Specification",
+                "version": "2.1.0",
+                "type": "behavior",
+                "kernel_versions": ["6.1.0"],
+                "created_at": "2024-01-01T00:00:00",
+                "updated_at": "2024-01-01T00:00:00",
+            },
+        ]
+
+        # Apply basic filtering for mock
+        results = mock_specs
+        if spec_type:
+            results = [s for s in results if s["type"] == spec_type]
+        if kernel_version:
+            results = [s for s in results if kernel_version in s["kernel_versions"]]
+
+        return results[:limit]
+
+    async def get_specifications_for_kernel(
+        self, kernel_version: str
+    ) -> list[dict[str, Any]]:
+        """Mock kernel specifications retrieval."""
+        if kernel_version == "6.1.0":
+            return [
+                {
+                    "spec_id": "spec-api-12345",
+                    "name": "Linux Syscall API",
+                    "version": "1.0.0",
+                    "type": "api",
+                },
+                {
+                    "spec_id": "spec-behavior-67890",
+                    "name": "VFS Behavior Specification",
+                    "version": "2.1.0",
+                    "type": "behavior",
+                },
+            ]
+        return []
+
+    async def store_specification_requirement(
+        self,
+        spec_id: str,
+        requirement_key: str,
+        description: str,
+        category: str | None = None,
+        priority: str | None = None,
+        testable: bool = True,
+        test_criteria: list[dict] | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """Mock specification requirement storage."""
+        logger.info(
+            "Mock storing specification requirement",
+            spec_id=spec_id,
+            requirement_key=requirement_key,
+            category=category,
+            priority=priority,
+        )
+        return "req-12345-uuid"
+
+    async def get_specification_requirements(
+        self, spec_id: str
+    ) -> list[dict[str, Any]]:
+        """Mock specification requirements retrieval."""
+        return [
+            {
+                "id": "req-001-uuid",
+                "key": "API-001",
+                "description": "Must return EINVAL for invalid parameters",
+                "category": "functional",
+                "priority": "must",
+                "testable": True,
+                "test_criteria": [
+                    {"type": "unit_test", "condition": "error_code == EINVAL"}
+                ],
+            },
+            {
+                "id": "req-002-uuid",
+                "key": "API-002",
+                "description": "Should complete within 100ms",
+                "category": "performance",
+                "priority": "should",
+                "testable": True,
+                "test_criteria": [
+                    {"type": "benchmark", "condition": "response_time < 100ms"}
+                ],
+            },
+        ]
+
+    async def store_specification_tags(
+        self, spec_id: str, tags: dict[str, str | None]
+    ) -> None:
+        """Mock specification tags storage."""
+        logger.info(
+            "Mock storing specification tags",
+            spec_id=spec_id,
+            tags_count=len(tags),
+        )
+
+    async def get_specification_tags(self, spec_id: str) -> dict[str, str | None]:
+        """Mock specification tags retrieval."""
+        return {
+            "subsystem": "vfs",
+            "stability": "stable",
+            "platform": "x86_64",
+            "version_introduced": "6.1.0",
+        }
+
+    async def search_specifications_by_tags(
+        self, tags: dict[str, str | None], limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Mock specification search by tags."""
+        if "subsystem" in tags:
+            return [
+                {
+                    "spec_id": "spec-behavior-67890",
+                    "name": "VFS Behavior Specification",
+                    "version": "2.1.0",
+                    "type": "behavior",
+                    "created_at": "2024-01-01T00:00:00",
+                    "updated_at": "2024-01-01T00:00:00",
+                }
+            ]
+        return []
+
+    async def delete_specification(self, spec_id: str) -> bool:
+        """Mock specification deletion."""
+        logger.info("Mock deleting specification", spec_id=spec_id)
+        return spec_id != "nonexistent-spec"
 
     async def store_validation_result(
         self,
