@@ -139,14 +139,49 @@ impl DriftAnalyzer {
         let spec_content = std::fs::read_to_string(&spec_path)?;
         let specification = spec_parser::parse_specification(&spec_content)?;
 
-        // Analyze each requirement
+        // Create drift detector with the same graph and config
+        let detector = drift_detector::DriftDetector::new(self.graph.clone())
+            .with_config(self.config_context.clone())
+            .with_depth_limit(10);
+
+        // Analyze each requirement using the drift detector
         let mut drift_findings = Vec::new();
         let mut requirements_checked = 0;
 
         for requirement in &specification.requirements {
             if self.should_check_requirement(requirement) {
                 requirements_checked += 1;
-                let findings = self.check_requirement(requirement)?;
+
+                // Use the drift detector for comprehensive analysis
+                let mut findings = Vec::new();
+
+                // Check for missing symbols
+                findings.extend(
+                    detector.detect_missing_symbols(&requirement.expected_symbols, &requirement.id),
+                );
+
+                // Check for signature mismatches
+                for symbol in &requirement.expected_symbols {
+                    if let Some(finding) = detector.detect_signature_mismatch(
+                        symbol,
+                        &requirement.expected_behavior,
+                        &requirement.id,
+                    ) {
+                        findings.push(finding);
+                    }
+                }
+
+                // Check for behavior differences
+                findings.extend(detector.detect_behavior_differences(requirement)?);
+
+                // Check for ABI breaks if applicable
+                if requirement.category == RequirementCategory::ABI {
+                    findings.extend(detector.detect_abi_breaks(requirement)?);
+                }
+
+                // Check for config mismatches
+                findings.extend(detector.detect_config_mismatches(requirement));
+
                 drift_findings.extend(findings);
             }
         }
@@ -245,45 +280,22 @@ impl DriftAnalyzer {
         Ok(None)
     }
 
+    /// Check conformance for a batch of API requirements
     pub fn check_api_conformance(
         &self,
         api_requirements: &[Requirement],
     ) -> Result<Vec<DriftFinding>> {
+        let detector = drift_detector::DriftDetector::new(self.graph.clone())
+            .with_config(self.config_context.clone());
+
         let mut findings = Vec::new();
-
         for requirement in api_requirements {
-            if requirement.category != RequirementCategory::API {
-                continue;
-            }
-
-            // Check if all expected symbols exist
-            for expected_symbol in &requirement.expected_symbols {
-                if self.graph.get_symbol(expected_symbol).is_none() {
-                    findings.push(DriftFinding {
-                        requirement_id: requirement.id.clone(),
-                        drift_type: DriftType::MissingSymbol,
-                        severity: if requirement.mandatory {
-                            DriftSeverity::Critical
-                        } else {
-                            DriftSeverity::Medium
-                        },
-                        description: format!(
-                            "API requirement '{}' missing symbol '{}'",
-                            requirement.id, expected_symbol
-                        ),
-                        expected: expected_symbol.clone(),
-                        actual: "Symbol not found".to_string(),
-                        affected_symbols: vec![expected_symbol.clone()],
-                        file_locations: vec![],
-                        remediation_suggestion: format!(
-                            "Implement missing API symbol: {}",
-                            expected_symbol
-                        ),
-                    });
-                }
+            if requirement.category == RequirementCategory::API {
+                findings.extend(
+                    detector.detect_missing_symbols(&requirement.expected_symbols, &requirement.id),
+                );
             }
         }
-
         Ok(findings)
     }
 
@@ -299,147 +311,29 @@ impl DriftAnalyzer {
         true
     }
 
-    fn check_requirement(&self, requirement: &Requirement) -> Result<Vec<DriftFinding>> {
-        let mut findings = Vec::new();
-
-        match requirement.category {
-            RequirementCategory::Syscall => {
-                findings.extend(self.check_syscall_requirement(requirement)?);
-            }
-            RequirementCategory::API => {
-                findings.extend(self.check_api_requirement(requirement)?);
-            }
-            RequirementCategory::ABI => {
-                findings.extend(self.check_abi_requirement(requirement)?);
-            }
-            RequirementCategory::Security => {
-                findings.extend(self.check_security_requirement(requirement)?);
-            }
-            _ => {
-                // Generic check for other categories
-                findings.extend(self.check_generic_requirement(requirement)?);
-            }
+    /// Perform call chain analysis between two symbols
+    pub fn analyze_call_chain(
+        &self,
+        from_symbol: &str,
+        to_symbol: &str,
+    ) -> Result<Option<Vec<String>>> {
+        if let Some(path) = self.graph.get_call_path(from_symbol, to_symbol) {
+            Ok(Some(path.iter().map(|s| s.name.clone()).collect()))
+        } else {
+            Ok(None)
         }
-
-        Ok(findings)
     }
 
-    fn check_syscall_requirement(&self, requirement: &Requirement) -> Result<Vec<DriftFinding>> {
-        let mut findings = Vec::new();
-
-        for expected_symbol in &requirement.expected_symbols {
-            if !expected_symbol.starts_with("sys_") {
-                continue;
-            }
-
-            if let Some(finding) =
-                self.check_symbol_conformance(expected_symbol, &requirement.expected_behavior)?
-            {
-                findings.push(finding);
-            }
+    /// Get all symbols that depend on a specific configuration
+    pub fn get_config_dependent_symbols(&self, config_name: &str) -> Vec<String> {
+        if let Some(indices) = self.graph.symbols_by_config(config_name) {
+            indices
+                .iter()
+                .filter_map(|idx| self.graph.graph().node_weight(*idx).map(|s| s.name.clone()))
+                .collect()
+        } else {
+            Vec::new()
         }
-
-        Ok(findings)
-    }
-
-    fn check_api_requirement(&self, requirement: &Requirement) -> Result<Vec<DriftFinding>> {
-        self.check_api_conformance(std::slice::from_ref(requirement))
-    }
-
-    fn check_abi_requirement(&self, requirement: &Requirement) -> Result<Vec<DriftFinding>> {
-        let mut findings = Vec::new();
-
-        // ABI checks are complex and would require deep structure analysis
-        // For now, just check symbol existence
-        for expected_symbol in &requirement.expected_symbols {
-            if self.graph.get_symbol(expected_symbol).is_none() {
-                findings.push(DriftFinding {
-                    requirement_id: requirement.id.clone(),
-                    drift_type: DriftType::ABIBreak,
-                    severity: DriftSeverity::Critical,
-                    description: format!(
-                        "ABI requirement '{}' missing symbol '{}'",
-                        requirement.id, expected_symbol
-                    ),
-                    expected: expected_symbol.clone(),
-                    actual: "Symbol not found".to_string(),
-                    affected_symbols: vec![expected_symbol.clone()],
-                    file_locations: vec![],
-                    remediation_suggestion: format!("Restore ABI symbol: {}", expected_symbol),
-                });
-            }
-        }
-
-        Ok(findings)
-    }
-
-    fn check_security_requirement(&self, requirement: &Requirement) -> Result<Vec<DriftFinding>> {
-        let mut findings = Vec::new();
-
-        // Security checks would require sophisticated analysis
-        // For now, just verify security symbols exist
-        for expected_symbol in &requirement.expected_symbols {
-            if (expected_symbol.contains("security")
-                || expected_symbol.contains("perm")
-                || expected_symbol.contains("cap_"))
-                && self.graph.get_symbol(expected_symbol).is_none()
-            {
-                findings.push(DriftFinding {
-                    requirement_id: requirement.id.clone(),
-                    drift_type: DriftType::SecurityViolation,
-                    severity: DriftSeverity::Critical,
-                    description: format!(
-                        "Security requirement '{}' missing symbol '{}'",
-                        requirement.id, expected_symbol
-                    ),
-                    expected: expected_symbol.clone(),
-                    actual: "Security symbol not found".to_string(),
-                    affected_symbols: vec![expected_symbol.clone()],
-                    file_locations: vec![],
-                    remediation_suggestion: format!(
-                        "Implement security control: {}",
-                        expected_symbol
-                    ),
-                });
-            }
-        }
-
-        Ok(findings)
-    }
-
-    fn check_generic_requirement(&self, requirement: &Requirement) -> Result<Vec<DriftFinding>> {
-        let mut findings = Vec::new();
-
-        // Generic requirement check - just verify symbols exist
-        for expected_symbol in &requirement.expected_symbols {
-            if self.graph.get_symbol(expected_symbol).is_none() {
-                let severity = if requirement.mandatory {
-                    DriftSeverity::High
-                } else {
-                    DriftSeverity::Medium
-                };
-
-                findings.push(DriftFinding {
-                    requirement_id: requirement.id.clone(),
-                    drift_type: DriftType::MissingSymbol,
-                    severity,
-                    description: format!(
-                        "Requirement '{}' missing symbol '{}'",
-                        requirement.id, expected_symbol
-                    ),
-                    expected: expected_symbol.clone(),
-                    actual: "Symbol not found".to_string(),
-                    affected_symbols: vec![expected_symbol.clone()],
-                    file_locations: vec![],
-                    remediation_suggestion: format!(
-                        "Implement required symbol: {}",
-                        expected_symbol
-                    ),
-                });
-            }
-        }
-
-        Ok(findings)
     }
 
     fn calculate_compliance_score(
@@ -535,6 +429,73 @@ impl DriftAnalyzer {
         }
 
         recommendations
+    }
+
+    /// Analyze drift and generate a formatted report
+    pub fn analyze_and_report<P: AsRef<Path>>(
+        &self,
+        spec_path: P,
+        kernel_version: &str,
+        output_format: report_generator::OutputFormat,
+    ) -> Result<String> {
+        // Perform drift analysis
+        let drift_report = self.analyze_spec_drift(spec_path, kernel_version)?;
+
+        // Generate formatted report
+        let generator =
+            report_generator::ReportGenerator::new(drift_report).with_format(output_format);
+        generator.generate()
+    }
+
+    /// Analyze drift and save report to file
+    pub fn analyze_and_save_report<P: AsRef<Path>, Q: AsRef<Path>>(
+        &self,
+        spec_path: P,
+        kernel_version: &str,
+        output_path: Q,
+        output_format: report_generator::OutputFormat,
+    ) -> Result<()> {
+        // Perform analysis and generate report
+        let report_content = self.analyze_and_report(spec_path, kernel_version, output_format)?;
+
+        // Save to file
+        std::fs::write(output_path, report_content)?;
+        Ok(())
+    }
+
+    /// Run a comprehensive drift analysis with multiple specifications
+    pub fn analyze_multiple_specs<P: AsRef<Path>>(
+        &self,
+        spec_paths: &[P],
+        kernel_version: &str,
+    ) -> Result<Vec<DriftReport>> {
+        let mut reports = Vec::new();
+
+        for spec_path in spec_paths {
+            let report = self.analyze_spec_drift(spec_path, kernel_version)?;
+            reports.push(report);
+        }
+
+        Ok(reports)
+    }
+
+    /// Perform incremental drift analysis comparing two kernel versions
+    pub fn analyze_version_drift(
+        &self,
+        spec_path: &Path,
+        old_graph: &KernelGraph,
+        old_version: &str,
+        new_version: &str,
+    ) -> Result<(DriftReport, DriftReport)> {
+        // Analyze old version
+        let old_analyzer =
+            DriftAnalyzer::new(old_graph.clone()).with_config_context(self.config_context.clone());
+        let old_report = old_analyzer.analyze_spec_drift(spec_path, old_version)?;
+
+        // Analyze new version (self)
+        let new_report = self.analyze_spec_drift(spec_path, new_version)?;
+
+        Ok((old_report, new_report))
     }
 }
 

@@ -318,13 +318,30 @@ impl DriftDetector {
     // Helper methods
 
     fn signatures_match(&self, actual: &str, expected: &str) -> bool {
-        // Normalize and compare signatures
+        // Normalize and compare signatures by removing all whitespace variations
         let normalize = |sig: &str| -> String {
-            sig.replace("  ", " ")
+            // Remove multiple spaces, normalize pointer notation, and spaces around parentheses
+            let mut normalized = sig.to_string();
+
+            // Normalize multiple spaces to single space
+            while normalized.contains("  ") {
+                normalized = normalized.replace("  ", " ");
+            }
+
+            // Normalize spaces around special characters
+            normalized = normalized
                 .replace(" *", "*")
                 .replace("* ", "*")
+                .replace(" (", "(")
+                .replace("( ", "(")
+                .replace(" )", ")")
+                .replace(") ", ")")
+                .replace(" ,", ",")
+                .replace(", ", ",")
                 .trim()
-                .to_string()
+                .to_string();
+
+            normalized
         };
 
         normalize(actual) == normalize(expected)

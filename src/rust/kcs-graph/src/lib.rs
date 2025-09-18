@@ -47,7 +47,7 @@ pub enum CallType {
 
 pub type CallGraph = Graph<Symbol, CallEdge>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KernelGraph {
     graph: CallGraph,
     symbol_index: HashMap<String, NodeIndex>,
