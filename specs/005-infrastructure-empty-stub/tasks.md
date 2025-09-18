@@ -63,7 +63,7 @@
 - [x] **T035**: Implement GraphML format export in kcs-serializer/src/graphml_export.rs
 - [x] **T036**: Add chunking support in kcs-serializer/src/chunker.rs
 - [x] **T037**: Write unit tests for serialization formats
-- [ ] **T038**: Create CLI interface for kcs-serializer
+- [x] **T038**: Create CLI interface for kcs-serializer
 
 ### Phase 4: Python MCP Integration
 
@@ -104,7 +104,7 @@
 ## Progress Tracking
 
 - **Total Tasks**: 57
-- **Completed**: 37
+- **Completed**: 38
 - **In Progress**: 0
 - **Blocked**: 0
 
