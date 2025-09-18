@@ -532,6 +532,130 @@ class SemanticSearchResponse(BaseModel):
     )
 
 
+class TraversalFilters(BaseModel):
+    """Filters for call graph traversal."""
+
+    exclude_patterns: list[str] | None = Field(
+        None, description="Symbol patterns to exclude"
+    )
+    include_subsystems: list[str] | None = Field(
+        None, description="Subsystems to include"
+    )
+    exclude_subsystems: list[str] | None = Field(
+        None, description="Subsystems to exclude"
+    )
+    include_only_exported: bool | None = Field(
+        False, description="Include only exported symbols"
+    )
+    min_complexity: int | None = Field(
+        None, description="Minimum complexity threshold", ge=1
+    )
+    exclude_static: bool | None = Field(False, description="Exclude static functions")
+
+
+class TraverseCallGraphRequest(BaseModel):
+    """Request for call graph traversal."""
+
+    start_symbol: str = Field(
+        ..., description="Starting symbol for traversal", min_length=1
+    )
+    direction: str = Field(
+        "forward",
+        description="Traversal direction",
+        pattern="^(forward|backward|bidirectional)$",
+    )
+    max_depth: int | None = Field(
+        5, description="Maximum traversal depth", ge=1, le=100
+    )
+    include_indirect: bool | None = Field(False, description="Include indirect calls")
+    detect_cycles: bool | None = Field(
+        True, description="Detect cycles during traversal"
+    )
+    find_all_paths: bool | None = Field(False, description="Find all paths to target")
+    target_symbol: str | None = Field(
+        None, description="Target symbol for path finding"
+    )
+    filters: TraversalFilters | None = Field(None, description="Traversal filters")
+    include_metrics: bool | None = Field(
+        False, description="Include complexity metrics"
+    )
+    include_visualization: bool | None = Field(
+        False, description="Include visualization data"
+    )
+    layout: str | None = Field("hierarchical", description="Visualization layout")
+    incremental: bool | None = Field(False, description="Incremental expansion")
+    base_traversal_id: str | None = Field(
+        None, description="Base traversal ID for incremental"
+    )
+
+
+class CallGraphNode(BaseModel):
+    """Node in the call graph."""
+
+    symbol: str = Field(..., description="Symbol name")
+    span: Span = Field(..., description="Source location")
+    depth: int = Field(..., description="Depth in traversal", ge=0)
+    node_type: str = Field(..., description="Node type (function, macro, etc.)")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+    is_entry_point: bool | None = Field(
+        None, description="Whether this is an entry point"
+    )
+    metrics: dict[str, Any] | None = Field(None, description="Complexity metrics")
+
+
+class CallGraphEdge(BaseModel):
+    """Edge in the call graph."""
+
+    from_symbol: str = Field(..., description="Source symbol", alias="from")
+    to_symbol: str = Field(..., description="Target symbol", alias="to")
+    edge_type: str = Field(
+        ...,
+        description="Edge type",
+        pattern="^(direct|indirect|macro|inline|virtual)$",
+    )
+    weight: float | None = Field(None, description="Edge weight", ge=0.0)
+    call_site: Span | None = Field(None, description="Call site location")
+
+
+class TraversalStatistics(BaseModel):
+    """Statistics from graph traversal."""
+
+    total_nodes: int = Field(..., description="Total nodes found", ge=0)
+    total_edges: int = Field(..., description="Total edges found", ge=0)
+    max_depth_reached: int = Field(..., description="Maximum depth reached", ge=0)
+    cycles_detected: int = Field(..., description="Number of cycles detected", ge=0)
+    traversal_time_ms: float | None = Field(None, description="Traversal time", ge=0)
+
+
+class VisualizationData(BaseModel):
+    """Visualization data for the call graph."""
+
+    layout: str = Field(..., description="Layout algorithm used")
+    node_positions: dict[str, dict[str, float]] | None = Field(
+        None, description="Node positions (symbol -> {x, y})"
+    )
+    suggested_colors: dict[str, str] | None = Field(
+        None, description="Suggested colors (symbol -> color)"
+    )
+    graph_bounds: dict[str, float] | None = Field(
+        None, description="Graph bounds {min_x, max_x, min_y, max_y}"
+    )
+
+
+class TraverseCallGraphResponse(BaseModel):
+    """Response for call graph traversal."""
+
+    nodes: list[CallGraphNode] = Field(..., description="Graph nodes")
+    edges: list[CallGraphEdge] = Field(..., description="Graph edges")
+    paths: list[list[str]] = Field(..., description="Paths found (for path finding)")
+    cycles: list[list[str]] | None = Field(None, description="Cycles detected")
+    statistics: TraversalStatistics = Field(..., description="Traversal statistics")
+    traversal_id: str = Field(..., description="Unique traversal identifier (UUID)")
+    visualization: VisualizationData | None = Field(
+        None, description="Visualization data"
+    )
+
+
 # Error response
 class ErrorResponse(BaseModel):
     """Standard error response."""

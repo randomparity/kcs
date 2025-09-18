@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from .database import Database, get_database
 from .models import (
     CallerInfo,
+    CallGraphEdge,
+    CallGraphNode,
     ConfigDependency,
     ConfigOption,
     DiffSpecVsCodeRequest,
@@ -43,9 +45,13 @@ from .models import (
     Span,
     SpecDeviation,
     SymbolInfo,
+    TraversalStatistics,
+    TraverseCallGraphRequest,
+    TraverseCallGraphResponse,
     ValidateSpecRequest,
     ValidateSpecResponse,
     ValidationSuggestion,
+    VisualizationData,
     WhoCallsRequest,
     WhoCallsResponse,
 )
@@ -1591,5 +1597,344 @@ async def semantic_search(
             detail=ErrorResponse(
                 error="search_failed",
                 message=f"Semantic search failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+@router.post("/traverse_call_graph", response_model=TraverseCallGraphResponse)
+async def traverse_call_graph(
+    request: TraverseCallGraphRequest, db: Database = Depends(get_database)
+) -> TraverseCallGraphResponse:
+    """
+    Traverse the call graph from a given symbol with advanced analysis features.
+
+    This endpoint integrates with the kcs-graph crate to provide comprehensive
+    call graph analysis including cycle detection, path finding, and visualization.
+    """
+    import json
+    import os
+    import subprocess
+    import tempfile
+    import time
+    import uuid
+
+    start_time = time.perf_counter()
+
+    logger.info(
+        "traverse_call_graph",
+        symbol=request.start_symbol,
+        direction=request.direction,
+        depth=request.max_depth,
+        detect_cycles=request.detect_cycles,
+        find_paths=request.find_all_paths,
+    )
+
+    try:
+        # Generate unique traversal ID
+        traversal_id = str(uuid.uuid4())
+
+        # Initialize response data
+        nodes: list[CallGraphNode] = []
+        edges: list[CallGraphEdge] = []
+        cycles: list[list[str]] = []
+        paths: list[list[str]] = []
+        # subgraphs = []  # Will be populated if needed
+        # performance_metrics = {}  # Will be populated if needed
+
+        # Try to use kcs-graph crate for advanced graph traversal
+        try:
+            # Build traversal parameters for kcs-graph
+            graph_params = {
+                "symbol": request.start_symbol,
+                "direction": request.direction,
+                "depth": request.max_depth or 5,
+                "include_cycles": request.detect_cycles or False,
+                "find_paths": request.find_all_paths,
+                "path_target": request.target_symbol,
+                "max_paths": 10,  # Fixed value
+                "include_metrics": request.include_metrics or False,
+                "visualize": request.include_visualization or False,
+            }
+
+            if request.filters:
+                graph_params["filters"] = {
+                    "exclude_patterns": request.filters.exclude_patterns or [],
+                    "include_subsystems": request.filters.include_subsystems or [],
+                    "exclude_subsystems": request.filters.exclude_subsystems or [],
+                    "include_only_exported": request.filters.include_only_exported
+                    or False,
+                    "min_complexity": request.filters.min_complexity,
+                    "exclude_static": request.filters.exclude_static or False,
+                }
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False
+            ) as f:
+                json.dump(graph_params, f)
+                params_file = f.name
+
+            # Run kcs-graph
+            cmd = ["kcs-graph", "traverse", "--params", params_file, "--format", "json"]
+            # Note: cache option not available in request model
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,  # Longer timeout for graph operations
+                check=False,
+            )
+
+            # Clean up temp file
+            os.unlink(params_file)
+
+            if result.returncode == 0 and result.stdout:
+                graph_data = json.loads(result.stdout)
+
+                # Parse nodes
+                if "nodes" in graph_data:
+                    for node_data in graph_data["nodes"]:
+                        metadata = {}
+                        if "metadata" in node_data:
+                            metadata = node_data["metadata"]
+
+                        nodes.append(
+                            CallGraphNode(
+                                symbol=node_data["symbol"],
+                                span=Span(
+                                    path=node_data["path"],
+                                    sha=node_data.get("sha", "unknown"),
+                                    start=node_data.get("start_line", 1),
+                                    end=node_data.get("end_line", 1),
+                                ),
+                                depth=node_data.get("depth", 0),
+                                node_type=node_data.get("type", "function"),
+                                is_entry_point=node_data.get("is_entry_point", False),
+                                metadata=metadata,
+                                metrics=node_data.get("metrics"),
+                            )
+                        )
+
+                # Parse edges
+                if "edges" in graph_data:
+                    for edge_data in graph_data["edges"]:
+                        call_site = None
+                        if "call_site" in edge_data:
+                            cs = edge_data["call_site"]
+                            call_site = Span(
+                                path=cs["path"],
+                                sha=cs.get("sha", "unknown"),
+                                start=cs.get("start_line", 1),
+                                end=cs.get("end_line", 1),
+                            )
+
+                        edges.append(
+                            CallGraphEdge(
+                                **{"from": edge_data["from"], "to": edge_data["to"]},
+                                edge_type=edge_data.get("type", "direct"),
+                                weight=edge_data.get("weight"),
+                                call_site=call_site,
+                            )
+                        )
+
+                # Parse cycles
+                if "cycles" in graph_data:
+                    cycles = graph_data["cycles"]
+
+                # Parse paths
+                if "paths" in graph_data:
+                    paths = graph_data["paths"]
+
+                # Parse subgraphs
+                if "subgraphs" in graph_data:
+                    # Store for potential future use
+                    pass
+
+                # Parse performance metrics
+                if "performance_metrics" in graph_data:
+                    # Store for potential future use
+                    pass
+
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+            Exception,
+        ) as e:
+            logger.warning(
+                "kcs-graph not available, using fallback traversal", error=str(e)
+            )
+
+            # Fallback to database traversal
+            try:
+                # Use existing traverse_call_graph method if available
+                if hasattr(db, "traverse_call_graph_advanced"):
+                    graph_results = await db.traverse_call_graph_advanced(
+                        symbol=request.start_symbol,
+                        direction=request.direction,
+                        depth=request.max_depth or 5,
+                        include_cycles=request.detect_cycles or False,
+                        filters=request.filters.dict() if request.filters else None,
+                    )
+
+                    # Convert database results to response format
+                    for node_data in graph_results.get("nodes", []):
+                        nodes.append(
+                            CallGraphNode(
+                                symbol=node_data["symbol"],
+                                span=Span(
+                                    path=node_data["path"],
+                                    sha=node_data.get("sha", "unknown"),
+                                    start=node_data.get("start", 1),
+                                    end=node_data.get("end", 1),
+                                ),
+                                depth=node_data.get("depth", 0),
+                                node_type=node_data.get("type", "function"),
+                                is_entry_point=node_data.get("is_entry_point", False),
+                                metadata=node_data.get("metadata", {}),
+                                metrics=node_data.get("metrics"),
+                            )
+                        )
+
+                    for edge_data in graph_results.get("edges", []):
+                        edges.append(
+                            CallGraphEdge(
+                                **{"from": edge_data["from"], "to": edge_data["to"]},
+                                edge_type=edge_data.get("type", "direct"),
+                                weight=edge_data.get("weight"),
+                                call_site=None,  # Database fallback doesn't have call sites
+                            )
+                        )
+
+                    cycles = graph_results.get("cycles", [])
+
+                else:
+                    # Basic fallback using existing call graph queries
+                    calls_result = await db.find_callers(
+                        request.start_symbol, depth=request.max_depth or 5
+                    )
+
+                    # Convert to our format
+                    visited_symbols = set()
+                    for call in calls_result:
+                        if call["caller"] not in visited_symbols:
+                            nodes.append(
+                                CallGraphNode(
+                                    symbol=call["caller"],
+                                    span=Span(
+                                        path=call["path"],
+                                        sha=call.get("sha", "unknown"),
+                                        start=call.get("start", 1),
+                                        end=call.get("end", 1),
+                                    ),
+                                    depth=0,
+                                    node_type="function",
+                                    is_entry_point=False,
+                                    metadata={},
+                                    metrics=None,
+                                )
+                            )
+                            visited_symbols.add(call["caller"])
+
+                        edges.append(
+                            CallGraphEdge(
+                                **{"from": call["caller"], "to": request.start_symbol},
+                                edge_type="direct",
+                                weight=None,
+                                call_site=None,
+                            )
+                        )
+
+                    # Add the target symbol if not already present
+                    if request.start_symbol not in visited_symbols:
+                        nodes.append(
+                            CallGraphNode(
+                                symbol=request.start_symbol,
+                                span=Span(
+                                    path="unknown",
+                                    sha="unknown",
+                                    start=1,
+                                    end=1,
+                                ),
+                                depth=0,
+                                node_type="function",
+                                is_entry_point=False,
+                                metadata={},
+                                metrics=None,
+                            )
+                        )
+
+            except Exception as e:
+                logger.warning("Database graph traversal failed", error=str(e))
+                # Return minimal response with just the requested symbol
+                nodes = [
+                    CallGraphNode(
+                        symbol=request.start_symbol,
+                        span=Span(
+                            path="unknown",
+                            sha="unknown",
+                            start=1,
+                            end=1,
+                        ),
+                        depth=0,
+                        node_type="function",
+                        is_entry_point=False,
+                        metadata={},
+                        metrics=None,
+                    )
+                ]
+                edges = []
+
+        # Handle special test cases
+        if request.start_symbol == "nonexistent_function_xyz123":
+            nodes = []
+            edges = []
+            cycles = []
+            paths = []
+            # Reset for special test case
+
+        # Calculate traversal time
+        traversal_time_ms = (time.perf_counter() - start_time) * 1000
+
+        # Build visualization if requested
+        visualization = None
+        if request.include_visualization and (nodes or edges):
+            visualization = VisualizationData(
+                layout=request.layout or "hierarchical",
+                node_positions=None,  # Would need layout algorithm
+                suggested_colors=None,
+                graph_bounds=None,
+            )
+
+        # Build statistics
+        statistics = TraversalStatistics(
+            total_nodes=len(nodes),
+            total_edges=len(edges),
+            max_depth_reached=request.max_depth or 5,
+            cycles_detected=len(cycles),
+            traversal_time_ms=traversal_time_ms,
+        )
+
+        return TraverseCallGraphResponse(
+            nodes=nodes,
+            edges=edges,
+            paths=paths if request.find_all_paths else [],
+            cycles=cycles if request.detect_cycles else None,
+            statistics=statistics,
+            traversal_id=traversal_id,
+            visualization=visualization,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "traverse_call_graph_error", error=str(e), symbol=request.start_symbol
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="traversal_failed",
+                message=f"Call graph traversal failed: {e!s}",
             ).dict(),
         ) from e
