@@ -123,7 +123,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 - [x] T037 [P] Update tools/README.md with chunking examples
 - [x] T038 [P] Add troubleshooting guide for chunk failures in docs/troubleshooting.md
-- [ ] T039 [P] Update CLAUDE.md with chunk workflow (already done in plan phase)
+- [x] T039 [P] Update CLAUDE.md with chunk workflow (already done in plan phase)
 
 ### Validation
 
