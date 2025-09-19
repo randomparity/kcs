@@ -1421,12 +1421,17 @@ class ChunkProcessor:
         self, conn: Any, symbol_data: dict[str, Any], file_id: int, config: str
     ) -> None:
         """Insert symbol record into database."""
+        # Skip symbols with empty names to avoid constraint violations
+        symbol_name = symbol_data.get("name", "").strip()
+        if not symbol_name:
+            logger.debug("Skipping symbol with empty name", symbol_data=symbol_data)
+            return
         query = """
             INSERT INTO symbol (
                 name, kind, file_id, start_line, end_line, start_col, end_col,
-                config, signature
+                config, signature, metadata
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (name, file_id, config)
             DO UPDATE SET
                 kind = EXCLUDED.kind,
@@ -1434,7 +1439,8 @@ class ChunkProcessor:
                 end_line = EXCLUDED.end_line,
                 start_col = EXCLUDED.start_col,
                 end_col = EXCLUDED.end_col,
-                signature = EXCLUDED.signature;
+                signature = EXCLUDED.signature,
+                metadata = EXCLUDED.metadata;
         """
 
         # Map parser symbol kinds to database enum values
@@ -1451,9 +1457,16 @@ class ChunkProcessor:
 
         db_kind = kind_mapping.get(symbol_data.get("kind", ""), "function")
 
+        # Prepare metadata as JSON string for PostgreSQL JSONB column
+        metadata = symbol_data.get("metadata", {})
+        if isinstance(metadata, dict):
+            import json
+
+            metadata = json.dumps(metadata)
+
         await conn.execute(
             query,
-            symbol_data["name"],
+            symbol_name,
             db_kind,
             file_id,
             symbol_data.get("start_line", 1),
@@ -1462,6 +1475,7 @@ class ChunkProcessor:
             symbol_data.get("end_col", 0),
             config,
             symbol_data.get("signature", ""),
+            metadata,
         )
 
     async def _insert_entry_point(
@@ -1470,14 +1484,15 @@ class ChunkProcessor:
         """Insert entry point record into database."""
         query = """
             INSERT INTO entrypoint (
-                kind, key, symbol_id, file_id, details, config
+                kind, key, symbol_id, file_id, details, config, metadata
             )
-            VALUES ($1, $2, $3, $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (kind, key, config)
             DO UPDATE SET
                 symbol_id = EXCLUDED.symbol_id,
                 file_id = EXCLUDED.file_id,
-                details = EXCLUDED.details;
+                details = EXCLUDED.details,
+                metadata = EXCLUDED.metadata;
         """
 
         # Map entry point types to database enum values
@@ -1502,6 +1517,13 @@ class ChunkProcessor:
             if symbol_row:
                 symbol_id = symbol_row["id"]
 
+        # Prepare metadata as JSON string for PostgreSQL JSONB column
+        metadata = entry_point_data.get("metadata", {})
+        if isinstance(metadata, dict):
+            import json
+
+            metadata = json.dumps(metadata)
+
         await conn.execute(
             query,
             db_kind,
@@ -1510,6 +1532,7 @@ class ChunkProcessor:
             file_id,
             entry_point_data.get("details", {}),
             config,
+            metadata,
         )
 
 
