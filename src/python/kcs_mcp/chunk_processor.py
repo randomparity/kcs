@@ -163,6 +163,98 @@ class ChunkProcessor:
 
         return optimal_parallelism
 
+    async def _process_chunk_with_transaction(
+        self,
+        chunk_id: str,
+        chunk_metadata: ChunkMetadata,
+        manifest_version: str,
+        base_path: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Process chunk data within a database transaction for atomic operations.
+
+        This ensures that all database operations for a chunk (data insertion,
+        status updates) either all succeed or all fail together.
+
+        Args:
+            chunk_id: Chunk identifier
+            chunk_metadata: Chunk metadata
+            manifest_version: Manifest version
+            base_path: Base path for chunk files
+
+        Returns:
+            Processing result with counts
+
+        Raises:
+            ChunkProcessingError: If processing fails
+            ChunkProcessingFatalError: If error is non-retryable
+        """
+        # Load chunk data outside of transaction (file I/O)
+        logger.debug(
+            "Loading chunk data outside transaction",
+            chunk_id=chunk_id,
+            base_path=str(base_path) if base_path else None,
+            verify_checksums=self.verify_checksums,
+        )
+
+        chunk_data = await self.chunk_loader.load_chunk(
+            chunk_metadata, base_path, verify_checksum=self.verify_checksums
+        )
+
+        logger.debug(
+            "Chunk data loaded successfully",
+            chunk_id=chunk_id,
+            symbols_count=len(chunk_data.get("symbols", [])),
+            entry_points_count=len(chunk_data.get("entry_points", [])),
+            files_count=len(chunk_data.get("files", [])),
+        )
+
+        # Process chunk within database transaction
+        async with self.database_queries.database.acquire() as conn:
+            async with conn.transaction():
+                logger.debug(
+                    "Starting database transaction for chunk processing",
+                    chunk_id=chunk_id,
+                    manifest_version=manifest_version,
+                )
+
+                try:
+                    # Process chunk data into database within transaction
+                    processing_result = await self._process_chunk_data_transactional(
+                        conn, chunk_id, chunk_data, chunk_metadata
+                    )
+
+                    # Update chunk status to completed within same transaction
+                    await self._update_chunk_status_transactional(
+                        conn,
+                        chunk_id,
+                        manifest_version,
+                        status="completed",
+                        completed_at=datetime.now(),
+                        symbols_processed=processing_result["symbols_processed"],
+                        checksum_verified=self.verify_checksums,
+                    )
+
+                    logger.debug(
+                        "Database transaction completed successfully",
+                        chunk_id=chunk_id,
+                        symbols_processed=processing_result["symbols_processed"],
+                        entry_points_processed=processing_result[
+                            "entry_points_processed"
+                        ],
+                    )
+
+                    return processing_result
+
+                except Exception as e:
+                    logger.error(
+                        "Database transaction failed, rolling back",
+                        chunk_id=chunk_id,
+                        error=str(e),
+                    )
+                    # Transaction will automatically rollback on exception
+                    raise
+
     def _get_semaphore_stats(self, semaphore: asyncio.Semaphore) -> dict[str, int]:
         """Get current semaphore usage statistics."""
         # Note: These are internal attributes and may not be available in all Python versions
@@ -215,7 +307,7 @@ class ChunkProcessor:
         chunk_id = chunk_metadata.id
 
         logger.info(
-            "Starting chunk processing",
+            "Starting chunk processing with transaction boundaries",
             chunk_id=chunk_id,
             manifest_version=manifest_version,
             force=force,
@@ -223,6 +315,7 @@ class ChunkProcessor:
             chunk_size_mb=round(chunk_metadata.size_bytes / (1024 * 1024), 2),
             chunk_subsystem=getattr(chunk_metadata, "subsystem", "unknown"),
             chunk_file=chunk_metadata.file,
+            transaction_enabled=True,
         )
 
         # Check existing status
@@ -267,64 +360,29 @@ class ChunkProcessor:
         )
 
         try:
-            # Load and validate chunk
-            logger.debug(
-                "Loading chunk data",
-                chunk_id=chunk_id,
-                base_path=str(base_path) if base_path else None,
-                verify_checksums=self.verify_checksums,
-            )
-
-            chunk_data = await self.chunk_loader.load_chunk(
-                chunk_metadata, base_path, verify_checksum=self.verify_checksums
-            )
-
-            logger.debug(
-                "Chunk data loaded successfully",
-                chunk_id=chunk_id,
-                symbols_count=len(chunk_data.get("symbols", [])),
-                entry_points_count=len(chunk_data.get("entry_points", [])),
-                files_count=len(chunk_data.get("files", [])),
-            )
-
-            # Process chunk data into database
-            logger.debug(
-                "Processing chunk data into database",
-                chunk_id=chunk_id,
-            )
-
-            processing_result = await self._process_chunk_data(
-                chunk_id, chunk_data, chunk_metadata
-            )
-
-            # Mark as completed
-            await self._update_chunk_status(
-                chunk_id,
-                manifest_version,
-                status="completed",
-                completed_at=datetime.now(),
-                symbols_processed=processing_result["symbols_processed"],
-                checksum_verified=self.verify_checksums,
+            # Execute chunk processing within a database transaction
+            result = await self._process_chunk_with_transaction(
+                chunk_id, chunk_metadata, manifest_version, base_path
             )
 
             logger.info(
                 "Chunk processing completed successfully",
                 chunk_id=chunk_id,
-                symbols_processed=processing_result["symbols_processed"],
-                entry_points_processed=processing_result["entry_points_processed"],
+                symbols_processed=result["symbols_processed"],
+                entry_points_processed=result["entry_points_processed"],
             )
 
             return {
                 "chunk_id": chunk_id,
                 "status": "completed",
                 "message": "Chunk processed successfully",
-                "symbols_processed": processing_result["symbols_processed"],
-                "entry_points_processed": processing_result["entry_points_processed"],
+                "symbols_processed": result["symbols_processed"],
+                "entry_points_processed": result["entry_points_processed"],
                 "checksum_verified": self.verify_checksums,
             }
 
         except (ChecksumMismatchError, ChunkProcessingFatalError) as e:
-            # Non-retryable errors
+            # Non-retryable errors - update status outside transaction since processing failed
             error_msg = str(e)
             logger.error(
                 "Chunk processing failed with non-retryable error",
@@ -343,7 +401,7 @@ class ChunkProcessor:
             raise ChunkProcessingFatalError(error_msg, chunk_id) from e
 
         except Exception as e:
-            # Potentially retryable error
+            # Potentially retryable error - update status outside transaction since processing failed
             error_msg = str(e)
             logger.error(
                 "Chunk processing failed with retryable error",
@@ -799,6 +857,218 @@ class ChunkProcessor:
             "symbols_processed": symbols_count,
             "entry_points_processed": entry_points_count,
             "files_processed": files_count,
+        }
+
+    async def _process_chunk_data_transactional(
+        self,
+        conn: Any,
+        chunk_id: str,
+        chunk_data: dict[str, Any],
+        chunk_metadata: ChunkMetadata,
+    ) -> dict[str, Any]:
+        """
+        Process chunk data into database tables within an existing transaction.
+
+        Args:
+            conn: Database connection with active transaction
+            chunk_id: Chunk identifier
+            chunk_data: Parsed chunk data
+            chunk_metadata: Chunk metadata
+
+        Returns:
+            Processing result with counts
+        """
+        # Validate chunk data structure
+        required_fields = ["chunk_id", "manifest_version", "subsystem"]
+        for field in required_fields:
+            if field not in chunk_data:
+                raise ChunkProcessingFatalError(
+                    f"Missing required field '{field}' in chunk data", chunk_id
+                )
+
+        # Verify chunk_id matches
+        if chunk_data["chunk_id"] != chunk_id:
+            raise ChunkProcessingFatalError(
+                f"Chunk ID mismatch: expected {chunk_id}, got {chunk_data['chunk_id']}",
+                chunk_id,
+            )
+
+        # Count items for processing
+        symbols_count = len(chunk_data.get("symbols", []))
+        entry_points_count = len(chunk_data.get("entry_points", []))
+        files_count = len(chunk_data.get("files", []))
+
+        logger.debug(
+            "Processing chunk data within transaction",
+            chunk_id=chunk_id,
+            symbols_count=symbols_count,
+            entry_points_count=entry_points_count,
+            files_count=files_count,
+        )
+
+        # TODO: Implement actual database storage of symbols, entry points, etc.
+        # This would involve:
+        # 1. Inserting symbols into symbol table using the provided connection
+        # 2. Inserting entry_points into entry_point table
+        # 3. Inserting files into file table
+        # 4. Creating relationships and updating indexes
+        # All within the same transaction for atomicity
+
+        # For now, simulate processing time
+        await asyncio.sleep(0.1)
+
+        # Simulate some database operations within the transaction
+        # In a real implementation, these would be actual INSERT/UPDATE statements
+        logger.debug(
+            "Simulated database operations completed within transaction",
+            chunk_id=chunk_id,
+            symbols_inserted=symbols_count,
+            entry_points_inserted=entry_points_count,
+            files_inserted=files_count,
+        )
+
+        return {
+            "symbols_processed": symbols_count,
+            "entry_points_processed": entry_points_count,
+            "files_processed": files_count,
+        }
+
+    async def _update_chunk_status_transactional(
+        self,
+        conn: Any,
+        chunk_id: str,
+        manifest_version: str,
+        status: str | None = None,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
+        error_message: str | None = None,
+        symbols_processed: int | None = None,
+        checksum_verified: bool | None = None,
+        increment_retry: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Update chunk status within an existing transaction.
+
+        Args:
+            conn: Database connection with active transaction
+            chunk_id: Chunk identifier
+            manifest_version: Manifest version
+            status: Processing status
+            started_at: Start time
+            completed_at: Completion time
+            error_message: Error message if any
+            symbols_processed: Number of symbols processed
+            checksum_verified: Whether checksum was verified
+            increment_retry: Whether to increment retry count
+
+        Returns:
+            Updated chunk status
+        """
+        # Build dynamic SQL based on provided parameters
+        updates = ["updated_at = NOW()"]
+        values: list[Any] = [chunk_id]
+        param_count = 2
+
+        if status is not None:
+            updates.append(f"status = ${param_count}")
+            values.append(status)
+            param_count += 1
+
+        if started_at is not None:
+            updates.append(f"started_at = ${param_count}")
+            values.append(started_at)
+            param_count += 1
+
+        if completed_at is not None:
+            updates.append(f"completed_at = ${param_count}")
+            values.append(completed_at)
+            param_count += 1
+
+        if error_message is not None:
+            updates.append(f"error_message = ${param_count}")
+            values.append(error_message)
+            param_count += 1
+
+        if symbols_processed is not None:
+            updates.append(f"symbols_processed = ${param_count}")
+            values.append(symbols_processed)
+            param_count += 1
+
+        if checksum_verified is not None:
+            updates.append(f"checksum_verified = ${param_count}")
+            values.append(checksum_verified)
+            param_count += 1
+
+        if increment_retry:
+            updates.append("retry_count = retry_count + 1")
+
+        sql = f"""
+        UPDATE chunk_processing
+        SET {", ".join(updates)}
+        WHERE chunk_id = $1
+        RETURNING
+            chunk_id,
+            manifest_version,
+            status,
+            started_at,
+            completed_at,
+            error_message,
+            retry_count,
+            symbols_processed,
+            checksum_verified,
+            created_at,
+            updated_at
+        """
+
+        logger.debug(
+            "Updating chunk status within transaction",
+            chunk_id=chunk_id,
+            status=status,
+            symbols_processed=symbols_processed,
+        )
+
+        row = await conn.fetchrow(sql, *values)
+        if not row:
+            # If no existing record, create new one within transaction
+            create_sql = """
+            INSERT INTO chunk_processing (
+                chunk_id, manifest_version, status,
+                started_at, completed_at, symbols_processed, checksum_verified
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING
+                chunk_id, manifest_version, status,
+                started_at, completed_at, error_message, retry_count,
+                symbols_processed, checksum_verified, created_at, updated_at
+            """
+            row = await conn.fetchrow(
+                create_sql,
+                chunk_id,
+                manifest_version,
+                status or "pending",
+                started_at,
+                completed_at,
+                symbols_processed,
+                checksum_verified,
+            )
+
+        logger.debug(
+            "Chunk status updated within transaction",
+            chunk_id=chunk_id,
+            status=row["status"] if row else None,
+        )
+
+        return {
+            "chunk_id": row["chunk_id"],
+            "manifest_version": row["manifest_version"],
+            "status": row["status"],
+            "started_at": row["started_at"],
+            "completed_at": row["completed_at"],
+            "error_message": row["error_message"],
+            "retry_count": row["retry_count"],
+            "symbols_processed": row["symbols_processed"],
+            "checksum_verified": row["checksum_verified"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }
 
     async def _update_chunk_status(
