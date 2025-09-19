@@ -30,7 +30,9 @@ mod tests {
             symbol_count: 1250,
             entrypoint_count: 45,
             file_count: 23,
-            checksum_sha256: Some("abcd1234".repeat(16)),
+            checksum_sha256: Some(
+                "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+            ),
         };
 
         let chunk_id = builder.add_chunk(chunk_input)?;
@@ -96,7 +98,9 @@ mod tests {
             symbol_count: 100,
             entrypoint_count: 5,
             file_count: 10,
-            checksum_sha256: Some("abcd1234".repeat(16)),
+            checksum_sha256: Some(
+                "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+            ),
         };
 
         // Add first chunk successfully
@@ -128,7 +132,9 @@ mod tests {
             symbol_count: 500,
             entrypoint_count: 20,
             file_count: 15,
-            checksum_sha256: Some("abcd1234".repeat(16)),
+            checksum_sha256: Some(
+                "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+            ),
         };
 
         let chunk2 = ChunkInput {
@@ -137,7 +143,9 @@ mod tests {
             symbol_count: 750,
             entrypoint_count: 30,
             file_count: 25,
-            checksum_sha256: Some("abcd1234".repeat(16)),
+            checksum_sha256: Some(
+                "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+            ),
         };
 
         builder.add_chunk(chunk1)?;
@@ -180,7 +188,9 @@ mod tests {
                 symbol_count: 100,
                 entrypoint_count: 5,
                 file_count: 10,
-                checksum_sha256: Some("abcd1234".repeat(16)),
+                checksum_sha256: Some(
+                    "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+                ),
             };
             builder.add_chunk(chunk_input)?;
         }
@@ -215,7 +225,9 @@ mod tests {
             symbol_count: 250,
             entrypoint_count: 12,
             file_count: 8,
-            checksum_sha256: Some("abcd1234".repeat(16)),
+            checksum_sha256: Some(
+                "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+            ),
         };
 
         builder.add_chunk(chunk_input)?;
@@ -252,7 +264,9 @@ mod tests {
             symbol_count: 300,
             entrypoint_count: 15,
             file_count: 12,
-            checksum_sha256: Some("abcd1234".repeat(16)),
+            checksum_sha256: Some(
+                "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+            ),
         };
 
         builder.add_chunk(chunk_input)?;
@@ -285,7 +299,9 @@ mod tests {
             symbol_count: 100,
             entrypoint_count: 5,
             file_count: 10,
-            checksum_sha256: Some("abcd1234".repeat(16)),
+            checksum_sha256: Some(
+                "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+            ),
         };
 
         let chunk_id = builder.add_chunk(chunk_input)?;
@@ -297,10 +313,11 @@ mod tests {
             file: "chunks/kernel_001.json".to_string(),
             subsystem: "kernel".to_string(),
             size_bytes: 2048,
-            checksum_sha256: "abcd1234".repeat(8), // 64 char hex string
-            symbol_count: Some(150),               // Updated count
-            entrypoint_count: Some(8),             // Updated count
-            file_count: Some(12),                  // Updated count
+            checksum_sha256: "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0"
+                .to_string(), // 64 char hex string
+            symbol_count: Some(150),   // Updated count
+            entrypoint_count: Some(8), // Updated count
+            file_count: Some(12),      // Updated count
         };
 
         builder.update_chunk_metadata(&chunk_id, updated_metadata)?;
@@ -327,7 +344,9 @@ mod tests {
                 symbol_count: 100 * i,
                 entrypoint_count: 5 * i,
                 file_count: 10 * i,
-                checksum_sha256: Some("abcd1234".repeat(16)),
+                checksum_sha256: Some(
+                    "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+                ),
             };
             builder.add_chunk(chunk_input)?;
         }
@@ -373,7 +392,9 @@ mod tests {
                 symbol_count: 50 + i,
                 entrypoint_count: 2 + (i % 10),
                 file_count: 5 + (i % 20),
-                checksum_sha256: Some("abcd1234".repeat(16)),
+                checksum_sha256: Some(
+                    "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0".to_string(),
+                ),
             };
 
             builder.add_chunk(chunk_input)?;

@@ -504,8 +504,8 @@ mod tests {
         let config = ManifestBuilderConfig::default();
         let mut builder = ManifestBuilder::new(config)?;
 
-        let chunk_input = ChunkInput {
-            file_path: std::path::PathBuf::from("test.json"),
+        let chunk_input1 = ChunkInput {
+            file_path: std::path::PathBuf::from("test1.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 100,
             entrypoint_count: 5,
@@ -513,8 +513,17 @@ mod tests {
             checksum_sha256: None,
         };
 
-        let id1 = builder.add_chunk(chunk_input.clone())?;
-        let id2 = builder.add_chunk(chunk_input)?;
+        let chunk_input2 = ChunkInput {
+            file_path: std::path::PathBuf::from("test2.json"),
+            subsystem: "kernel".to_string(),
+            symbol_count: 150,
+            entrypoint_count: 8,
+            file_count: 12,
+            checksum_sha256: None,
+        };
+
+        let id1 = builder.add_chunk(chunk_input1)?;
+        let id2 = builder.add_chunk(chunk_input2)?;
 
         assert_eq!(id1, "kernel_001");
         assert_eq!(id2, "kernel_002");
