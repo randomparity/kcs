@@ -100,7 +100,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Shell Scripts
 
-- [ ] T027 Update index_kernel.sh with chunking flags in tools/index_kernel.sh
+- [x] T027 Update index_kernel.sh with chunking flags in tools/index_kernel.sh
 - [ ] T028 [P] Create process_chunks.py script in tools/process_chunks.py
 
 ## Phase 3.4: Integration
