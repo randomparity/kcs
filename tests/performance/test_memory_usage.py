@@ -77,7 +77,7 @@ def generate_test_chunk_data(size_mb: int) -> dict[str, Any]:
         "chunk_id": f"memory_test_chunk_{size_mb}mb",
         "subsystem": "kernel",
         "symbols": symbols,
-        "entry_points": [],
+        "entrypoints": [],
         "call_graph": [],
         "metadata": {
             "generation_timestamp": "2025-01-18T10:00:00Z",
@@ -119,7 +119,7 @@ async def create_memory_test_chunks(
             size_bytes=file_size,
             checksum_sha256=checksum,
             symbol_count=len(chunk_data["symbols"]),
-            entry_point_count=len(chunk_data["entry_points"]),
+            entrypoint_count=len(chunk_data["entrypoints"]),
             file_count=1,
         )
         chunk_metadata_list.append(metadata)

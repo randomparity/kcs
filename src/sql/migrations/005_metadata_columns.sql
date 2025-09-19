@@ -14,7 +14,7 @@ BEGIN;
 -- 1. Add metadata columns to existing tables (non-breaking)
 -- ============================================================================
 
--- Add metadata column to entrypoint table (note: table name is 'entrypoint' not 'entry_point')
+-- Add metadata column to entrypoint table (note: table name is 'entrypoint' not 'entrypoint')
 ALTER TABLE entrypoint
 ADD COLUMN IF NOT EXISTS metadata JSONB;
 

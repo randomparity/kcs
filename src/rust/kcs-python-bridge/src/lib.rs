@@ -328,7 +328,7 @@ impl PyManifestBuilder {
         file_path: String,
         subsystem: String,
         symbol_count: Option<usize>,
-        entry_point_count: Option<usize>,
+        entrypoint_count: Option<usize>,
         file_count: Option<usize>,
     ) -> PyResult<String> {
         use std::path::PathBuf;
@@ -337,7 +337,7 @@ impl PyManifestBuilder {
             file_path: PathBuf::from(file_path),
             subsystem,
             symbol_count: symbol_count.unwrap_or(0),
-            entry_point_count: entry_point_count.unwrap_or(0),
+            entrypoint_count: entrypoint_count.unwrap_or(0),
             file_count: file_count.unwrap_or(0),
             checksum_sha256: None, // Will be calculated from file
         };
@@ -632,7 +632,7 @@ fn enhance_symbols_with_clang(
 /// Extract entry points from a kernel directory
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-fn extract_entry_points(
+fn extract_entrypoints(
     kernel_dir: &str,
     include_syscalls: Option<bool>,
     include_ioctls: Option<bool>,
@@ -657,11 +657,11 @@ fn extract_entry_points(
     };
 
     let extractor = Extractor::new(config);
-    let entry_points = extractor.extract_from_directory(kernel_dir).map_err(|e| {
+    let entrypoints = extractor.extract_from_directory(kernel_dir).map_err(|e| {
         pyo3::exceptions::PyRuntimeError::new_err(format!("Entry point extraction failed: {}", e))
     })?;
 
-    Ok(entry_points
+    Ok(entrypoints
         .into_iter()
         .map(|ep| PyEntryPoint {
             name: ep.name,
@@ -739,7 +739,7 @@ fn write_chunk_with_manifest(
         file_path: PathBuf::from(output_dir).join(format!("{}.json", chunk_id)),
         subsystem: subsystem.to_string(),
         symbol_count: chunk_info.item_count,
-        entry_point_count: 0, // Could be provided as parameter
+        entrypoint_count: 0, // Could be provided as parameter
         file_count: 1,
         checksum_sha256: Some(chunk_info.checksum_sha256.clone()),
     };
@@ -825,7 +825,7 @@ fn kcs_python_bridge(_py: Python, m: &Bound<'_, pyo3::types::PyModule>) -> PyRes
     // Parser functions
     m.add_function(wrap_pyfunction!(parse_c_file, m)?)?;
     m.add_function(wrap_pyfunction!(detect_patterns, m)?)?;
-    m.add_function(wrap_pyfunction!(extract_entry_points, m)?)?;
+    m.add_function(wrap_pyfunction!(extract_entrypoints, m)?)?;
     m.add_function(wrap_pyfunction!(enhance_symbols_with_clang, m)?)?;
 
     // Chunk coordination functions

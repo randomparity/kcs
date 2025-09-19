@@ -40,7 +40,7 @@ Metadata for an individual chunk file within the manifest.
 - `size_bytes`: Integer - File size in bytes
 - `checksum_sha256`: String - SHA256 hash of file contents
 - `symbol_count`: Integer - Number of symbols in chunk
-- `entry_point_count`: Integer - Number of entry points
+- `entrypoint_count`: Integer - Number of entry points
 - `file_count`: Integer - Number of source files represented
 
 **Validation**:
@@ -60,7 +60,7 @@ The actual JSON file containing parsed kernel data.
 - `chunk_id`: String - Matches id in manifest
 - `subsystem`: String - Kernel subsystem
 - `symbols`: Array[Symbol] - Parsed symbols (existing format)
-- `entry_points`: Array[EntryPoint] - Entry points (existing format)
+- `entrypoints`: Array[EntryPoint] - Entry points (existing format)
 - `call_graph`: Array[Edge] - Call relationships (if present)
 
 **Validation**:
@@ -214,4 +214,7 @@ CREATE TABLE IF NOT EXISTS indexing_manifest (
 ```
 
 ---
-*Data model defined for Phase 1 of plan.md*
+
+## Data Model Status
+
+Data model defined for Phase 1 of plan.md

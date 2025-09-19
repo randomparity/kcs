@@ -339,7 +339,7 @@ class Specification(BaseModel):
     version: str = Field(
         ..., description="Version (semver)", pattern=r"^\d+\.\d+\.\d+$"
     )
-    entry_point: str = Field(..., description="Entry point symbol name")
+    entrypoint: str = Field(..., description="Entry point symbol name")
     expected_behavior: SpecificationBehavior | None = Field(
         None, description="Expected behavior"
     )
@@ -394,7 +394,7 @@ class SpecDeviation(BaseModel):
 class ImplementationDetails(BaseModel):
     """Implementation details found during validation."""
 
-    entry_point: dict[str, Any] | None = Field(
+    entrypoint: dict[str, Any] | None = Field(
         None, description="Entry point information"
     )
     call_graph: list[dict[str, Any]] | None = Field(
@@ -610,7 +610,7 @@ class CallGraphNode(BaseModel):
     depth: int = Field(..., description="Depth in traversal", ge=0)
     node_type: str = Field(..., description="Node type (function, macro, etc.)")
     metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
-    is_entry_point: bool | None = Field(
+    is_entrypoint: bool | None = Field(
         None, description="Whether this is an entry point"
     )
     metrics: dict[str, Any] | None = Field(None, description="Complexity metrics")
@@ -980,7 +980,7 @@ class GraphExportJobRequest(BaseModel):
     kernel_version: str = Field(..., description="Kernel version context")
     kernel_config: str = Field(..., description="Kernel configuration context")
     subsystem: str | None = Field(None, description="Optional subsystem filter")
-    entry_point: str | None = Field(None, description="Optional entry point filter")
+    entrypoint: str | None = Field(None, description="Optional entry point filter")
     max_depth: int | None = Field(
         10, description="Maximum traversal depth", ge=1, le=100
     )
@@ -1010,7 +1010,7 @@ class GraphExportJobStatus(BaseModel):
     kernel_version: str = Field(..., description="Kernel version")
     kernel_config: str = Field(..., description="Kernel configuration")
     subsystem: str | None = Field(None, description="Subsystem filter")
-    entry_point: str | None = Field(None, description="Entry point filter")
+    entrypoint: str | None = Field(None, description="Entry point filter")
     max_depth: int = Field(..., description="Maximum depth")
     include_metadata: bool = Field(..., description="Include metadata")
     include_annotations: bool = Field(..., description="Include annotations")

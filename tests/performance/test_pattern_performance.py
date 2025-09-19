@@ -229,7 +229,7 @@ def measure_pattern_detection_performance(
     if not HAS_PYTHON_BRIDGE:
         pytest.skip("Python bridge module not available")
 
-    times = {"pattern_detection": [], "entry_point_extraction": [], "combined": []}
+    times = {"pattern_detection": [], "entrypoint_extraction": [], "combined": []}
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".c", delete=False) as f:
         f.write(file_content)
@@ -245,7 +245,7 @@ def measure_pattern_detection_performance(
 
             # Measure entry point extraction (all types)
             start = time.perf_counter()
-            _ = kpb.extract_entry_points(
+            _ = kpb.extract_entrypoints(
                 os.path.dirname(temp_file),
                 include_syscalls=True,
                 include_ioctls=True,
@@ -255,12 +255,12 @@ def measure_pattern_detection_performance(
                 include_interrupts=True,
             )
             entry_time = time.perf_counter() - start
-            times["entry_point_extraction"].append(entry_time * 1000)
+            times["entrypoint_extraction"].append(entry_time * 1000)
 
             # Measure combined operation
             start = time.perf_counter()
             _ = kpb.detect_patterns(temp_file, file_content)
-            _ = kpb.extract_entry_points(
+            _ = kpb.extract_entrypoints(
                 os.path.dirname(temp_file), include_syscalls=True, include_ioctls=True
             )
             combined_time = time.perf_counter() - start

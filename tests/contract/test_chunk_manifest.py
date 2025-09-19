@@ -166,11 +166,11 @@ class TestChunkManifestContract:
                     )
                     assert chunk["symbol_count"] >= 0, "Symbol count should be >= 0"
 
-                if "entry_point_count" in chunk:
-                    assert isinstance(chunk["entry_point_count"], int), (
+                if "entrypoint_count" in chunk:
+                    assert isinstance(chunk["entrypoint_count"], int), (
                         "Entry point count should be integer"
                     )
-                    assert chunk["entry_point_count"] >= 0, (
+                    assert chunk["entrypoint_count"] >= 0, (
                         "Entry point count should be >= 0"
                     )
 

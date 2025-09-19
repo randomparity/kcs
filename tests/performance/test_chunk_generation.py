@@ -35,7 +35,7 @@ MEMORY_EFFICIENCY_RATIO = 3.0  # Max memory usage should be <3x chunk size
 def generate_large_symbol_data(target_size_bytes: int) -> dict[str, Any]:
     """Generate synthetic symbol data to reach target size."""
     symbols = []
-    entry_points = []
+    entrypoints = []
     call_graph = []
 
     # More conservative estimate to avoid exceeding 50MB limit
@@ -66,7 +66,7 @@ def generate_large_symbol_data(target_size_bytes: int) -> dict[str, Any]:
 
         # Add some entry points (1 per 100 symbols)
         if i % 100 == 0:
-            entry_points.append(
+            entrypoints.append(
                 {
                     "id": f"ep_{i:06d}",
                     "name": f"sys_call_{i // 100}",
@@ -100,13 +100,13 @@ def generate_large_symbol_data(target_size_bytes: int) -> dict[str, Any]:
         "chunk_id": "performance_test_chunk",
         "subsystem": "kernel",
         "symbols": symbols,
-        "entry_points": entry_points,
+        "entrypoints": entrypoints,
         "call_graph": call_graph,
         "metadata": {
             "generation_timestamp": "2025-01-18T10:00:00Z",
             "target_size_bytes": target_size_bytes,
             "actual_symbol_count": len(symbols),
-            "actual_entry_point_count": len(entry_points),
+            "actual_entrypoint_count": len(entrypoints),
             "actual_call_graph_edges": len(call_graph),
         },
     }

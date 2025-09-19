@@ -167,7 +167,7 @@ class TestMiniKernelIndexing:
 class TestMiniKernelSymbols:
     """Test specific symbol patterns in mini-kernel."""
 
-    def test_syscall_entry_points(self, mini_kernel_path):
+    def test_syscall_entrypoints(self, mini_kernel_path):
         """Test system call entry point detection."""
         syscall_table = (
             Path(mini_kernel_path)

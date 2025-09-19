@@ -28,7 +28,7 @@ mod tests {
             file_path: std::path::PathBuf::from("chunks/kernel_001.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 1250,
-            entry_point_count: 45,
+            entrypoint_count: 45,
             file_count: 23,
             checksum_sha256: Some("abcd1234".repeat(16)),
         };
@@ -94,7 +94,7 @@ mod tests {
             file_path: std::path::PathBuf::from("chunks/kernel_001.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 100,
-            entry_point_count: 5,
+            entrypoint_count: 5,
             file_count: 10,
             checksum_sha256: Some("abcd1234".repeat(16)),
         };
@@ -126,7 +126,7 @@ mod tests {
             file_path: std::path::PathBuf::from("chunks/kernel_001.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 500,
-            entry_point_count: 20,
+            entrypoint_count: 20,
             file_count: 15,
             checksum_sha256: Some("abcd1234".repeat(16)),
         };
@@ -135,7 +135,7 @@ mod tests {
             file_path: std::path::PathBuf::from("chunks/drivers_001.json"),
             subsystem: "drivers".to_string(),
             symbol_count: 750,
-            entry_point_count: 30,
+            entrypoint_count: 30,
             file_count: 25,
             checksum_sha256: Some("abcd1234".repeat(16)),
         };
@@ -178,7 +178,7 @@ mod tests {
                 file_path: std::path::PathBuf::from(format!("chunks/{}.json", chunk_id)),
                 subsystem: subsystem.to_string(),
                 symbol_count: 100,
-                entry_point_count: 5,
+                entrypoint_count: 5,
                 file_count: 10,
                 checksum_sha256: Some("abcd1234".repeat(16)),
             };
@@ -213,7 +213,7 @@ mod tests {
             file_path: std::path::PathBuf::from("chunks/kernel_001.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 250,
-            entry_point_count: 12,
+            entrypoint_count: 12,
             file_count: 8,
             checksum_sha256: Some("abcd1234".repeat(16)),
         };
@@ -250,7 +250,7 @@ mod tests {
             file_path: std::path::PathBuf::from("chunks/kernel_001.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 300,
-            entry_point_count: 15,
+            entrypoint_count: 15,
             file_count: 12,
             checksum_sha256: Some("abcd1234".repeat(16)),
         };
@@ -283,7 +283,7 @@ mod tests {
             file_path: std::path::PathBuf::from("chunks/kernel_001.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 100,
-            entry_point_count: 5,
+            entrypoint_count: 5,
             file_count: 10,
             checksum_sha256: Some("abcd1234".repeat(16)),
         };
@@ -299,7 +299,7 @@ mod tests {
             size_bytes: 2048,
             checksum_sha256: "abcd1234".repeat(8), // 64 char hex string
             symbol_count: Some(150),               // Updated count
-            entry_point_count: Some(8),            // Updated count
+            entrypoint_count: Some(8),             // Updated count
             file_count: Some(12),                  // Updated count
         };
 
@@ -308,7 +308,7 @@ mod tests {
         let manifest = builder.build()?;
         let chunk = &manifest.chunks[0];
         assert_eq!(chunk.symbol_count, Some(150));
-        assert_eq!(chunk.entry_point_count, Some(8));
+        assert_eq!(chunk.entrypoint_count, Some(8));
 
         Ok(())
     }
@@ -325,7 +325,7 @@ mod tests {
                 file_path: std::path::PathBuf::from(format!("chunks/kernel_{:03}.json", i)),
                 subsystem: "kernel".to_string(),
                 symbol_count: 100 * i,
-                entry_point_count: 5 * i,
+                entrypoint_count: 5 * i,
                 file_count: 10 * i,
                 checksum_sha256: Some("abcd1234".repeat(16)),
             };
@@ -371,7 +371,7 @@ mod tests {
                 file_path: std::path::PathBuf::from(format!("chunks/{}_{:03}.json", subsystem, i)),
                 subsystem: subsystem.to_string(),
                 symbol_count: 50 + i,
-                entry_point_count: 2 + (i % 10),
+                entrypoint_count: 2 + (i % 10),
                 file_count: 5 + (i % 20),
                 checksum_sha256: Some("abcd1234".repeat(16)),
             };
@@ -421,7 +421,7 @@ mod tests {
             size_bytes: 1024,
             checksum_sha256: "invalid_checksum".to_string(), // Not 64 chars
             symbol_count: Some(10),
-            entry_point_count: Some(2),
+            entrypoint_count: Some(2),
             file_count: Some(5),
         };
 
@@ -437,7 +437,7 @@ mod tests {
             size_bytes: 1024,
             checksum_sha256: "a".repeat(64), // Valid 64 char hex string
             symbol_count: Some(10),
-            entry_point_count: Some(2),
+            entrypoint_count: Some(2),
             file_count: Some(5),
         };
 

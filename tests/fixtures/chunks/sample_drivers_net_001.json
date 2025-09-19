@@ -42,7 +42,7 @@
       "metadata": {}
     }
   ],
-  "entry_points": [
+  "entrypoints": [
     {
       "id": "ep_101",
       "name": "e1000_ioctl",

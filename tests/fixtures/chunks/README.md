@@ -27,7 +27,7 @@ Each chunk file follows the schema:
   "chunk_id": "kernel_001",
   "subsystem": "kernel",
   "symbols": [...],
-  "entry_points": [...],
+  "entrypoints": [...],
   "call_graph": [...]
 }
 ```

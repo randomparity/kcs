@@ -495,13 +495,13 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_call_edges_callee ON call_edges(call
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_call_edges_both ON call_edges(caller_id, callee_id);
 
 -- Entry points indexes
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entry_points_name ON entry_points(name);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entry_points_type ON entry_points(entry_type);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entrypoints_name ON entrypoints(name);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entrypoints_type ON entrypoints(entry_type);
 
 -- Performance monitoring
 ANALYZE symbols;
 ANALYZE call_edges;
-ANALYZE entry_points;
+ANALYZE entrypoints;
 """
 
         sql_file = sql_dir / "performance_indexes.sql"

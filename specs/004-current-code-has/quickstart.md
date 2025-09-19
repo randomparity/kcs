@@ -15,7 +15,7 @@
 kcs-extract-entry-points /path/to/kernel --all-types
 
 # Verify results
-psql -d kcs -c "SELECT entry_type, COUNT(*) FROM entry_point GROUP BY entry_type;"
+psql -d kcs -c "SELECT entry_type, COUNT(*) FROM entrypoint GROUP BY entry_type;"
 ```
 
 Expected output:
@@ -74,7 +74,7 @@ kcs-extract-entry-points drivers/gpu/drm --type ioctl
 # Verify ioctl command detection
 psql -d kcs -c "
   SELECT name, metadata->>'ioctl_cmd'
-  FROM entry_point
+  FROM entrypoint
   WHERE entry_type = 'Ioctl'
     AND metadata ? 'ioctl_cmd'
   LIMIT 10;
@@ -112,7 +112,7 @@ psql -d kcs -c "
 psql -d kcs -c "
   SELECT
     'Entry Points' as type, COUNT(*)
-  FROM entry_point
+  FROM entrypoint
   WHERE file_path LIKE '%ext4%'
   UNION ALL
   SELECT

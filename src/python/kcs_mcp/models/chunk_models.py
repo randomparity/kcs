@@ -28,7 +28,7 @@ class ChunkMetadata(BaseModel):
     symbol_count: int | None = Field(
         default=None, description="Number of symbols in chunk", ge=0
     )
-    entry_point_count: int | None = Field(
+    entrypoint_count: int | None = Field(
         default=None, description="Number of entry points in chunk", ge=0
     )
     file_count: int | None = Field(
@@ -45,7 +45,7 @@ class ChunkMetadata(BaseModel):
                 "size_bytes": 52428800,
                 "checksum_sha256": "a1b2c3d4e5f6789012345678901234567890abcd1234567890abcdef123456789",
                 "symbol_count": 1245,
-                "entry_point_count": 18,
+                "entrypoint_count": 18,
                 "file_count": 156,
             }
         }
@@ -105,7 +105,7 @@ class ChunkManifest(BaseModel):
                         "size_bytes": 52428800,
                         "checksum_sha256": "a1b2c3d4e5f6789012345678901234567890abcd1234567890abcdef123456789",
                         "symbol_count": 1245,
-                        "entry_point_count": 18,
+                        "entrypoint_count": 18,
                         "file_count": 156,
                     }
                 ],

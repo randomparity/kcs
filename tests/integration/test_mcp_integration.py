@@ -386,7 +386,7 @@ class TestMCPCallGraphIntegration:
         """Test integration with entry point flow tracing."""
         # Test entry point flow from device_open to implementation functions
 
-        payload = {"entry_point": "device_open"}
+        payload = {"entrypoint": "device_open"}
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
         )

@@ -29,13 +29,13 @@ def analyze_subsystem(subsystem_path: Path) -> dict[str, Any]:
     This simulates what the quickstart guide demonstrates for ext4 analysis.
     It should extract entry points, exports, and module parameters.
     """
-    # Use the extract_entry_points_streaming tool
-    extract_tool = Path("tools/extract_entry_points_streaming.py")
+    # Use the extract_entrypoints_streaming tool
+    extract_tool = Path("tools/extract_entrypoints_streaming.py")
 
     if not extract_tool.exists():
         # Tool doesn't exist yet, return empty results for TDD
         return {
-            "entry_points": [],
+            "entrypoints": [],
             "exports": [],
             "module_params": [],
             "statistics": {},
@@ -59,7 +59,7 @@ def analyze_subsystem(subsystem_path: Path) -> dict[str, Any]:
 
         if result.returncode != 0:
             return {
-                "entry_points": [],
+                "entrypoints": [],
                 "exports": [],
                 "module_params": [],
                 "statistics": {},
@@ -74,7 +74,7 @@ def analyze_subsystem(subsystem_path: Path) -> dict[str, Any]:
                 entries.append(json.loads(line))
 
         # Categorize results
-        entry_points = []
+        entrypoints = []
         exports = []
         module_params = []
 
@@ -90,7 +90,7 @@ def analyze_subsystem(subsystem_path: Path) -> dict[str, Any]:
                 "netlink",
                 "interrupt_handler",
             ]:
-                entry_points.append(entry)
+                entrypoints.append(entry)
             elif entry_type == "export_symbol":
                 exports.append(entry)
             elif entry_type == "module_param":
@@ -98,20 +98,20 @@ def analyze_subsystem(subsystem_path: Path) -> dict[str, Any]:
 
         # Calculate statistics
         stats = {
-            "total_entry_points": len(entry_points),
+            "total_entrypoints": len(entrypoints),
             "total_exports": len(exports),
             "total_module_params": len(module_params),
             "by_type": {},
         }
 
-        for ep in entry_points:
+        for ep in entrypoints:
             ep_type = ep.get("entry_type")
             if ep_type not in stats["by_type"]:
                 stats["by_type"][ep_type] = 0
             stats["by_type"][ep_type] += 1
 
         return {
-            "entry_points": entry_points,
+            "entrypoints": entrypoints,
             "exports": exports,
             "module_params": module_params,
             "statistics": stats,
@@ -119,7 +119,7 @@ def analyze_subsystem(subsystem_path: Path) -> dict[str, Any]:
 
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
         return {
-            "entry_points": [],
+            "entrypoints": [],
             "exports": [],
             "module_params": [],
             "statistics": {},
@@ -130,17 +130,17 @@ def analyze_subsystem(subsystem_path: Path) -> dict[str, Any]:
 class TestSubsystemAnalysis:
     """Integration tests for complete subsystem analysis."""
 
-    def test_ext4_entry_points_detected(self) -> None:
+    def test_ext4_entrypoints_detected(self) -> None:
         """Test that various entry points are detected in ext4 subsystem."""
         results = analyze_subsystem(TEST_SUBSYSTEM_PATH)
 
         # Should find entry points
-        assert len(results["entry_points"]) > 0, (
+        assert len(results["entrypoints"]) > 0, (
             "Should detect entry points in ext4 subsystem"
         )
 
         # Check for different types
-        entry_types = {ep.get("entry_type") for ep in results["entry_points"]}
+        entry_types = {ep.get("entry_type") for ep in results["entrypoints"]}
 
         # We expect to find at least file_ops, ioctls, and sysfs
         expected_types = {"file_ops", "ioctl", "sysfs"}
@@ -211,7 +211,7 @@ class TestSubsystemAnalysis:
         results = analyze_subsystem(TEST_SUBSYSTEM_PATH)
 
         file_ops = [
-            ep for ep in results["entry_points"] if ep.get("entry_type") == "file_ops"
+            ep for ep in results["entrypoints"] if ep.get("entry_type") == "file_ops"
         ]
 
         assert len(file_ops) > 0, "Should detect file_operations in ext4"
@@ -229,7 +229,7 @@ class TestSubsystemAnalysis:
         results = analyze_subsystem(TEST_SUBSYSTEM_PATH)
 
         ioctls = [
-            ep for ep in results["entry_points"] if ep.get("entry_type") == "ioctl"
+            ep for ep in results["entrypoints"] if ep.get("entry_type") == "ioctl"
         ]
 
         # Should find ioctl handlers
@@ -255,7 +255,7 @@ class TestSubsystemAnalysis:
         results = analyze_subsystem(TEST_SUBSYSTEM_PATH)
 
         sysfs_entries = [
-            ep for ep in results["entry_points"] if ep.get("entry_type") == "sysfs"
+            ep for ep in results["entrypoints"] if ep.get("entry_type") == "sysfs"
         ]
 
         # Should find sysfs attributes
@@ -273,7 +273,7 @@ class TestSubsystemAnalysis:
         results = analyze_subsystem(TEST_SUBSYSTEM_PATH)
 
         procfs_entries = [
-            ep for ep in results["entry_points"] if ep.get("entry_type") == "procfs"
+            ep for ep in results["entrypoints"] if ep.get("entry_type") == "procfs"
         ]
 
         # Should find procfs entries (we created proc_create call)
@@ -288,9 +288,9 @@ class TestSubsystemAnalysis:
         """Test that boot parameters (__setup) are found."""
         results = analyze_subsystem(TEST_SUBSYSTEM_PATH)
 
-        # Boot params might be in entry_points or separate category
+        # Boot params might be in entrypoints or separate category
         boot_params = [
-            ep for ep in results["entry_points"] if ep.get("entry_type") == "boot_param"
+            ep for ep in results["entrypoints"] if ep.get("entry_type") == "boot_param"
         ]
 
         # Should find __setup("ext4_nodelalloc", ...)
@@ -317,7 +317,7 @@ class TestSubsystemAnalysis:
         # If we got results, verify they're reasonable
         if results["statistics"]:
             total = (
-                results["statistics"]["total_entry_points"]
+                results["statistics"]["total_entrypoints"]
                 + results["statistics"]["total_exports"]
                 + results["statistics"]["total_module_params"]
             )
@@ -334,7 +334,7 @@ class TestSubsystemAnalysis:
         stats = results["statistics"]
 
         # Verify counts match actual results
-        assert stats["total_entry_points"] == len(results["entry_points"]), (
+        assert stats["total_entrypoints"] == len(results["entrypoints"]), (
             "Entry point count mismatch"
         )
         assert stats["total_exports"] == len(results["exports"]), (
@@ -350,7 +350,7 @@ class TestSubsystemAnalysis:
                 actual = len(
                     [
                         ep
-                        for ep in results["entry_points"]
+                        for ep in results["entrypoints"]
                         if ep.get("entry_type") == entry_type
                     ]
                 )
@@ -363,7 +363,7 @@ class TestSubsystemAnalysis:
         results = analyze_subsystem(TEST_SUBSYSTEM_PATH)
 
         # Quickstart shows finding entry points, exports, and params
-        assert len(results["entry_points"]) > 0, (
+        assert len(results["entrypoints"]) > 0, (
             "Should find entry points as shown in quickstart"
         )
         assert len(results["exports"]) > 0, "Should find exports as shown in quickstart"
@@ -377,7 +377,7 @@ class TestSubsystemAnalysis:
         # Check that we can identify subsystem boundaries
         all_files = set()
         for item in (
-            results["entry_points"] + results["exports"] + results["module_params"]
+            results["entrypoints"] + results["exports"] + results["module_params"]
         ):
             if item.get("file_path"):
                 all_files.add(Path(item["file_path"]).parent.name)

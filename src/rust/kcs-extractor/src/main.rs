@@ -67,13 +67,13 @@ fn main() -> Result<()> {
             let extractor = Extractor::new(config);
 
             println!("Extracting entry points from: {}", input.display());
-            let entry_points = extractor.extract_from_directory(&input)?;
+            let entrypoints = extractor.extract_from_directory(&input)?;
 
-            println!("Found {} entry points", entry_points.len());
+            println!("Found {} entry points", entrypoints.len());
 
             // Print summary by type
             let mut type_counts = std::collections::HashMap::new();
-            for ep in &entry_points {
+            for ep in &entrypoints {
                 *type_counts
                     .entry(format!("{:?}", ep.entry_type))
                     .or_insert(0) += 1;
@@ -84,7 +84,7 @@ fn main() -> Result<()> {
             }
 
             // Output results
-            let json_output = serde_json::to_string_pretty(&entry_points)?;
+            let json_output = serde_json::to_string_pretty(&entrypoints)?;
 
             if let Some(output_path) = output {
                 std::fs::write(&output_path, &json_output)?;
@@ -105,11 +105,11 @@ fn main() -> Result<()> {
 
             println!("Extracting entry points from index: {}", input.display());
             let index_content = std::fs::read_to_string(&input)?;
-            let entry_points = extractor.extract_from_index(&index_content)?;
+            let entrypoints = extractor.extract_from_index(&index_content)?;
 
-            println!("Found {} entry points from index", entry_points.len());
+            println!("Found {} entry points from index", entrypoints.len());
 
-            let json_output = serde_json::to_string_pretty(&entry_points)?;
+            let json_output = serde_json::to_string_pretty(&entrypoints)?;
 
             if let Some(output_path) = output {
                 std::fs::write(&output_path, &json_output)?;

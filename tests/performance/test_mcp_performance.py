@@ -97,7 +97,7 @@ async def production_like_db(postgres_container: PostgresContainer) -> Database:
         """)
 
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS entry_point (
+            CREATE TABLE IF NOT EXISTS entrypoint (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 entry_type TEXT NOT NULL,
@@ -118,7 +118,7 @@ async def production_like_db(postgres_container: PostgresContainer) -> Database:
             "CREATE INDEX IF NOT EXISTS idx_call_edge_callee ON call_edge(callee_id)"
         )
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_entry_point_name ON entry_point(name)"
+            "CREATE INDEX IF NOT EXISTS idx_entrypoint_name ON entrypoint(name)"
         )
 
         # Generate production-scale test data
@@ -195,7 +195,7 @@ async def production_like_db(postgres_container: PostgresContainer) -> Database:
         for i in range(100):
             await conn.execute(
                 """
-                INSERT INTO entry_point (name, entry_type, symbol_id, file_id, line_number, syscall_number)
+                INSERT INTO entrypoint (name, entry_type, symbol_id, file_id, line_number, syscall_number)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 """,
                 f"__NR_syscall_{i}",

@@ -491,33 +491,33 @@ class Database:
 
         return processed_count
 
-    async def insert_entry_points(
-        self, entry_points: list[dict[str, Any]], config: str
+    async def insert_entrypoints(
+        self, entrypoints: list[dict[str, Any]], config: str
     ) -> int:
         """
         Insert entry points with metadata into the database.
 
         Args:
-            entry_points: List of entry points from extraction
+            entrypoints: List of entry points from extraction
             config: Configuration string (e.g., "x86_64:defconfig")
 
         Returns:
             Number of entry points inserted
         """
-        if not entry_points:
+        if not entrypoints:
             return 0
 
         async with self.acquire() as conn:
             async with conn.transaction():
                 inserted_count = 0
 
-                for entry_point in entry_points:
+                for entrypoint in entrypoints:
                     # Handle metadata if present
                     metadata = None
-                    if entry_point.get("metadata"):
+                    if entrypoint.get("metadata"):
                         import json
 
-                        metadata = json.dumps(entry_point["metadata"])
+                        metadata = json.dumps(entrypoint["metadata"])
 
                     # Insert entry point
                     entry_sql = """
@@ -538,12 +538,12 @@ class Database:
 
                     await conn.execute(
                         entry_sql,
-                        entry_point["name"],
-                        entry_point["entry_type"],
-                        entry_point["file_path"],
-                        entry_point["line_number"],
-                        entry_point.get("signature", ""),
-                        entry_point.get("description"),
+                        entrypoint["name"],
+                        entrypoint["entry_type"],
+                        entrypoint["file_path"],
+                        entrypoint["line_number"],
+                        entrypoint.get("signature", ""),
+                        entrypoint.get("description"),
                         metadata,
                         config,
                     )
@@ -608,13 +608,13 @@ class Database:
 
                     # Find associated entry point if specified
                     entrypoint_id = None
-                    if "entry_point_name" in pattern:
+                    if "entrypoint_name" in pattern:
                         entry_row = await conn.fetchrow(
                             """
                             SELECT id FROM entrypoint
                             WHERE name = $1 AND config = $2 LIMIT 1
                             """,
-                            pattern["entry_point_name"],
+                            pattern["entrypoint_name"],
                             config,
                         )
                         if entry_row:
@@ -1550,7 +1550,7 @@ class Database:
         specification_id: str,
         spec_name: str,
         spec_version: str,
-        entry_point: str,
+        entrypoint: str,
         compliance_score: float,
         is_valid: bool,
         deviations: list,
@@ -1564,7 +1564,7 @@ class Database:
             specification_id: Specification identifier
             spec_name: Specification name
             spec_version: Specification version
-            entry_point: Entry point symbol
+            entrypoint: Entry point symbol
             compliance_score: Compliance score (0-100)
             is_valid: Whether validation passed
             deviations: List of deviations
@@ -1577,7 +1577,7 @@ class Database:
                 # Store specification if not exists
                 spec_sql = """
                 INSERT INTO specification (
-                    spec_id, name, version, entry_point, created_at
+                    spec_id, name, version, entrypoint, created_at
                 )
                 VALUES ($1, $2, $3, $4, NOW())
                 ON CONFLICT (spec_id) DO NOTHING
@@ -1588,7 +1588,7 @@ class Database:
                     specification_id,
                     spec_name,
                     spec_version,
-                    entry_point,
+                    entrypoint,
                 )
 
                 # Store validation result
@@ -2097,7 +2097,7 @@ class Database:
         kernel_version: str,
         kernel_config: str,
         subsystem: str | None = None,
-        entry_point: str | None = None,
+        entrypoint: str | None = None,
         max_depth: int = 10,
         include_metadata: bool = True,
         include_annotations: bool = True,
@@ -2113,7 +2113,7 @@ class Database:
             kernel_version: Kernel version context
             kernel_config: Kernel configuration context
             subsystem: Optional subsystem filter
-            entry_point: Optional entry point filter
+            entrypoint: Optional entry point filter
             max_depth: Maximum traversal depth
             include_metadata: Whether to include metadata
             include_annotations: Whether to include annotations
@@ -2129,7 +2129,7 @@ class Database:
             sql = """
             INSERT INTO graph_export (
                 export_name, export_format, kernel_version, kernel_config,
-                subsystem, entry_point, max_depth, include_metadata,
+                subsystem, entrypoint, max_depth, include_metadata,
                 include_annotations, chunk_size, metadata
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -2143,7 +2143,7 @@ class Database:
                 kernel_version,
                 kernel_config,
                 subsystem,
-                entry_point,
+                entrypoint,
                 max_depth,
                 include_metadata,
                 include_annotations,
@@ -2167,7 +2167,7 @@ class Database:
             sql = """
             SELECT
                 export_id, export_name, export_format, export_status,
-                kernel_version, kernel_config, subsystem, entry_point,
+                kernel_version, kernel_config, subsystem, entrypoint,
                 max_depth, include_metadata, include_annotations,
                 chunk_size, total_chunks, created_at, started_at,
                 completed_at, error_message, export_size_bytes,
@@ -2191,7 +2191,7 @@ class Database:
                 "kernel_version": row["kernel_version"],
                 "kernel_config": row["kernel_config"],
                 "subsystem": row["subsystem"],
-                "entry_point": row["entry_point"],
+                "entrypoint": row["entrypoint"],
                 "max_depth": row["max_depth"],
                 "include_metadata": row["include_metadata"],
                 "include_annotations": row["include_annotations"],
@@ -2418,7 +2418,7 @@ class Database:
             sql = """
             SELECT
                 export_id, export_name, export_format, export_status,
-                kernel_version, kernel_config, subsystem, entry_point,
+                kernel_version, kernel_config, subsystem, entrypoint,
                 created_at, completed_at, export_size_bytes,
                 node_count, edge_count, total_chunks
             FROM graph_export
@@ -2464,7 +2464,7 @@ class Database:
                     "kernel_version": row["kernel_version"],
                     "kernel_config": row["kernel_config"],
                     "subsystem": row["subsystem"],
-                    "entry_point": row["entry_point"],
+                    "entrypoint": row["entrypoint"],
                     "created_at": row["created_at"].isoformat(),
                     "completed_at": row["completed_at"].isoformat()
                     if row["completed_at"]
@@ -3236,7 +3236,7 @@ class MockDatabase(Database):
         specification_id: str,
         spec_name: str,
         spec_version: str,
-        entry_point: str,
+        entrypoint: str,
         compliance_score: float,
         is_valid: bool,
         deviations: list,
@@ -3456,7 +3456,7 @@ class MockDatabase(Database):
         kernel_version: str,
         kernel_config: str,
         subsystem: str | None = None,
-        entry_point: str | None = None,
+        entrypoint: str | None = None,
         max_depth: int = 10,
         include_metadata: bool = True,
         include_annotations: bool = True,
@@ -3486,7 +3486,7 @@ class MockDatabase(Database):
             "kernel_version": "6.1.0",
             "kernel_config": "x86_64:defconfig",
             "subsystem": None,
-            "entry_point": "sys_read",
+            "entrypoint": "sys_read",
             "max_depth": 5,
             "include_metadata": True,
             "include_annotations": True,
@@ -3580,7 +3580,7 @@ class MockDatabase(Database):
                 "kernel_version": "6.1.0",
                 "kernel_config": "x86_64:defconfig",
                 "subsystem": "fs",
-                "entry_point": "sys_read",
+                "entrypoint": "sys_read",
                 "created_at": "2024-01-01T00:00:00",
                 "completed_at": "2024-01-01T00:05:00",
                 "export_size_bytes": 1024,
@@ -3596,7 +3596,7 @@ class MockDatabase(Database):
                 "kernel_version": "6.1.0",
                 "kernel_config": "x86_64:defconfig",
                 "subsystem": "net",
-                "entry_point": "sys_socket",
+                "entrypoint": "sys_socket",
                 "created_at": "2024-01-01T01:00:00",
                 "completed_at": None,
                 "export_size_bytes": None,

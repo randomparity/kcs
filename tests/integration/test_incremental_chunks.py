@@ -77,7 +77,7 @@ def initial_manifest_all_subsystems() -> dict[str, Any]:
                     "size_bytes": 40 * 1024 * 1024,  # 40MB chunks
                     "checksum_sha256": f"a{subsystem[0]}{str(i).zfill(61)}",
                     "symbol_count": 10000 + (i * 100),
-                    "entry_point_count": 30 + i,
+                    "entrypoint_count": 30 + i,
                     "file_count": 80 + (i * 5),
                     "last_modified": "2025-01-18T08:00:00Z",
                 }
@@ -126,7 +126,7 @@ def updated_manifest_fs_subsystem() -> dict[str, Any]:
                     "size_bytes": 40 * 1024 * 1024,
                     "checksum_sha256": checksum,
                     "symbol_count": symbol_count,
-                    "entry_point_count": 30 + i,
+                    "entrypoint_count": 30 + i,
                     "file_count": 80 + (i * 5),
                     "last_modified": last_modified,
                 }
@@ -175,7 +175,7 @@ def temp_incremental_chunk_directory():
                             {"name": f"fs_symbol_{i}_{j}", "type": "function"}
                             for j in range(15)  # More symbols
                         ],
-                        "entry_points": [
+                        "entrypoints": [
                             {"name": f"fs_entry_{i}_{j}", "type": "syscall"}
                             for j in range(4)
                         ],
@@ -195,7 +195,7 @@ def temp_incremental_chunk_directory():
                             {"name": f"{subsystem}_symbol_{i}_{j}", "type": "function"}
                             for j in range(10)
                         ],
-                        "entry_points": [
+                        "entrypoints": [
                             {"name": f"{subsystem}_entry_{i}_{j}", "type": "syscall"}
                             for j in range(3)
                         ],

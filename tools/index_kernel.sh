@@ -466,12 +466,12 @@ parse_kernel_sources_chunked() {
     fi
 }
 
-extract_entry_points() {
-    local entry_points_output="$OUTPUT_DIR/extracted/entry_points.json"
+extract_entrypoints() {
+    local entrypoints_output="$OUTPUT_DIR/extracted/entrypoints.json"
 
     # Skip if output already exists and is substantial
-    if [ -f "$entry_points_output" ]; then
-        local entry_count=$(count_json_array_streaming "$entry_points_output")
+    if [ -f "$entrypoints_output" ]; then
+        local entry_count=$(count_json_array_streaming "$entrypoints_output")
         if [ "$entry_count" != "0" ] && [ "$entry_count" != "many" ]; then
             log "Entry points already extracted ($entry_count entry points), skipping extraction"
             return 0
@@ -488,7 +488,7 @@ extract_entry_points() {
         local extractor_cmd=(
             kcs-extractor index
             --input "$OUTPUT_DIR/parsed/kernel_symbols.json"
-            --output "$entry_points_output"
+            --output "$entrypoints_output"
             --types all
         )
 
@@ -502,7 +502,7 @@ extract_entry_points() {
             "${extractor_cmd[@]}" && {
                 local end_time=$(date +%s)
                 local duration=$((end_time - start_time))
-                local entry_count=$(count_json_array_streaming "$entry_points_output")
+                local entry_count=$(count_json_array_streaming "$entrypoints_output")
                 log_success "Extracted $entry_count entry points in ${duration}s"
                 return 0
             }
@@ -513,9 +513,9 @@ extract_entry_points() {
     log "Using streaming extractor for large file (${input_size}MB)..."
 
     if [ "$DRY_RUN" = "false" ]; then
-        python3 "$SCRIPT_DIR/extract_entry_points_streaming.py" \
+        python3 "$SCRIPT_DIR/extract_entrypoints_streaming.py" \
             "$OUTPUT_DIR/parsed/kernel_symbols.json" \
-            "$entry_points_output" || {
+            "$entrypoints_output" || {
             log_error "Streaming entry point extraction failed"
             return 1
         }
@@ -524,8 +524,8 @@ extract_entry_points() {
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
 
-    if [ -f "$entry_points_output" ]; then
-        local entry_count=$(count_json_array_streaming "$entry_points_output")
+    if [ -f "$entrypoints_output" ]; then
+        local entry_count=$(count_json_array_streaming "$entrypoints_output")
         log_success "Extracted $entry_count entry points in ${duration}s"
     else
         log_error "No entry points output file generated"
@@ -650,13 +650,13 @@ try:
     with open("$OUTPUT_DIR/parsed/kernel_symbols.json", "r") as f:
         symbols_data = json.load(f)
 
-    with open("$OUTPUT_DIR/extracted/entry_points.json", "r") as f:
-        entry_points_data = json.load(f)
+    with open("$OUTPUT_DIR/extracted/entrypoints.json", "r") as f:
+        entrypoints_data = json.load(f)
 
     with open("$OUTPUT_DIR/graphs/call_graph.json", "r") as f:
         graph_data = json.load(f)
 
-    print(f"Loaded {len(symbols_data)} files, {len(entry_points_data)} entry points")
+    print(f"Loaded {len(symbols_data)} files, {len(entrypoints_data)} entry points")
 except Exception as e:
     print(f"Failed to load data: {e}")
     sys.exit(1)
@@ -666,7 +666,7 @@ try:
     cur.execute("""
         INSERT INTO kernel_indexes (
             path, version, git_sha, git_branch, config,
-            indexed_at, file_count, symbol_count, entry_point_count
+            indexed_at, file_count, symbol_count, entrypoint_count
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (path, config) DO UPDATE SET
             version = EXCLUDED.version,
@@ -675,7 +675,7 @@ try:
             indexed_at = EXCLUDED.indexed_at,
             file_count = EXCLUDED.file_count,
             symbol_count = EXCLUDED.symbol_count,
-            entry_point_count = EXCLUDED.entry_point_count
+            entrypoint_count = EXCLUDED.entrypoint_count
         RETURNING id
     """, (
         "$KERNEL_PATH",
@@ -686,7 +686,7 @@ try:
         datetime.now(),
         len(symbols_data),
         sum(len(f.get('symbols', [])) for f in symbols_data),
-        len(entry_points_data)
+        len(entrypoints_data)
     ))
 
     index_id = cur.fetchone()[0]
@@ -757,30 +757,30 @@ except Exception as e:
 
 # Insert entry points
 try:
-    entry_point_batch = []
+    entrypoint_batch = []
 
-    for entry_point in entry_points_data:
-        entry_point_batch.append((
+    for entrypoint in entrypoints_data:
+        entrypoint_batch.append((
             index_id,
-            entry_point['name'],
-            entry_point['type'],
-            entry_point['symbol'],
-            entry_point.get('file_path', ''),
-            entry_point.get('line_number', 0),
-            json.dumps(entry_point.get('metadata', {}))
+            entrypoint['name'],
+            entrypoint['type'],
+            entrypoint['symbol'],
+            entrypoint.get('file_path', ''),
+            entrypoint.get('line_number', 0),
+            json.dumps(entrypoint.get('metadata', {}))
         ))
 
-    if entry_point_batch:
+    if entrypoint_batch:
         cur.executemany("""
-            INSERT INTO entry_points (index_id, name, type, symbol, file_path, line_number, metadata)
+            INSERT INTO entrypoints (index_id, name, type, symbol, file_path, line_number, metadata)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (index_id, name, type) DO UPDATE SET
                 symbol = EXCLUDED.symbol,
                 file_path = EXCLUDED.file_path,
                 line_number = EXCLUDED.line_number,
                 metadata = EXCLUDED.metadata
-        """, entry_point_batch)
-        print(f"Inserted {len(entry_point_batch)} entry points")
+        """, entrypoint_batch)
+        print(f"Inserted {len(entrypoint_batch)} entry points")
 
 except Exception as e:
     print(f"Failed to insert entry points: {e}")
@@ -867,10 +867,22 @@ populate_chunked_database() {
             log "Run 'tools/process_chunks.py --manifest $manifest_file --parallel $PARALLEL_CHUNKS' to process chunks"
         else
             # Call the chunk processor
-            python3 "$SCRIPT_DIR/process_chunks.py" \
+            local entrypoints_file="$OUTPUT_DIR/extracted/entrypoints.json"
+            local cmd=(python3 "$SCRIPT_DIR/process_chunks.py" \
                 --manifest "$manifest_file" \
                 --parallel "$PARALLEL_CHUNKS" \
-                --database-url "$DATABASE_URL" || {
+                --database-url "$DATABASE_URL")
+
+            # Add entry points file if it exists
+            if [ -f "$entrypoints_file" ]; then
+                cmd+=(--entrypoints "$entrypoints_file")
+                log "Including entry points from: $entrypoints_file"
+            else
+                log_warning "Entry points file not found: $entrypoints_file"
+                log "Proceeding without entry points (symbols only)"
+            fi
+
+            "${cmd[@]}" || {
                 log_error "Chunk processing failed"
                 return 1
             }
@@ -928,7 +940,7 @@ Performance:    $performance_status
 
 Files:
 - Parsed symbols:    $OUTPUT_DIR/parsed/kernel_symbols.json
-- Entry points:      $OUTPUT_DIR/extracted/entry_points.json
+- Entry points:      $OUTPUT_DIR/extracted/entrypoints.json
 - Call graph:        $OUTPUT_DIR/graphs/call_graph.json
 - Compile commands:  $OUTPUT_DIR/compile_commands.json
 
@@ -1276,7 +1288,7 @@ run_traditional_pipeline() {
     parse_kernel_sources
 
     show_pipeline_progress "extraction"
-    extract_entry_points
+    extract_entrypoints
 
     show_pipeline_progress "graph"
     build_call_graph
@@ -1301,6 +1313,9 @@ run_chunked_pipeline() {
 
     show_pipeline_progress "parsing"
     parse_kernel_sources
+
+    show_pipeline_progress "extraction"
+    extract_entrypoints
 
     if [ "${SKIP_DATABASE:-false}" != "true" ]; then
         show_pipeline_progress "database"

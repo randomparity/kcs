@@ -240,7 +240,7 @@ async def process_chunks_parallel(
                         "Chunk completed in orchestrator",
                         chunk_id=chunk_id,
                         symbols_processed=result.get("symbols_processed", 0),
-                        entry_points_processed=result.get("entry_points_processed", 0),
+                        entrypoints_processed=result.get("entrypoints_processed", 0),
                         checksum_verified=result.get("checksum_verified", False),
                         manifest_version=manifest.version,
                     )
@@ -395,6 +395,12 @@ async def main() -> None:
     )
 
     parser.add_argument(
+        "--entrypoints",
+        type=Path,
+        help="Optional path to entry points JSON file for integration",
+    )
+
+    parser.add_argument(
         "--parallel",
         type=int,
         default=4,
@@ -517,6 +523,19 @@ async def main() -> None:
             logger.info("No chunks to process")
             return
 
+        # Load entry points if provided
+        entrypoints_data = None
+        if args.entrypoints:
+            logger.info("Loading entry points", entrypoints_file=str(args.entrypoints))
+            try:
+                import json
+                with open(args.entrypoints, 'r') as f:
+                    entrypoints_data = json.load(f)
+                logger.info("Loaded entry points", count=len(entrypoints_data))
+            except Exception as e:
+                logger.error("Failed to load entry points", error=str(e), file=str(args.entrypoints))
+                raise
+
         # Setup chunk processor with database-connected loader and adaptive parallelism
         chunk_loader = ChunkLoader(database=database)
 
@@ -531,6 +550,7 @@ async def main() -> None:
             max_memory_mb=args.max_memory_mb,
             checksum_verification_policy=args.checksum_policy,
             pre_verify_checksums=not args.no_pre_verify,
+            entrypoints_data=entrypoints_data,
         )
 
         logger.info(

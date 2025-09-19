@@ -160,7 +160,7 @@ class ChunkLoader:
             verify_checksum: Override checksum verification (defaults to loader config)
 
         Returns:
-            Dictionary containing chunk data (symbols, entry_points, etc.)
+            Dictionary containing chunk data (symbols, entrypoints, etc.)
 
         Raises:
             ChunkLoadError: If chunk cannot be loaded

@@ -5,7 +5,7 @@
 ### Entry Points - Partially Implemented
 
 **Decision**: Enhance existing partial implementations rather than rewrite
-**Rationale**: Basic structure exists in `kcs-extractor/src/entry_points.rs`
+**Rationale**: Basic structure exists in `kcs-extractor/src/entrypoints.rs`
 **Current Status**:
 
 - ✅ file_operations extraction (basic regex pattern)
@@ -74,7 +74,7 @@
 
 ### 3. Database Schema
 
-**Decision**: Extend existing entry_point table, add metadata JSONB column
+**Decision**: Extend existing entrypoint table, add metadata JSONB column
 **Rationale**:
 
 - No breaking schema changes
@@ -92,7 +92,7 @@
 **Decision**: Streaming parser with parallel file processing
 **Rationale**:
 
-- Already implemented in extract_entry_points_streaming.py
+- Already implemented in extract_entrypoints_streaming.py
 - Memory efficient for large kernels
 - Can leverage multiple cores
 **Optimizations**:
@@ -122,12 +122,12 @@
    - Add new entry point types to output
    - Support --pattern-type flag for selective extraction
 
-2. **Python streaming wrapper** (`tools/extract_entry_points_streaming.py`)
+2. **Python streaming wrapper** (`tools/extract_entrypoints_streaming.py`)
    - Already handles streaming output
    - Just needs new entry types in protocol
 
 3. **Database ingestion** (`src/python/kcs_mcp/database.py`)
-   - insert_entry_points() method exists
+   - insert_entrypoints() method exists
    - Add metadata field handling
 
 4. **MCP endpoints** (`src/python/kcs_mcp/tools.py`)

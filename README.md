@@ -420,7 +420,7 @@ curl -X POST http://localhost:8080/mcp/tools/validate_spec \
     "specification": {
       "name": "read_syscall_spec",
       "version": "1.0",
-      "entry_point": "sys_read",
+      "entrypoint": "sys_read",
       "expected_behavior": {
         "description": "Read data from file descriptor",
         "return_type": "ssize_t",

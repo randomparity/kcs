@@ -175,7 +175,7 @@ tools/index_kernel.sh \
   ~/src/linux
 
 # Extract entry points only (streaming)
-tools/extract_entry_points_streaming.py ~/src/linux | head -20
+tools/extract_entrypoints_streaming.py ~/src/linux | head -20
 ```
 
 ### Database Operations
@@ -188,7 +188,7 @@ psql -d kcs -U kcs -h localhost
 for f in src/sql/migrations/*.sql; do psql -d kcs -f "$f"; done
 
 # Common queries for debugging
-psql -d kcs -c "SELECT COUNT(*) FROM entry_point GROUP BY entry_type;"
+psql -d kcs -c "SELECT COUNT(*) FROM entrypoint GROUP BY entry_type;"
 psql -d kcs -c "SELECT name, file_path FROM symbol WHERE name LIKE 'vfs_%' LIMIT 10;"
 
 # Check recursive CTE performance
@@ -221,7 +221,7 @@ tests/
 
 tools/                  # Shell and Python scripts
 ├── index_kernel.sh       # Main indexing orchestrator
-└── extract_entry_points_streaming.py  # Streaming parser wrapper
+└── extract_entrypoints_streaming.py  # Streaming parser wrapper
 ```
 
 ## Constitutional Requirements
@@ -255,7 +255,7 @@ tools/                  # Shell and Python scripts
 
 ### Entry Point Detection
 
-Current implementation in `src/rust/kcs-extractor/src/entry_points.rs`:
+Current implementation in `src/rust/kcs-extractor/src/entrypoints.rs`:
 
 - Syscalls: Mapped from `__NR_*` to `sys_*` functions
 - File ops: Regex patterns for `file_operations` structs

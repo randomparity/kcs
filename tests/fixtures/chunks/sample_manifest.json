@@ -15,7 +15,7 @@
       "size_bytes": 52428800,
       "checksum_sha256": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
       "symbol_count": 15000,
-      "entry_point_count": 50,
+      "entrypoint_count": 50,
       "file_count": 120
     },
     {
@@ -26,7 +26,7 @@
       "size_bytes": 52428800,
       "checksum_sha256": "b665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae4",
       "symbol_count": 12000,
-      "entry_point_count": 30,
+      "entrypoint_count": 30,
       "file_count": 85
     },
     {
@@ -37,7 +37,7 @@
       "size_bytes": 52428800,
       "checksum_sha256": "c665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae5",
       "symbol_count": 18000,
-      "entry_point_count": 70,
+      "entrypoint_count": 70,
       "file_count": 150
     }
   ]

@@ -98,7 +98,7 @@ def boundary_test_manifest() -> dict[str, Any]:
                 "size_bytes": size_bytes,
                 "checksum_sha256": f"c{str(i).zfill(63)}",
                 "symbol_count": symbol_count,
-                "entry_point_count": max(10, size_bytes // (5 * 1024 * 1024)),
+                "entrypoint_count": max(10, size_bytes // (5 * 1024 * 1024)),
                 "file_count": max(20, size_bytes // (2 * 1024 * 1024)),
                 "expected_valid": expected_valid,  # Test metadata
             }
@@ -128,7 +128,7 @@ def oversized_chunk_manifest() -> dict[str, Any]:
             "size_bytes": 80 * 1024 * 1024,  # 80MB - exceeds 60MB limit
             "checksum_sha256": "d" + "0" * 63,
             "symbol_count": 16000,
-            "entry_point_count": 80,
+            "entrypoint_count": 80,
             "file_count": 200,
         },
         {
@@ -139,7 +139,7 @@ def oversized_chunk_manifest() -> dict[str, Any]:
             "size_bytes": 120 * 1024 * 1024,  # 120MB - way over limit
             "checksum_sha256": "e" + "1" * 63,
             "symbol_count": 24000,
-            "entry_point_count": 120,
+            "entrypoint_count": 120,
             "file_count": 400,
         },
     ]
@@ -185,7 +185,7 @@ def temp_boundary_chunk_directory():
                     {"name": f"symbol_{chunk_id}_{i}", "type": "function"}
                     for i in range(content_items)
                 ],
-                "entry_points": [
+                "entrypoints": [
                     {"name": f"entry_{chunk_id}_{i}", "type": "syscall"}
                     for i in range(content_items // 10)
                 ],

@@ -3,7 +3,7 @@ info:
   title: Enhanced Entry Point Extraction API
   version: 0.2.0
 paths:
-  /extract/entry_points:
+  /extract/entrypoints:
     post:
       summary: Extract kernel entry points with pattern recognition
       requestBody:
@@ -49,7 +49,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  entry_points:
+                  entrypoints:
                     type: array
                     items:
                       type: object

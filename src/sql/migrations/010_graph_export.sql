@@ -21,7 +21,7 @@ CREATE TABLE graph_export (
     kernel_version VARCHAR(100) NOT NULL,
     kernel_config VARCHAR(100) NOT NULL,
     subsystem VARCHAR(255),
-    entry_point VARCHAR(255),
+    entrypoint VARCHAR(255),
     max_depth INTEGER DEFAULT 10,
     include_metadata BOOLEAN DEFAULT TRUE,
     include_annotations BOOLEAN DEFAULT TRUE,
@@ -134,7 +134,7 @@ CREATE INDEX idx_graph_export_status ON graph_export (export_status);
 CREATE INDEX idx_graph_export_format ON graph_export (export_format);
 CREATE INDEX idx_graph_export_kernel ON graph_export (kernel_version, kernel_config);
 CREATE INDEX idx_graph_export_subsystem ON graph_export (subsystem);
-CREATE INDEX idx_graph_export_entry_point ON graph_export (entry_point);
+CREATE INDEX idx_graph_export_entrypoint ON graph_export (entrypoint);
 CREATE INDEX idx_graph_export_created ON graph_export (created_at DESC);
 CREATE INDEX idx_graph_export_completed ON graph_export (completed_at DESC);
 CREATE INDEX idx_graph_export_metadata ON graph_export USING gin (metadata);

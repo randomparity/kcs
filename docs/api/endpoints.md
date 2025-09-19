@@ -372,7 +372,7 @@ Properties:
 - `specification` (object) (required): Specification to validate
   - `name` (string) (required): Specification name
   - `version` (string) (required): Specification version
-  - `entry_point` (string) (required): Main entry point symbol
+  - `entrypoint` (string) (required): Main entry point symbol
   - `expected_behavior` (object) (optional): Expected behavior description
   - `parameters` (array) (optional): Expected parameters
 - `config` (string) (optional): Kernel configuration context
@@ -395,7 +395,7 @@ curl -X POST \
   "specification": {
     "name": "sys_read_spec",
     "version": "1.0",
-    "entry_point": "sys_read",
+    "entrypoint": "sys_read",
     "expected_behavior": {
       "description": "Read data from file descriptor"
     }

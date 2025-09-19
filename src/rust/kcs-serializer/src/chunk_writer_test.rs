@@ -226,7 +226,7 @@ mod tests {
         let metadata = chunk_info.metadata.unwrap();
         assert!(!metadata.created_at.is_empty());
         assert_eq!(metadata.chunk_version, "1.0.0");
-        assert!(metadata.total_symbols > 0 || metadata.total_entry_points > 0);
+        assert!(metadata.total_symbols > 0 || metadata.total_entrypoints > 0);
 
         Ok(())
     }

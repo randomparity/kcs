@@ -44,7 +44,7 @@
       "metadata": {}
     }
   ],
-  "entry_points": [
+  "entrypoints": [
     {
       "id": "ep_001",
       "name": "sys_read",

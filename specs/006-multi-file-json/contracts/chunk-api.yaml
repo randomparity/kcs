@@ -215,7 +215,7 @@ components:
         symbol_count:
           type: integer
           minimum: 0
-        entry_point_count:
+        entrypoint_count:
           type: integer
           minimum: 0
         file_count:

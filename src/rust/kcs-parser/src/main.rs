@@ -350,6 +350,7 @@ async fn output_chunked_results(
         auto_split: true,
         output_directory: Some(output_dir.clone()),
         include_metadata: true,
+        buffer_size: 8 * 1024 * 1024, // 8MB buffer for better performance
         ..Default::default()
     };
 
@@ -389,10 +390,10 @@ async fn output_chunked_results(
                 .as_ref()
                 .map(|m| m.total_symbols)
                 .unwrap_or(0),
-            entry_point_count: chunk_info
+            entrypoint_count: chunk_info
                 .metadata
                 .as_ref()
-                .map(|m| m.total_entry_points)
+                .map(|m| m.total_entrypoints)
                 .unwrap_or(0),
             file_count: parsed_files.len(),
             checksum_sha256: Some(chunk_info.checksum_sha256.clone()),

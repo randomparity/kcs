@@ -85,7 +85,7 @@ Extensions to existing KCS data model to support comprehensive entry point detec
 - id: UUID
 - pattern_type: PatternType enum
 - symbol_id: UUID (FK to Symbol, nullable)
-- entry_point_id: UUID (FK to EntryPoint, nullable)
+- entrypoint_id: UUID (FK to EntryPoint, nullable)
 - file_id: UUID (FK)
 - line_number: Integer
 - raw_text: String
@@ -169,7 +169,7 @@ Extensions to existing KCS data model to support comprehensive entry point detec
 ### KernelPattern
 
 - pattern_type: Valid enum value
-- Either symbol_id OR entry_point_id set (not both)
+- Either symbol_id OR entrypoint_id set (not both)
 - line_number: Positive integer
 - raw_text: Non-empty, contains actual pattern
 
@@ -177,16 +177,16 @@ Extensions to existing KCS data model to support comprehensive entry point detec
 
 ### Performance Indexes (existing)
 
-- entry_point(name, entry_type)
+- entrypoint(name, entry_type)
 - symbol(name, symbol_type)
 - symbol(file_id, start_line)
 
 ### New Indexes
 
-- entry_point(metadata->>'export_type') - For finding GPL exports
+- entrypoint(metadata->>'export_type') - For finding GPL exports
 - symbol(metadata->>'export_status') - For exported symbols
 - kernel_pattern(pattern_type) - For pattern queries
-- entry_point(metadata->>'subsystem') - For subsystem filtering
+- entrypoint(metadata->>'subsystem') - For subsystem filtering
 
 ## Migration Strategy
 
@@ -201,7 +201,7 @@ Extensions to existing KCS data model to support comprehensive entry point detec
 
 ```sql
 -- Add metadata columns (non-breaking)
-ALTER TABLE entry_point
+ALTER TABLE entrypoint
   ADD COLUMN IF NOT EXISTS metadata JSONB;
 
 ALTER TABLE symbol
@@ -212,21 +212,21 @@ CREATE TABLE IF NOT EXISTS kernel_pattern (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pattern_type VARCHAR(50) NOT NULL,
   symbol_id UUID REFERENCES symbol(id),
-  entry_point_id UUID REFERENCES entry_point(id),
+  entrypoint_id UUID REFERENCES entrypoint(id),
   file_id UUID NOT NULL REFERENCES file(id),
   line_number INTEGER NOT NULL,
   raw_text TEXT NOT NULL,
   metadata JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT pattern_reference CHECK (
-    (symbol_id IS NOT NULL AND entry_point_id IS NULL) OR
-    (symbol_id IS NULL AND entry_point_id IS NOT NULL) OR
-    (symbol_id IS NULL AND entry_point_id IS NULL)
+    (symbol_id IS NOT NULL AND entrypoint_id IS NULL) OR
+    (symbol_id IS NULL AND entrypoint_id IS NOT NULL) OR
+    (symbol_id IS NULL AND entrypoint_id IS NULL)
   )
 );
 
 -- Add new indexes
-CREATE INDEX idx_entry_point_export ON entry_point((metadata->>'export_type'));
+CREATE INDEX idx_entrypoint_export ON entrypoint((metadata->>'export_type'));
 CREATE INDEX idx_symbol_export ON symbol((metadata->>'export_status'));
 CREATE INDEX idx_pattern_type ON kernel_pattern(pattern_type);
 ```
@@ -246,7 +246,7 @@ WHERE s.metadata->>'export_status' = 'exported'
 
 ```sql
 SELECT e.name, e.metadata->>'ioctl_cmd' as command
-FROM entry_point e
+FROM entrypoint e
 WHERE e.entry_type = 'Ioctl'
   AND e.metadata ? 'ioctl_cmd';
 ```

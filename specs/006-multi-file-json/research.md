@@ -5,7 +5,8 @@
 
 ## Executive Summary
 
-Research findings for implementing chunked JSON output to replace single 2.8GB file with multiple 50MB chunks, enabling parallel processing and memory-efficient database loading.
+Research findings for implementing chunked JSON output to replace single 2.8GB file with multiple
+50MB chunks, enabling parallel processing and memory-efficient database loading.
 
 ## Technical Decisions
 
@@ -86,7 +87,7 @@ Research findings for implementing chunked JSON output to replace single 2.8GB f
       "size_bytes": 52428800,
       "checksum_sha256": "abc123...",
       "symbol_count": 15000,
-      "entry_point_count": 50
+      "entrypoint_count": 50
     }
   ]
 }
@@ -217,4 +218,7 @@ CREATE TABLE chunk_processing (
 4. Generate quickstart guide for chunked processing workflow
 
 ---
-*Research completed for Phase 0 of plan.md*
+
+## Research Status
+
+Research completed for Phase 0 of plan.md

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-pub mod entry_points;
+pub mod entrypoints;
 pub mod ioctls;
 pub mod syscalls;
 
@@ -72,53 +72,53 @@ impl Extractor {
     }
 
     pub fn extract_from_directory<P: AsRef<Path>>(&self, kernel_dir: P) -> Result<Vec<EntryPoint>> {
-        let mut entry_points = Vec::new();
+        let mut entrypoints = Vec::new();
 
         if self.config.include_syscalls {
-            entry_points.extend(syscalls::extract_syscalls(kernel_dir.as_ref())?);
+            entrypoints.extend(syscalls::extract_syscalls(kernel_dir.as_ref())?);
         }
 
         if self.config.include_ioctls {
-            entry_points.extend(ioctls::extract_ioctls(kernel_dir.as_ref())?);
+            entrypoints.extend(ioctls::extract_ioctls(kernel_dir.as_ref())?);
         }
 
         if self.config.include_file_ops {
-            entry_points.extend(entry_points::extract_file_operations(kernel_dir.as_ref())?);
+            entrypoints.extend(entrypoints::extract_file_operations(kernel_dir.as_ref())?);
         }
 
         if self.config.include_sysfs {
-            entry_points.extend(entry_points::extract_sysfs_entries(kernel_dir.as_ref())?);
+            entrypoints.extend(entrypoints::extract_sysfs_entries(kernel_dir.as_ref())?);
         }
 
         if self.config.include_procfs {
-            entry_points.extend(entry_points::extract_procfs_entries(kernel_dir.as_ref())?);
+            entrypoints.extend(entrypoints::extract_procfs_entries(kernel_dir.as_ref())?);
         }
 
         if self.config.include_debugfs {
-            entry_points.extend(entry_points::extract_debugfs_entries(kernel_dir.as_ref())?);
+            entrypoints.extend(entrypoints::extract_debugfs_entries(kernel_dir.as_ref())?);
         }
 
         if self.config.include_netlink {
-            entry_points.extend(entry_points::extract_netlink_handlers(kernel_dir.as_ref())?);
+            entrypoints.extend(entrypoints::extract_netlink_handlers(kernel_dir.as_ref())?);
         }
 
         if self.config.include_interrupts {
-            entry_points.extend(entry_points::extract_interrupt_handlers(
+            entrypoints.extend(entrypoints::extract_interrupt_handlers(
                 kernel_dir.as_ref(),
             )?);
         }
 
         if self.config.include_modules {
-            entry_points.extend(entry_points::extract_module_entries(kernel_dir.as_ref())?);
+            entrypoints.extend(entrypoints::extract_module_entries(kernel_dir.as_ref())?);
         }
 
-        Ok(entry_points)
+        Ok(entrypoints)
     }
 
     pub fn extract_from_index(&self, index_data: &str) -> Result<Vec<EntryPoint>> {
         use regex::Regex;
 
-        let mut entry_points = Vec::new();
+        let mut entrypoints = Vec::new();
 
         // Try to parse as array first (current parser format)
         let parsed_files: Vec<serde_json::Value> = match serde_json::from_str(index_data) {
@@ -154,7 +154,7 @@ impl Extractor {
                                     // Check for syscall function name patterns
                                     if let Some(captures) = sys_pattern.captures(name) {
                                         if let Some(syscall_name) = captures.get(1) {
-                                            entry_points.push(EntryPoint {
+                                            entrypoints.push(EntryPoint {
                                                 name: format!("sys_{}", syscall_name.as_str()),
                                                 entry_type: EntryType::Syscall,
                                                 file_path: file_path.to_string(),
@@ -171,7 +171,7 @@ impl Extractor {
                                     // Check for ksys_ helper functions (often real syscall implementations)
                                     else if let Some(captures) = ksys_pattern.captures(name) {
                                         if let Some(syscall_name) = captures.get(1) {
-                                            entry_points.push(EntryPoint {
+                                            entrypoints.push(EntryPoint {
                                                 name: format!("ksys_{}", syscall_name.as_str()),
                                                 entry_type: EntryType::Syscall,
                                                 file_path: file_path.to_string(),
@@ -190,7 +190,7 @@ impl Extractor {
                                         && !name.starts_with("__se_sys_")
                                         && !name.starts_with("__do_sys_")
                                     {
-                                        entry_points.push(EntryPoint {
+                                        entrypoints.push(EntryPoint {
                                             name: name.to_string(),
                                             entry_type: EntryType::Syscall,
                                             file_path: file_path.to_string(),
@@ -215,7 +215,7 @@ impl Extractor {
         // if self.config.include_ioctls { ... }
         // if self.config.include_file_ops { ... }
 
-        Ok(entry_points)
+        Ok(entrypoints)
     }
 }
 

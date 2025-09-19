@@ -78,7 +78,7 @@ def sample_60_chunk_manifest() -> dict[str, Any]:
                 "size_bytes": 50 * 1024 * 1024,  # 50MB chunks
                 "checksum_sha256": f"a{str(i).zfill(63)}",  # Realistic checksum format
                 "symbol_count": 15000 + (i * 100),
-                "entry_point_count": 50 + (i * 2),
+                "entrypoint_count": 50 + (i * 2),
                 "file_count": 120 + (i * 3),
             }
         )
@@ -121,7 +121,7 @@ def temp_chunk_directory():
                 "symbols": [
                     {"name": f"symbol_{i}_{j}", "type": "function"} for j in range(10)
                 ],
-                "entry_points": [
+                "entrypoints": [
                     {"name": f"entry_{i}_{j}", "type": "syscall"} for j in range(3)
                 ],
                 "files": [f"/tmp/test-kernel/file_{i}_{j}.c" for j in range(5)],

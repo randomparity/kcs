@@ -252,7 +252,7 @@ impl DriftDetector {
 
     pub fn detect_call_chain_drift(
         &self,
-        entry_point: &str,
+        entrypoint: &str,
         expected_callees: &[String],
         requirement_id: &str,
     ) -> Result<Vec<DriftFinding>> {
@@ -260,7 +260,7 @@ impl DriftDetector {
 
         // Use QueryEngine to get actual callees
         let engine = QueryEngine::new(&self.graph).with_config_context(self.config_context.clone());
-        let query_result = engine.list_dependencies(entry_point, Some(self.depth_limit as u32))?;
+        let query_result = engine.list_dependencies(entrypoint, Some(self.depth_limit as u32))?;
 
         let actual_set: HashSet<String> = query_result
             .results
@@ -278,15 +278,15 @@ impl DriftDetector {
                     severity: DriftSeverity::Medium,
                     description: format!(
                         "Expected call from '{}' to '{}' not found",
-                        entry_point, expected
+                        entrypoint, expected
                     ),
-                    expected: format!("{} -> {}", entry_point, expected),
+                    expected: format!("{} -> {}", entrypoint, expected),
                     actual: "Call not present".to_string(),
-                    affected_symbols: vec![entry_point.to_string(), expected.clone()],
+                    affected_symbols: vec![entrypoint.to_string(), expected.clone()],
                     file_locations: vec![],
                     remediation_suggestion: format!(
                         "Add required call from '{}' to '{}'",
-                        entry_point, expected
+                        entrypoint, expected
                     ),
                 });
             }
@@ -299,14 +299,14 @@ impl DriftDetector {
                     requirement_id: requirement_id.to_string(),
                     drift_type: DriftType::BehaviorDifference,
                     severity: DriftSeverity::Low,
-                    description: format!("Unexpected call from '{}' to '{}'", entry_point, actual),
+                    description: format!("Unexpected call from '{}' to '{}'", entrypoint, actual),
                     expected: "Not expected".to_string(),
-                    actual: format!("{} -> {}", entry_point, actual),
-                    affected_symbols: vec![entry_point.to_string(), actual.to_string()],
+                    actual: format!("{} -> {}", entrypoint, actual),
+                    affected_symbols: vec![entrypoint.to_string(), actual.to_string()],
                     file_locations: vec![],
                     remediation_suggestion: format!(
                         "Review whether call from '{}' to '{}' is intended",
-                        entry_point, actual
+                        entrypoint, actual
                     ),
                 });
             }

@@ -100,7 +100,7 @@ psql -d kcs -c "SELECT COUNT(*) FROM symbol;"
 ```bash
 # Clean previous data
 rm -rf /tmp/kcs-chunks
-psql -d kcs -c "TRUNCATE symbol, entry_point, chunk_processing;"
+psql -d kcs -c "TRUNCATE symbol, entrypoint, chunk_processing;"
 
 # Step 1: Generate chunks with specific configuration
 tools/index_kernel.sh \
@@ -223,4 +223,7 @@ done | awk '{sum+=$1; count++} END {print "Avg:", sum/count}'
 ✓ Performance meets targets (< 30 min total)
 
 ---
-*Complete this quickstart to validate the chunking implementation*
+
+## Implementation Status
+
+Complete this quickstart to validate the chunking implementation

@@ -49,7 +49,7 @@ pub struct ChunkMetadata {
     /// Number of symbols in chunk
     pub symbol_count: Option<usize>,
     /// Number of entry points in chunk
-    pub entry_point_count: Option<usize>,
+    pub entrypoint_count: Option<usize>,
     /// Number of files in chunk
     pub file_count: Option<usize>,
 }
@@ -162,7 +162,7 @@ pub struct ChunkInput {
     /// Number of symbols in the chunk
     pub symbol_count: usize,
     /// Number of entry points in the chunk
-    pub entry_point_count: usize,
+    pub entrypoint_count: usize,
     /// Number of files in the chunk
     pub file_count: usize,
     /// SHA256 checksum of the chunk file (optional, will be calculated if not provided)
@@ -218,7 +218,7 @@ impl ManifestBuilder {
             std::fs::metadata(&input.file_path)?.len()
         } else {
             // Estimate size based on content for testing
-            (input.symbol_count * 100 + input.entry_point_count * 50 + input.file_count * 25) as u64
+            (input.symbol_count * 100 + input.entrypoint_count * 50 + input.file_count * 25) as u64
         };
 
         // Use provided checksum or calculate from file
@@ -244,7 +244,7 @@ impl ManifestBuilder {
             size_bytes: file_size,
             checksum_sha256: checksum,
             symbol_count: Some(input.symbol_count),
-            entry_point_count: Some(input.entry_point_count),
+            entrypoint_count: Some(input.entrypoint_count),
             file_count: Some(input.file_count),
         };
 
@@ -270,7 +270,7 @@ impl ManifestBuilder {
             file_path: file_path.to_path_buf(),
             subsystem,
             symbol_count: 100,     // Placeholder
-            entry_point_count: 5,  // Placeholder
+            entrypoint_count: 5,   // Placeholder
             file_count: 10,        // Placeholder
             checksum_sha256: None, // Will be calculated from file
         };
@@ -508,7 +508,7 @@ mod tests {
             file_path: std::path::PathBuf::from("test.json"),
             subsystem: "kernel".to_string(),
             symbol_count: 100,
-            entry_point_count: 5,
+            entrypoint_count: 5,
             file_count: 10,
             checksum_sha256: None,
         };
@@ -537,7 +537,7 @@ mod tests {
             size_bytes: 1024,
             checksum_sha256: "a".repeat(64),
             symbol_count: Some(100),
-            entry_point_count: Some(5),
+            entrypoint_count: Some(5),
             file_count: Some(10),
         };
 

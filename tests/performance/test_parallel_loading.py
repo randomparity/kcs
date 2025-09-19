@@ -61,9 +61,9 @@ def create_test_chunk_data(chunk_id: str, size_multiplier: int = 1) -> dict[str,
             }
         )
 
-    entry_points = []
+    entrypoints = []
     for i in range(base_symbols // 10):
-        entry_points.append(
+        entrypoints.append(
             {
                 "id": f"{chunk_id}_ep_{i:04d}",
                 "name": f"sys_test_{chunk_id}_{i}",
@@ -97,13 +97,13 @@ def create_test_chunk_data(chunk_id: str, size_multiplier: int = 1) -> dict[str,
         "chunk_id": chunk_id,
         "subsystem": "test",
         "symbols": symbols,
-        "entry_points": entry_points,
+        "entrypoints": entrypoints,
         "call_graph": call_graph,
         "metadata": {
             "test_chunk": True,
             "size_multiplier": size_multiplier,
             "symbol_count": len(symbols),
-            "entry_point_count": len(entry_points),
+            "entrypoint_count": len(entrypoints),
             "call_graph_edges": len(call_graph),
         },
     }
@@ -144,7 +144,7 @@ async def create_test_chunks_on_disk(
             size_bytes=file_size,
             checksum_sha256=checksum,
             symbol_count=len(chunk_data["symbols"]),
-            entry_point_count=len(chunk_data["entry_points"]),
+            entrypoint_count=len(chunk_data["entrypoints"]),
             file_count=1,
         )
         chunk_metadata_list.append(chunk_metadata)

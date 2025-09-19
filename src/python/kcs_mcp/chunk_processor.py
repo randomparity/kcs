@@ -66,6 +66,7 @@ class ChunkProcessor:
         max_memory_mb: int = 2048,
         checksum_verification_policy: str = "strict",
         pre_verify_checksums: bool = True,
+        entrypoints_data: list[dict] | None = None,
     ):
         """
         Initialize chunk processor.
@@ -81,8 +82,10 @@ class ChunkProcessor:
             max_memory_mb: Maximum memory usage hint for adaptive parallelism
             checksum_verification_policy: Verification policy ("strict", "warn", "skip")
             pre_verify_checksums: Whether to verify checksums before processing starts
+            entrypoints_data: Optional entry points data to integrate into chunks
         """
         self.database_queries = database_queries
+        self.entrypoints_data = entrypoints_data or []
         self.chunk_loader = chunk_loader or ChunkLoader(
             verify_checksums=verify_checksums
         )
@@ -353,7 +356,7 @@ class ChunkProcessor:
             "Chunk data loaded successfully",
             chunk_id=chunk_id,
             symbols_count=len(chunk_data.get("symbols", [])),
-            entry_points_count=len(chunk_data.get("entry_points", [])),
+            entrypoints_count=len(chunk_data.get("entrypoints", [])),
             files_count=len(chunk_data.get("files", [])),
         )
 
@@ -387,8 +390,8 @@ class ChunkProcessor:
                         "Database transaction completed successfully",
                         chunk_id=chunk_id,
                         symbols_processed=processing_result["symbols_processed"],
-                        entry_points_processed=processing_result[
-                            "entry_points_processed"
+                        entrypoints_processed=processing_result[
+                            "entrypoints_processed"
                         ],
                     )
 
@@ -517,7 +520,7 @@ class ChunkProcessor:
                 "Chunk processing completed successfully",
                 chunk_id=chunk_id,
                 symbols_processed=result["symbols_processed"],
-                entry_points_processed=result["entry_points_processed"],
+                entrypoints_processed=result["entrypoints_processed"],
             )
 
             return {
@@ -525,7 +528,7 @@ class ChunkProcessor:
                 "status": "completed",
                 "message": "Chunk processed successfully",
                 "symbols_processed": result["symbols_processed"],
-                "entry_points_processed": result["entry_points_processed"],
+                "entrypoints_processed": result["entrypoints_processed"],
                 "checksum_verified": self.verify_checksums,
             }
 
@@ -1001,21 +1004,21 @@ class ChunkProcessor:
         # TODO: Implement actual database storage of symbols, entry points, etc.
         # This would involve:
         # 1. Parsing symbols from chunk_data["symbols"]
-        # 2. Parsing entry_points from chunk_data["entry_points"]
+        # 2. Parsing entrypoints from chunk_data["entrypoints"]
         # 3. Parsing files from chunk_data["files"]
         # 4. Storing them in the appropriate database tables
         # 5. Creating relationships and updating indexes
 
         # For now, simulate processing by counting items
         symbols_count = len(chunk_data.get("symbols", []))
-        entry_points_count = len(chunk_data.get("entry_points", []))
+        entrypoints_count = len(chunk_data.get("entrypoints", []))
         files_count = len(chunk_data.get("files", []))
 
         logger.debug(
             "Processing chunk data",
             chunk_id=chunk_id,
             symbols_count=symbols_count,
-            entry_points_count=entry_points_count,
+            entrypoints_count=entrypoints_count,
             files_count=files_count,
         )
 
@@ -1039,7 +1042,7 @@ class ChunkProcessor:
 
         return {
             "symbols_processed": symbols_count,
-            "entry_points_processed": entry_points_count,
+            "entrypoints_processed": entrypoints_count,
             "files_processed": files_count,
         }
 
@@ -1080,15 +1083,15 @@ class ChunkProcessor:
         symbols_count = sum(
             len(file_data.get("symbols", [])) for file_data in files_data
         )
-        entry_points_count = sum(
-            len(file_data.get("entry_points", [])) for file_data in files_data
+        entrypoints_count = sum(
+            len(file_data.get("entrypoints", [])) for file_data in files_data
         )
 
         logger.debug(
             "Processing chunk data within transaction",
             chunk_id=chunk_id,
             symbols_count=symbols_count,
-            entry_points_count=entry_points_count,
+            entrypoints_count=entrypoints_count,
             files_count=files_count,
         )
 
@@ -1096,12 +1099,16 @@ class ChunkProcessor:
         # Process the chunk data (list of parsed files) into database tables
 
         symbols_inserted = 0
-        entry_points_inserted = 0
+        entrypoints_inserted = 0
         files_inserted = 0
 
         try:
             # Process each parsed file in the chunk
             for file_data in files_data:
+                # Augment file data with matching entry points from loaded data
+                if self.entrypoints_data:
+                    self._add_matching_entrypoints_to_file(file_data)
+
                 # Insert file record
                 file_id = await self._insert_file(conn, file_data)
                 files_inserted += 1
@@ -1115,24 +1122,24 @@ class ChunkProcessor:
                         symbols_inserted += 1
 
                 # Insert entry points for this file (if present)
-                if file_data.get("entry_points"):
-                    for entry_point_data in file_data["entry_points"]:
-                        await self._insert_entry_point(
-                            conn, entry_point_data, file_id, file_data["config"]
+                if file_data.get("entrypoints"):
+                    for entrypoint_data in file_data["entrypoints"]:
+                        await self._insert_entrypoint(
+                            conn, entrypoint_data, file_id, file_data["config"]
                         )
-                        entry_points_inserted += 1
+                        entrypoints_inserted += 1
 
             logger.info(
                 "Database operations completed within transaction",
                 chunk_id=chunk_id,
                 files_inserted=files_inserted,
                 symbols_inserted=symbols_inserted,
-                entry_points_inserted=entry_points_inserted,
+                entrypoints_inserted=entrypoints_inserted,
             )
 
             return {
                 "symbols_processed": symbols_inserted,
-                "entry_points_processed": entry_points_inserted,
+                "entrypoints_processed": entrypoints_inserted,
                 "files_processed": files_inserted,
             }
 
@@ -1478,8 +1485,49 @@ class ChunkProcessor:
             metadata,
         )
 
-    async def _insert_entry_point(
-        self, conn: Any, entry_point_data: dict[str, Any], file_id: int, config: str
+    def _add_matching_entrypoints_to_file(self, file_data: dict[str, Any]) -> None:
+        """Add matching entry points from loaded data to file data."""
+        if not self.entrypoints_data:
+            return
+
+        file_path = file_data.get("path", "")
+        if not file_path:
+            return
+
+        # Find entry points that match this file
+        matching_entrypoints = []
+        for entrypoint in self.entrypoints_data:
+            ep_file_path = entrypoint.get("file_path", "")
+
+            # Match by file path (handle both absolute and relative paths)
+            if ep_file_path == file_path or file_path.endswith(ep_file_path):
+                # Convert from extraction format to chunk processor format
+                converted_entrypoint = {
+                    "name": entrypoint.get("name", ""),
+                    "type": entrypoint.get(
+                        "entry_type", ""
+                    ).lower(),  # Convert to lowercase for database mapping
+                    "key": entrypoint.get("name", ""),
+                    "symbol_name": entrypoint.get("name", ""),
+                    "details": {
+                        "signature": entrypoint.get("signature", ""),
+                        "line_number": entrypoint.get("line_number", 1),
+                    },
+                    "metadata": {
+                        "extracted_from": "global_entrypoints_file",
+                        "original_entry_type": entrypoint.get("entry_type", ""),
+                    },
+                }
+                matching_entrypoints.append(converted_entrypoint)
+
+        if matching_entrypoints:
+            # Add to or extend existing entrypoints in file_data
+            if "entrypoints" not in file_data:
+                file_data["entrypoints"] = []
+            file_data["entrypoints"].extend(matching_entrypoints)
+
+    async def _insert_entrypoint(
+        self, conn: Any, entrypoint_data: dict[str, Any], file_id: int, config: str
     ) -> None:
         """Insert entry point record into database."""
         query = """
@@ -1501,16 +1549,21 @@ class ChunkProcessor:
             "ioctl": "ioctl",
             "file_ops": "file_ops",
             "sysfs": "sysfs",
+            # Additional types from extractor
+            "procfs": "file_ops",  # Map ProcFs to file_ops for now
+            "debugfs": "file_ops",  # Map DebugFs to file_ops for now
+            "netlink": "syscall",  # Map Netlink to syscall for now
+            "interrupt": "syscall",  # Map Interrupt to syscall for now
         }
 
-        db_kind = kind_mapping.get(entry_point_data.get("type", ""), "syscall")
+        db_kind = kind_mapping.get(entrypoint_data.get("type", ""), "syscall")
 
         # Find symbol_id if we have symbol name
         symbol_id = None
-        if "symbol_name" in entry_point_data:
+        if "symbol_name" in entrypoint_data:
             symbol_row = await conn.fetchrow(
                 "SELECT id FROM symbol WHERE name = $1 AND file_id = $2 AND config = $3",
-                entry_point_data["symbol_name"],
+                entrypoint_data["symbol_name"],
                 file_id,
                 config,
             )
@@ -1518,7 +1571,7 @@ class ChunkProcessor:
                 symbol_id = symbol_row["id"]
 
         # Prepare metadata as JSON string for PostgreSQL JSONB column
-        metadata = entry_point_data.get("metadata", {})
+        metadata = entrypoint_data.get("metadata", {})
         if isinstance(metadata, dict):
             import json
 
@@ -1527,10 +1580,10 @@ class ChunkProcessor:
         await conn.execute(
             query,
             db_kind,
-            entry_point_data.get("key", entry_point_data.get("name", "")),
+            entrypoint_data.get("key", entrypoint_data.get("name", "")),
             symbol_id,
             file_id,
-            entry_point_data.get("details", {}),
+            entrypoint_data.get("details", {}),
             config,
             metadata,
         )

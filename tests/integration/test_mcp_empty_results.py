@@ -90,7 +90,7 @@ async def empty_db(postgres_container: PostgresContainer) -> Database:
         """)
 
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS entry_point (
+            CREATE TABLE IF NOT EXISTS entrypoint (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 entry_type TEXT NOT NULL,
@@ -149,7 +149,7 @@ async def sparse_db(postgres_container: PostgresContainer) -> Database:
         """)
 
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS entry_point (
+            CREATE TABLE IF NOT EXISTS entrypoint (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 entry_type TEXT NOT NULL,

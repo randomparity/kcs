@@ -82,7 +82,7 @@ def sample_30_chunk_manifest_with_failure() -> dict[str, Any]:
                 "size_bytes": 50 * 1024 * 1024,  # 50MB chunks
                 "checksum_sha256": f"b{str(i).zfill(63)}",
                 "symbol_count": 12000 + (i * 50),
-                "entry_point_count": 40 + i,
+                "entrypoint_count": 40 + i,
                 "file_count": 100 + (i * 2),
             }
         )
@@ -124,7 +124,7 @@ def temp_chunk_directory_with_failure():
                         {"name": f"symbol_{i}_{j}", "type": "function"}
                         for j in range(8)
                     ],
-                    "entry_points": [
+                    "entrypoints": [
                         {"name": f"entry_{i}_{j}", "type": "syscall"} for j in range(2)
                     ],
                     "files": [f"/tmp/test-kernel/file_{i}_{j}.c" for j in range(4)],

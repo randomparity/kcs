@@ -245,7 +245,7 @@ during /plan*
    - module_param variants
    - Setup/early/core params
 
-2. **Entry Point Types** (entry_points.rs):
+2. **Entry Point Types** (entrypoints.rs):
    - Enhance existing ioctl detection
    - Add procfs/debugfs patterns
    - Add netlink/notification chains

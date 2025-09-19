@@ -1010,7 +1010,7 @@ async def validate_spec(
     logger.info(
         "validate_spec",
         spec_name=request.specification.name,
-        entry_point=request.specification.entry_point,
+        entrypoint=request.specification.entrypoint,
         version=request.specification.version,
         drift_threshold=request.drift_threshold,
     )
@@ -1027,7 +1027,7 @@ async def validate_spec(
         compliance_score = 0.0
         deviations: list[SpecDeviation] = []
         implementation_details = ImplementationDetails(
-            entry_point=None,
+            entrypoint=None,
             call_graph=None,
             parameters_found=None,
         )
@@ -1036,7 +1036,7 @@ async def validate_spec(
         # Check if entry point exists using existing symbol lookup
         try:
             symbol_info = await db.get_symbol_info(
-                request.specification.entry_point, config=request.config
+                request.specification.entrypoint, config=request.config
             )
 
             if symbol_info:
@@ -1044,7 +1044,7 @@ async def validate_spec(
                 compliance_score += 40.0
 
                 # Set entry point details
-                implementation_details.entry_point = {
+                implementation_details.entrypoint = {
                     "symbol": symbol_info["name"],
                     "span": symbol_info["decl"],
                     "kind": symbol_info["kind"],
@@ -1053,12 +1053,12 @@ async def validate_spec(
                 # Analyze call graph if available
                 try:
                     callees = await db.find_callees(
-                        request.specification.entry_point,
+                        request.specification.entrypoint,
                         depth=2,
                         config=request.config,
                     )
                     callers = await db.find_callers(
-                        request.specification.entry_point,
+                        request.specification.entrypoint,
                         depth=1,
                         config=request.config,
                     )
@@ -1090,7 +1090,7 @@ async def validate_spec(
                     spec_data = {
                         "name": request.specification.name,
                         "version": request.specification.version,
-                        "entry_point": request.specification.entry_point,
+                        "entrypoint": request.specification.entrypoint,
                         "expected_behavior": (
                             request.specification.expected_behavior.dict()
                             if request.specification.expected_behavior
@@ -1214,7 +1214,7 @@ async def validate_spec(
                     SpecDeviation(
                         type="missing_implementation",
                         severity="critical",
-                        description=f"Entry point '{request.specification.entry_point}' not found in kernel",
+                        description=f"Entry point '{request.specification.entrypoint}' not found in kernel",
                         location=None,
                     )
                 )
@@ -1224,7 +1224,7 @@ async def validate_spec(
                     suggestions.append(
                         ValidationSuggestion(
                             type="implementation",
-                            description=f"Consider implementing '{request.specification.entry_point}' function",
+                            description=f"Consider implementing '{request.specification.entrypoint}' function",
                             priority="high",
                         )
                     )
@@ -1232,7 +1232,7 @@ async def validate_spec(
                     # Suggest similar symbols
                     try:
                         search_results = await db.search_code_semantic(
-                            request.specification.entry_point,
+                            request.specification.entrypoint,
                             top_k=5,
                             config=request.config,
                         )
@@ -1270,7 +1270,7 @@ async def validate_spec(
                 specification_id=specification_id,
                 spec_name=request.specification.name,
                 spec_version=request.specification.version,
-                entry_point=request.specification.entry_point,
+                entrypoint=request.specification.entrypoint,
                 compliance_score=compliance_score,
                 is_valid=is_valid,
                 deviations=deviations,
@@ -1726,7 +1726,7 @@ async def traverse_call_graph(
                                 ),
                                 depth=node_data.get("depth", 0),
                                 node_type=node_data.get("type", "function"),
-                                is_entry_point=node_data.get("is_entry_point", False),
+                                is_entrypoint=node_data.get("is_entrypoint", False),
                                 metadata=metadata,
                                 metrics=node_data.get("metrics"),
                             )
@@ -1807,7 +1807,7 @@ async def traverse_call_graph(
                                 ),
                                 depth=node_data.get("depth", 0),
                                 node_type=node_data.get("type", "function"),
-                                is_entry_point=node_data.get("is_entry_point", False),
+                                is_entrypoint=node_data.get("is_entrypoint", False),
                                 metadata=node_data.get("metadata", {}),
                                 metrics=node_data.get("metrics"),
                             )
@@ -1846,7 +1846,7 @@ async def traverse_call_graph(
                                     ),
                                     depth=0,
                                     node_type="function",
-                                    is_entry_point=False,
+                                    is_entrypoint=False,
                                     metadata={},
                                     metrics=None,
                                 )
@@ -1875,7 +1875,7 @@ async def traverse_call_graph(
                                 ),
                                 depth=0,
                                 node_type="function",
-                                is_entry_point=False,
+                                is_entrypoint=False,
                                 metadata={},
                                 metrics=None,
                             )
@@ -1895,7 +1895,7 @@ async def traverse_call_graph(
                         ),
                         depth=0,
                         node_type="function",
-                        is_entry_point=False,
+                        is_entrypoint=False,
                         metadata={},
                         metrics=None,
                     )

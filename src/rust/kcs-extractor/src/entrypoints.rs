@@ -505,7 +505,7 @@ pub fn extract_interrupt_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<E
     use std::rc::Rc;
 
     let kernel_dir = kernel_dir.as_ref();
-    let entry_points = Rc::new(RefCell::new(Vec::new()));
+    let entrypoints = Rc::new(RefCell::new(Vec::new()));
 
     // Patterns for request_irq and related functions
     let request_irq_patterns = [
@@ -537,7 +537,7 @@ pub fn extract_interrupt_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<E
     // Pattern to extract numeric IRQ values
     let irq_number_pattern = Regex::new(r#"^\d+$"#)?;
 
-    let entry_points_clone = entry_points.clone();
+    let entrypoints_clone = entrypoints.clone();
 
     // Search for C source files
     search_kernel_files(
@@ -693,7 +693,7 @@ pub fn extract_interrupt_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<E
                         serde_json::Value::String(irq_type.to_string()),
                     );
 
-                    entry_points_clone.borrow_mut().push(EntryPoint {
+                    entrypoints_clone.borrow_mut().push(EntryPoint {
                         name: handler_name.clone(),
                         entry_type: EntryType::Interrupt,
                         file_path: file_path_str.clone(),
@@ -712,7 +712,7 @@ pub fn extract_interrupt_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<E
         },
     )?;
 
-    Ok(Rc::try_unwrap(entry_points)
+    Ok(Rc::try_unwrap(entrypoints)
         .unwrap_or_else(|_| panic!("Failed to unwrap Rc"))
         .into_inner())
 }
@@ -723,7 +723,7 @@ pub fn extract_netlink_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Ent
     use std::rc::Rc;
 
     let kernel_dir = kernel_dir.as_ref();
-    let entry_points = Rc::new(RefCell::new(Vec::new()));
+    let entrypoints = Rc::new(RefCell::new(Vec::new()));
 
     // Patterns for netlink_kernel_create function calls
     let netlink_create_patterns = [
@@ -749,7 +749,7 @@ pub fn extract_netlink_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Ent
     // Common netlink protocol names
     let protocol_pattern = Regex::new(r#"NETLINK_([A-Z_]+)"#)?;
 
-    let entry_points_clone = entry_points.clone();
+    let entrypoints_clone = entrypoints.clone();
 
     // Search for C source files
     search_kernel_files(
@@ -835,7 +835,7 @@ pub fn extract_netlink_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Ent
                         .map(|pos| (pos + 1) as u32)
                         .unwrap_or(1);
 
-                    entry_points_clone.borrow_mut().push(EntryPoint {
+                    entrypoints_clone.borrow_mut().push(EntryPoint {
                         name: handler_name.clone(),
                         entry_type: EntryType::Netlink,
                         file_path: file_path_str.clone(),
@@ -854,7 +854,7 @@ pub fn extract_netlink_handlers<P: AsRef<Path>>(kernel_dir: P) -> Result<Vec<Ent
         },
     )?;
 
-    Ok(Rc::try_unwrap(entry_points)
+    Ok(Rc::try_unwrap(entrypoints)
         .unwrap_or_else(|_| panic!("Failed to unwrap Rc"))
         .into_inner())
 }
@@ -1207,17 +1207,17 @@ static int test_init(void)
         )?;
 
         // Extract netlink handlers
-        let entry_points = extract_netlink_handlers(kernel_dir)?;
+        let entrypoints = extract_netlink_handlers(kernel_dir)?;
 
         // Verify we found the expected netlink handlers
         assert!(
-            entry_points.len() >= 3,
+            entrypoints.len() >= 3,
             "Expected at least 3 netlink handlers, found {}",
-            entry_points.len()
+            entrypoints.len()
         );
 
         // Check that all found entries are netlink type
-        for entry in &entry_points {
+        for entry in &entrypoints {
             assert!(
                 matches!(entry.entry_type, EntryType::Netlink),
                 "Expected Netlink entry type"

@@ -44,7 +44,7 @@
       "metadata": {}
     }
   ],
-  "entry_points": [
+  "entrypoints": [
     {
       "id": "ep_201",
       "name": "ext4_file_operations",

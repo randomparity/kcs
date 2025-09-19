@@ -181,7 +181,7 @@ pub struct ChunkWriterMetadata {
     /// Total symbols in the chunk
     pub total_symbols: usize,
     /// Total entry points in the chunk
-    pub total_entry_points: usize,
+    pub total_entrypoints: usize,
 }
 
 /// File information for chunks written to disk
@@ -233,7 +233,7 @@ impl ChunkWriter {
                 created_at: chrono::Utc::now().to_rfc3339(),
                 chunk_version: "1.0.0".to_string(),
                 total_symbols: self.estimate_symbols(&processed_data),
-                total_entry_points: self.estimate_entry_points(&processed_data),
+                total_entrypoints: self.estimate_entrypoints(&processed_data),
             })
         } else {
             None
@@ -356,7 +356,7 @@ impl ChunkWriter {
                         created_at: chrono::Utc::now().to_rfc3339(),
                         chunk_version: "1.0.0".to_string(),
                         total_symbols: self.estimate_symbols(&json_data),
-                        total_entry_points: self.estimate_entry_points(&json_data),
+                        total_entrypoints: self.estimate_entrypoints(&json_data),
                     })
                 } else {
                     None
@@ -442,7 +442,7 @@ impl ChunkWriter {
         (_data.len() / 100).max(1)
     }
 
-    fn estimate_entry_points(&self, _data: &[u8]) -> usize {
+    fn estimate_entrypoints(&self, _data: &[u8]) -> usize {
         // Simple heuristic: estimate based on data size
         // In real implementation, this would parse JSON to count entry points
         (_data.len() / 1000).max(1)
@@ -513,7 +513,7 @@ impl ChunkWriter {
         let mut current_end = start_idx + 1;
         let mut last_good_size = start_idx + 1;
 
-        while current_end <= data.len() {
+        while current_end < data.len() {
             let chunk_data = &data[start_idx..current_end];
             let actual_json = serde_json::to_vec(chunk_data)?;
             let actual_size = actual_json.len();
@@ -521,7 +521,13 @@ impl ChunkWriter {
             // If we're still comfortably under target (80% of target), keep going
             if actual_size <= (self.config.target_chunk_size * 80) / 100 {
                 last_good_size = current_end;
-                current_end += 100.min(remaining - (current_end - start_idx)); // Don't exceed bounds
+                // Add items in batches but don't exceed data bounds
+                let items_to_add = 100.min(data.len() - current_end);
+                if items_to_add > 0 {
+                    current_end += items_to_add;
+                } else {
+                    break; // No more items to add
+                }
             }
             // If we're between 80% and target, add items more carefully
             else if actual_size <= self.config.target_chunk_size {
