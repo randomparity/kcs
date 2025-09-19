@@ -1400,11 +1400,7 @@ class ChunkProcessor:
 
     async def _insert_file(self, conn: Any, file_data: dict[str, Any]) -> int:
         """Insert file record and return file_id."""
-        # Handle truncated SHAs from parser (16 chars -> pad to 40 chars for SHA1 format)
         sha = file_data["sha"]
-        if len(sha) == 16:
-            # Pad with zeros to make it 40 chars (SHA1 format expected by database)
-            sha = sha + ("0" * 24)
 
         query = """
             INSERT INTO file (path, sha, config, indexed_at)
