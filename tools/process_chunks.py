@@ -398,7 +398,27 @@ async def main() -> None:
         "--parallel",
         type=int,
         default=4,
-        help="Number of chunks to process in parallel",
+        help="Number of chunks to process in parallel (used as default or max for adaptive)",
+    )
+
+    parser.add_argument(
+        "--adaptive-parallelism",
+        action="store_true",
+        default=True,
+        help="Enable adaptive parallelism based on system resources",
+    )
+
+    parser.add_argument(
+        "--no-adaptive-parallelism",
+        action="store_true",
+        help="Disable adaptive parallelism and use fixed --parallel value",
+    )
+
+    parser.add_argument(
+        "--max-memory-mb",
+        type=int,
+        default=2048,
+        help="Maximum memory usage hint for adaptive parallelism (MB)",
     )
 
     parser.add_argument(
@@ -484,11 +504,25 @@ async def main() -> None:
             logger.info("No chunks to process")
             return
 
-        # Setup chunk processor with database-connected loader
+        # Setup chunk processor with database-connected loader and adaptive parallelism
         chunk_loader = ChunkLoader(database=database)
+
+        # Determine adaptive parallelism setting
+        use_adaptive = args.adaptive_parallelism and not args.no_adaptive_parallelism
+
         chunk_processor = ChunkProcessor(
             database_queries=chunk_queries,
             chunk_loader=chunk_loader,
+            default_max_parallelism=args.parallel,
+            adaptive_parallelism=use_adaptive,
+            max_memory_mb=args.max_memory_mb,
+        )
+
+        logger.info(
+            "Initialized chunk processor",
+            default_parallelism=args.parallel,
+            adaptive_parallelism=use_adaptive,
+            max_memory_mb=args.max_memory_mb,
         )
 
         # Process chunks

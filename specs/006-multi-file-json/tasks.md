@@ -107,7 +107,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 - [x] T029 Connect chunk_loader to database connection pool
 - [x] T030 Add structured logging for chunk progress
-- [ ] T031 Implement parallel chunk processing with semaphore
+- [x] T031 Implement parallel chunk processing with semaphore
 - [ ] T032 Add transaction boundaries per chunk
 - [ ] T033 Integrate checksum verification before processing
 

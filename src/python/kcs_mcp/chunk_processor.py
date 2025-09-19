@@ -60,6 +60,9 @@ class ChunkProcessor:
         max_retry_count: int = 3,
         retry_delay_seconds: float = 1.0,
         verify_checksums: bool = True,
+        default_max_parallelism: int = 4,
+        adaptive_parallelism: bool = True,
+        max_memory_mb: int = 2048,
     ):
         """
         Initialize chunk processor.
@@ -70,6 +73,9 @@ class ChunkProcessor:
             max_retry_count: Maximum number of retry attempts per chunk
             retry_delay_seconds: Delay between retry attempts
             verify_checksums: Whether to verify SHA256 checksums
+            default_max_parallelism: Default parallelism when not specified
+            adaptive_parallelism: Whether to adapt parallelism based on system resources
+            max_memory_mb: Maximum memory usage hint for adaptive parallelism
         """
         self.database_queries = database_queries
         self.chunk_loader = chunk_loader or ChunkLoader(
@@ -78,6 +84,110 @@ class ChunkProcessor:
         self.max_retry_count = max_retry_count
         self.retry_delay_seconds = retry_delay_seconds
         self.verify_checksums = verify_checksums
+        self.default_max_parallelism = default_max_parallelism
+        self.adaptive_parallelism = adaptive_parallelism
+        self.max_memory_mb = max_memory_mb
+
+    def _calculate_optimal_parallelism(
+        self,
+        chunks: list[ChunkMetadata],
+        requested_parallelism: int | None = None,
+    ) -> int:
+        """
+        Calculate optimal parallelism based on system resources and chunk characteristics.
+
+        Args:
+            chunks: List of chunks to be processed
+            requested_parallelism: User-requested parallelism (overrides adaptive)
+
+        Returns:
+            Optimal parallelism level
+        """
+        if requested_parallelism is not None:
+            logger.debug(
+                "Using requested parallelism",
+                requested_parallelism=requested_parallelism,
+                adaptive_disabled=True,
+            )
+            return requested_parallelism
+
+        if not self.adaptive_parallelism:
+            logger.debug(
+                "Using default parallelism",
+                default_parallelism=self.default_max_parallelism,
+                adaptive_disabled=True,
+            )
+            return self.default_max_parallelism
+
+        # Calculate adaptive parallelism based on chunk size and available memory
+        total_chunks = len(chunks)
+        if total_chunks == 0:
+            return self.default_max_parallelism
+
+        # Estimate memory per chunk (conservative estimate)
+        avg_chunk_size_mb = sum(chunk.size_bytes for chunk in chunks) / (
+            len(chunks) * 1024 * 1024
+        )
+        estimated_memory_per_chunk = max(
+            avg_chunk_size_mb * 2, 32
+        )  # At least 32MB per chunk
+
+        # Calculate max parallelism based on memory constraints
+        memory_based_parallelism = max(
+            1, int(self.max_memory_mb / estimated_memory_per_chunk)
+        )
+
+        # Don't exceed the number of chunks
+        chunk_based_parallelism = min(total_chunks, self.default_max_parallelism * 2)
+
+        # Use the minimum of all constraints
+        optimal_parallelism = min(
+            memory_based_parallelism,
+            chunk_based_parallelism,
+            self.default_max_parallelism * 3,  # Cap at 3x default
+        )
+
+        # Ensure at least 1
+        optimal_parallelism = max(1, optimal_parallelism)
+
+        logger.info(
+            "Calculated adaptive parallelism",
+            optimal_parallelism=optimal_parallelism,
+            avg_chunk_size_mb=round(avg_chunk_size_mb, 2),
+            estimated_memory_per_chunk_mb=round(estimated_memory_per_chunk, 2),
+            memory_based_limit=memory_based_parallelism,
+            chunk_based_limit=chunk_based_parallelism,
+            total_chunks=total_chunks,
+            max_memory_mb=self.max_memory_mb,
+        )
+
+        return optimal_parallelism
+
+    def _get_semaphore_stats(self, semaphore: asyncio.Semaphore) -> dict[str, int]:
+        """Get current semaphore usage statistics."""
+        # Note: These are internal attributes and may not be available in all Python versions
+        try:
+            total_permits = getattr(semaphore, "_value", 0) + len(
+                getattr(semaphore, "_waiters", [])
+            )
+            available_permits = getattr(semaphore, "_value", 0)
+            active_tasks = total_permits - available_permits
+            waiting_tasks = len(getattr(semaphore, "_waiters", []))
+
+            return {
+                "total_permits": total_permits,
+                "available_permits": available_permits,
+                "active_tasks": active_tasks,
+                "waiting_tasks": waiting_tasks,
+            }
+        except (AttributeError, TypeError):
+            # Fallback if semaphore internals are not accessible
+            return {
+                "total_permits": -1,
+                "available_permits": -1,
+                "active_tasks": -1,
+                "waiting_tasks": -1,
+            }
 
     async def process_chunk(
         self,
@@ -257,7 +367,7 @@ class ChunkProcessor:
         chunks: list[ChunkMetadata],
         manifest_version: str,
         base_path: Path | str | None = None,
-        max_parallelism: int = 4,
+        max_parallelism: int | None = None,
         force: bool = False,
         resume_from: str | None = None,
     ) -> dict[str, Any]:
@@ -268,7 +378,7 @@ class ChunkProcessor:
             chunks: List of chunk metadata to process
             manifest_version: Version of manifest chunks belong to
             base_path: Base directory path for chunk files
-            max_parallelism: Maximum number of chunks to process concurrently
+            max_parallelism: Maximum number of chunks to process concurrently (None for adaptive)
             force: Whether to force reprocessing of completed chunks
             resume_from: Chunk ID to resume from (skips chunks before this one)
 
@@ -304,22 +414,41 @@ class ChunkProcessor:
                 "results": {},
             }
 
+        # Calculate optimal parallelism
+        optimal_parallelism = self._calculate_optimal_parallelism(
+            chunks_to_process, max_parallelism
+        )
+
         logger.info(
             "Processing chunks after resume filtering",
             chunks_to_process=len(chunks_to_process),
             skipped_chunks=len(chunks) - len(chunks_to_process),
             estimated_total_size_mb=sum(chunk.size_bytes for chunk in chunks_to_process)
             / (1024 * 1024),
+            parallelism_level=optimal_parallelism,
+            adaptive_parallelism_enabled=self.adaptive_parallelism,
         )
 
-        # Create semaphore to limit parallelism
-        semaphore = asyncio.Semaphore(max_parallelism)
+        # Create semaphore to limit parallelism with optimal value
+        semaphore = asyncio.Semaphore(optimal_parallelism)
         results: dict[str, dict[str, Any]] = {}
 
         async def process_single_chunk(chunk_metadata: ChunkMetadata) -> None:
             nonlocal processed_count
+            chunk_id = chunk_metadata.id
+            semaphore_wait_start = time.time()
+
             async with semaphore:
-                chunk_id = chunk_metadata.id
+                # Log semaphore acquisition if it took significant time
+                semaphore_wait_time = time.time() - semaphore_wait_start
+                if semaphore_wait_time > 5.0:  # Log if waited more than 5 seconds
+                    logger.debug(
+                        "Semaphore acquisition took significant time",
+                        chunk_id=chunk_id,
+                        wait_time_sec=round(semaphore_wait_time, 2),
+                        parallelism_level=optimal_parallelism,
+                    )
+
                 chunk_start_time = time.time()
 
                 try:
@@ -434,6 +563,9 @@ class ChunkProcessor:
                         else 0
                     )
 
+                    # Get semaphore statistics
+                    semaphore_stats = self._get_semaphore_stats(semaphore)
+
                     logger.info(
                         "Batch processing progress update",
                         progress_completed=processed_count,
@@ -445,7 +577,9 @@ class ChunkProcessor:
                         processing_rate_chunks_per_sec=round(rate, 2),
                         eta_minutes=round(eta / 60, 1),
                         manifest_version=manifest_version,
-                        active_tasks=0,  # Task counting removed due to async complexity
+                        semaphore_active_tasks=semaphore_stats["active_tasks"],
+                        semaphore_waiting_tasks=semaphore_stats["waiting_tasks"],
+                        semaphore_total_permits=semaphore_stats["total_permits"],
                     )
                     last_reported_count = processed_count
 
