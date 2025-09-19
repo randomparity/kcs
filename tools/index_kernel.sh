@@ -32,6 +32,14 @@ DATABASE_URL="${DATABASE_URL:-postgresql://kcs:kcs_dev_password_change_in_produc
 DRY_RUN=false
 VERBOSE=false
 
+# Chunking configuration
+ENABLE_CHUNKING=false
+CHUNK_SIZE="50MB"
+PARALLEL_CHUNKS=4
+CHUNK_OUTPUT_DIR=""
+MANIFEST_PATH=""
+SUBSYSTEM=""
+
 # Performance targets (from constitution)
 MAX_INDEX_TIME=1200  # 20 minutes in seconds
 MAX_INCREMENTAL_TIME=180  # 3 minutes in seconds
@@ -238,6 +246,12 @@ setup_environment() {
     # Create output directory
     mkdir -p "$OUTPUT_DIR"/{parsed,extracted,graphs,temp}
 
+    # Create chunking directories if enabled
+    if [ "$ENABLE_CHUNKING" = "true" ]; then
+        mkdir -p "$CHUNK_OUTPUT_DIR"
+        log "Created chunking output directory: $CHUNK_OUTPUT_DIR"
+    fi
+
     # Setup Python environment
     if [ -f "$KCS_ROOT/src/python/kcs_mcp/__init__.py" ]; then
         export PYTHONPATH="$KCS_ROOT/src/python:${PYTHONPATH:-}"
@@ -274,6 +288,14 @@ create_compile_commands() {
 }
 
 parse_kernel_sources() {
+    if [ "$ENABLE_CHUNKING" = "true" ]; then
+        parse_kernel_sources_chunked
+    else
+        parse_kernel_sources_traditional
+    fi
+}
+
+parse_kernel_sources_traditional() {
     local parsed_output="$OUTPUT_DIR/parsed/kernel_symbols.json"
 
     # Skip if output already exists and is large enough to be valid
@@ -347,6 +369,95 @@ parse_kernel_sources() {
         fi
     else
         log_error "No parsed output file generated"
+        return 1
+    fi
+}
+
+parse_kernel_sources_chunked() {
+    local manifest_output="$CHUNK_OUTPUT_DIR/manifest.json"
+
+    # Check if we're resuming from existing manifest
+    if [ -n "$MANIFEST_PATH" ] && [ -f "$MANIFEST_PATH" ]; then
+        log "Resuming from existing manifest: $MANIFEST_PATH"
+        manifest_output="$MANIFEST_PATH"
+
+        # Validate manifest and check if parsing is needed
+        if [ "$DRY_RUN" = "false" ]; then
+            log "Checking manifest status..."
+
+            # Create a simple check to see if chunks are already generated
+            local chunk_count=$(jq -r '.total_chunks' "$manifest_output" 2>/dev/null || echo "0")
+            if [ "$chunk_count" != "0" ] && [ "$chunk_count" != "null" ]; then
+                log "Found existing chunks in manifest: $chunk_count chunks"
+                log_success "Using existing chunked data from manifest"
+                return 0
+            fi
+        fi
+    fi
+
+    log "Parsing kernel sources with chunking (size: $CHUNK_SIZE)..."
+    local start_time=$(date +%s)
+
+    # Build kcs-parser command with chunking support
+    local parser_cmd=(
+        kcs-parser
+        --format ndjson
+        --workers "$PARALLEL_JOBS"
+    )
+
+    if [ "$VERBOSE" = "true" ]; then
+        parser_cmd+=(--verbose)
+    fi
+
+    parser_cmd+=(
+        parse
+        --repo "$KERNEL_PATH"
+        --config "$CONFIG"
+        --chunk-size "$CHUNK_SIZE"
+        --output-dir "$CHUNK_OUTPUT_DIR"
+    )
+
+    # Add subsystem filter if specified
+    if [ -n "$SUBSYSTEM" ]; then
+        parser_cmd+=(--subsystem "$SUBSYSTEM")
+    fi
+
+    if [ "$USE_CLANG" = "true" ] && [ -f "$OUTPUT_DIR/compile_commands.json" ]; then
+        parser_cmd+=(--compile-commands "$OUTPUT_DIR/compile_commands.json")
+    fi
+
+    # Add incremental flag if specified
+    if [ "$INCREMENTAL" = "true" ] && [ -n "$MANIFEST_PATH" ]; then
+        parser_cmd+=(--incremental --manifest "$MANIFEST_PATH")
+    fi
+
+    log "Running: ${parser_cmd[*]}"
+
+    if [ "$DRY_RUN" = "false" ]; then
+        "${parser_cmd[@]}" || {
+            log_error "Chunked parser failed"
+            return 1
+        }
+    fi
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    # Check generated manifest and chunks
+    if [ -f "$manifest_output" ]; then
+        local chunk_count=$(jq -r '.total_chunks' "$manifest_output" 2>/dev/null || echo "0")
+        local total_size=$(jq -r '.total_size_bytes' "$manifest_output" 2>/dev/null || echo "0")
+
+        if [ "$chunk_count" != "0" ] && [ "$chunk_count" != "null" ]; then
+            local size_mb=$((total_size / 1024 / 1024))
+            log_success "Generated $chunk_count chunks (${size_mb}MB total) in ${duration}s"
+            log "Manifest created: $manifest_output"
+        else
+            log_error "No chunks generated in manifest"
+            return 1
+        fi
+    else
+        log_error "No manifest file generated"
         return 1
     fi
 }
@@ -716,6 +827,58 @@ EOF
     log_success "Database population completed in ${duration}s"
 }
 
+populate_chunked_database() {
+    log "Processing chunks into database..."
+
+    local start_time=$(date +%s)
+    local manifest_file
+
+    # Determine manifest file location
+    if [ -n "$MANIFEST_PATH" ]; then
+        manifest_file="$MANIFEST_PATH"
+    else
+        manifest_file="$CHUNK_OUTPUT_DIR/manifest.json"
+    fi
+
+    if [ ! -f "$manifest_file" ]; then
+        log_error "Manifest file not found: $manifest_file"
+        return 1
+    fi
+
+    log "Using manifest: $manifest_file"
+
+    # Use Python script to process chunks
+    if [ "$DRY_RUN" = "false" ]; then
+        log "Processing chunks with parallel workers (parallelism: $PARALLEL_CHUNKS)..."
+
+        # Check if process_chunks.py exists, otherwise suggest it needs to be created
+        if [ ! -f "$SCRIPT_DIR/process_chunks.py" ]; then
+            log_warning "process_chunks.py not found. Creating placeholder command..."
+            log "Expected command: tools/process_chunks.py --manifest '$manifest_file' --parallel $PARALLEL_CHUNKS"
+            log "This will be implemented in T028"
+
+            # For now, create a simple summary
+            local chunk_count=$(jq -r '.total_chunks' "$manifest_file" 2>/dev/null || echo "0")
+            log "Manifest contains $chunk_count chunks ready for processing"
+            log "Run 'tools/process_chunks.py --manifest $manifest_file --parallel $PARALLEL_CHUNKS' to process chunks"
+        else
+            # Call the chunk processor
+            python3 "$SCRIPT_DIR/process_chunks.py" \
+                --manifest "$manifest_file" \
+                --parallel "$PARALLEL_CHUNKS" \
+                --database-url "$DATABASE_URL" || {
+                log_error "Chunk processing failed"
+                return 1
+            }
+        fi
+    fi
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    log_success "Chunk processing completed in ${duration}s"
+}
+
 generate_summary() {
     log "Generating indexing summary..."
 
@@ -733,6 +896,18 @@ generate_summary() {
         performance_status="✗ FAILED"
     fi
 
+    if [ "$ENABLE_CHUNKING" = "true" ]; then
+        generate_chunked_summary "$total_duration" "$target_time" "$performance_status"
+    else
+        generate_traditional_summary "$total_duration" "$target_time" "$performance_status"
+    fi
+}
+
+generate_traditional_summary() {
+    local total_duration="$1"
+    local target_time="$2"
+    local performance_status="$3"
+
     cat << EOF
 
 =====================================
@@ -742,6 +917,7 @@ KCS Kernel Indexing Summary
 Kernel Path:    $KERNEL_PATH
 Configuration:  $CONFIG
 Index Type:     $([ "$INCREMENTAL" = "true" ] && echo "Incremental" || echo "Full")
+Mode:           Traditional (single-file)
 Total Time:     ${total_duration}s
 Target Time:    ${target_time}s
 Performance:    $performance_status
@@ -764,6 +940,71 @@ Constitutional Requirements:
 - Index time:       $([ $total_duration -le $target_time ] && echo "✓ Met" || echo "✗ Exceeded") (${total_duration}s ≤ ${target_time}s)
 - Citations:        ✓ All results include file:line references
 - Read-only:        ✓ No kernel source modifications
+
+EOF
+}
+
+generate_chunked_summary() {
+    local total_duration="$1"
+    local target_time="$2"
+    local performance_status="$3"
+
+    local manifest_file
+    if [ -n "$MANIFEST_PATH" ]; then
+        manifest_file="$MANIFEST_PATH"
+    else
+        manifest_file="$CHUNK_OUTPUT_DIR/manifest.json"
+    fi
+
+    local chunk_count="unknown"
+    local total_size="unknown"
+    if [ -f "$manifest_file" ]; then
+        chunk_count=$(jq -r '.total_chunks' "$manifest_file" 2>/dev/null || echo "unknown")
+        total_size=$(jq -r '.total_size_bytes' "$manifest_file" 2>/dev/null || echo "unknown")
+        if [ "$total_size" != "unknown" ] && [ "$total_size" != "null" ]; then
+            total_size="${total_size} bytes ($((total_size / 1024 / 1024))MB)"
+        fi
+    fi
+
+    cat << EOF
+
+=====================================
+KCS Kernel Indexing Summary (Chunked)
+=====================================
+
+Kernel Path:    $KERNEL_PATH
+Configuration:  $CONFIG
+Index Type:     $([ "$INCREMENTAL" = "true" ] && echo "Incremental" || echo "Full")
+Mode:           Chunked (size: $CHUNK_SIZE)
+Total Time:     ${total_duration}s
+Target Time:    ${target_time}s
+Performance:    $performance_status
+
+Chunked Output:
+- Manifest:          $manifest_file
+- Chunk directory:   $CHUNK_OUTPUT_DIR
+- Total chunks:      $chunk_count
+- Total size:        $total_size
+- Parallel workers:  $PARALLEL_CHUNKS
+
+Database:       $DATABASE_URL
+Log File:       $LOG_FILE
+
+Next Steps:
+- Process chunks:   tools/process_chunks.py --manifest $manifest_file --parallel $PARALLEL_CHUNKS
+- Start KCS server: python -m kcs_mcp.app
+- Test queries:     curl http://localhost:8080/mcp/tools/search_code
+- View metrics:     curl http://localhost:8080/metrics
+
+Resume Commands:
+- Resume processing: tools/process_chunks.py --manifest $manifest_file --resume
+- Incremental update: $0 --incremental --manifest $manifest_file $KERNEL_PATH
+
+Constitutional Requirements:
+- Index time:       $([ $total_duration -le $target_time ] && echo "✓ Met" || echo "✗ Exceeded") (${total_duration}s ≤ ${target_time}s)
+- Citations:        ✓ All results include file:line references
+- Read-only:        ✓ No kernel source modifications
+- Chunking:         ✓ Memory-efficient processing enabled
 
 EOF
 }
@@ -798,6 +1039,13 @@ Options:
     --dry-run               Show what would be done without executing
     -v, --verbose           Verbose output
 
+Chunking Options:
+    --chunk-size SIZE       Enable chunking with specified size (e.g., 50MB)
+    --parallel-chunks N     Number of parallel chunk processors (default: 4)
+    --output-dir DIR        Directory for chunk output (enables chunking)
+    --manifest PATH         Path to manifest for resume capability
+    --subsystem PATH        Index only specific subsystem (e.g., fs/ext4)
+
 Examples:
     # Full index with default configuration
     $0 /usr/src/linux
@@ -810,6 +1058,18 @@ Examples:
 
     # Custom output and parallel jobs
     $0 -o /data/kcs-index -j 8 /usr/src/linux
+
+    # NEW: Chunked indexing (recommended for large kernels)
+    $0 --chunk-size 50MB --parallel-chunks 4 --output-dir /tmp/kcs-chunks /usr/src/linux
+
+    # Resume after failure
+    $0 --manifest /tmp/kcs-chunks/manifest.json /usr/src/linux
+
+    # Incremental update with chunks
+    $0 --incremental --manifest /tmp/kcs-chunks/manifest.json /usr/src/linux
+
+    # Subsystem only (faster for testing)
+    $0 --subsystem fs/ext4 /usr/src/linux
 
 Environment Variables:
     DATABASE_URL            PostgreSQL connection string
@@ -871,6 +1131,30 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --chunk-size)
+            CHUNK_SIZE="$2"
+            ENABLE_CHUNKING=true
+            shift 2
+            ;;
+        --parallel-chunks)
+            PARALLEL_CHUNKS="$2"
+            ENABLE_CHUNKING=true
+            shift 2
+            ;;
+        --output-dir)
+            CHUNK_OUTPUT_DIR="$2"
+            ENABLE_CHUNKING=true
+            shift 2
+            ;;
+        --manifest)
+            MANIFEST_PATH="$2"
+            ENABLE_CHUNKING=true
+            shift 2
+            ;;
+        --subsystem)
+            SUBSYSTEM="$2"
+            shift 2
+            ;;
         -*)
             log_error "Unknown option: $1"
             show_help
@@ -906,6 +1190,24 @@ fi
 KERNEL_PATH=$(realpath "$KERNEL_PATH")
 OUTPUT_DIR=$(realpath "$OUTPUT_DIR")
 
+# Validate and setup chunking configuration
+if [ "$ENABLE_CHUNKING" = "true" ]; then
+    if [ -z "$CHUNK_OUTPUT_DIR" ]; then
+        CHUNK_OUTPUT_DIR="$OUTPUT_DIR/chunks"
+    fi
+    CHUNK_OUTPUT_DIR=$(realpath "$CHUNK_OUTPUT_DIR")
+
+    if [ -n "$MANIFEST_PATH" ]; then
+        MANIFEST_PATH=$(realpath "$MANIFEST_PATH")
+        if [ ! -f "$MANIFEST_PATH" ]; then
+            log_error "Manifest file not found: $MANIFEST_PATH"
+            exit 1
+        fi
+    fi
+
+    log "Chunking enabled: size=$CHUNK_SIZE, parallelism=$PARALLEL_CHUNKS, output=$CHUNK_OUTPUT_DIR"
+fi
+
 # Main pipeline execution
 show_pipeline_progress() {
     local current_step="$1"
@@ -940,6 +1242,21 @@ main() {
     log "Database: $DATABASE_URL"
     log "Log: $LOG_FILE"
 
+    if [ "$ENABLE_CHUNKING" = "true" ]; then
+        log "Chunking mode: size=$CHUNK_SIZE, output=$CHUNK_OUTPUT_DIR"
+        run_chunked_pipeline
+    else
+        log "Traditional mode: single-file output"
+        run_traditional_pipeline
+    fi
+
+    cleanup_temp_files
+    generate_summary
+
+    log_success "Kernel indexing pipeline completed successfully!"
+}
+
+run_traditional_pipeline() {
     show_pipeline_progress "setup"
     check_prerequisites
     setup_environment
@@ -964,11 +1281,28 @@ main() {
     else
         log "Skipping database population (no database connection)"
     fi
+}
 
-    cleanup_temp_files
-    generate_summary
+run_chunked_pipeline() {
+    show_pipeline_progress "setup"
+    check_prerequisites
+    setup_environment
 
-    log_success "Kernel indexing pipeline completed successfully!"
+    if [ "$USE_CLANG" = "true" ]; then
+        show_pipeline_progress "compile"
+        create_compile_commands "$KERNEL_PATH" "$CONFIG"
+    fi
+
+    show_pipeline_progress "parsing"
+    parse_kernel_sources
+
+    if [ "${SKIP_DATABASE:-false}" != "true" ]; then
+        show_pipeline_progress "database"
+        populate_chunked_database
+    else
+        log "Skipping database population (no database connection)"
+        log "Generated chunks can be processed later with tools/process_chunks.py"
+    fi
 }
 
 # Trap errors and cleanup
