@@ -115,7 +115,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Performance Tests
 
-- [ ] T034 [P] Performance test 50MB chunk generation in tests/performance/test_chunk_generation.py
+- [x] T034 [P] Performance test 50MB chunk generation in tests/performance/test_chunk_generation.py
 - [ ] T035 [P] Performance test parallel chunk loading in tests/performance/test_parallel_loading.py
 - [ ] T036 [P] Memory usage test per chunk in tests/performance/test_memory_usage.py
 
