@@ -422,6 +422,19 @@ async def main() -> None:
     )
 
     parser.add_argument(
+        "--checksum-policy",
+        choices=["strict", "warn", "skip"],
+        default="strict",
+        help="Checksum verification policy (strict=fail fast, warn=continue with warnings, skip=no verification)",
+    )
+
+    parser.add_argument(
+        "--no-pre-verify",
+        action="store_true",
+        help="Disable checksum pre-verification before processing",
+    )
+
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Resume processing from previous failures (process pending and failed chunks only)",
@@ -516,6 +529,8 @@ async def main() -> None:
             default_max_parallelism=args.parallel,
             adaptive_parallelism=use_adaptive,
             max_memory_mb=args.max_memory_mb,
+            checksum_verification_policy=args.checksum_policy,
+            pre_verify_checksums=not args.no_pre_verify,
         )
 
         logger.info(
@@ -523,6 +538,8 @@ async def main() -> None:
             default_parallelism=args.parallel,
             adaptive_parallelism=use_adaptive,
             max_memory_mb=args.max_memory_mb,
+            checksum_policy=args.checksum_policy,
+            pre_verify_checksums=not args.no_pre_verify,
         )
 
         # Process chunks

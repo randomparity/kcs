@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import structlog
 
 from .bridge import RUST_BRIDGE_AVAILABLE
@@ -63,6 +64,8 @@ class ChunkProcessor:
         default_max_parallelism: int = 4,
         adaptive_parallelism: bool = True,
         max_memory_mb: int = 2048,
+        checksum_verification_policy: str = "strict",
+        pre_verify_checksums: bool = True,
     ):
         """
         Initialize chunk processor.
@@ -76,6 +79,8 @@ class ChunkProcessor:
             default_max_parallelism: Default parallelism when not specified
             adaptive_parallelism: Whether to adapt parallelism based on system resources
             max_memory_mb: Maximum memory usage hint for adaptive parallelism
+            checksum_verification_policy: Verification policy ("strict", "warn", "skip")
+            pre_verify_checksums: Whether to verify checksums before processing starts
         """
         self.database_queries = database_queries
         self.chunk_loader = chunk_loader or ChunkLoader(
@@ -87,6 +92,16 @@ class ChunkProcessor:
         self.default_max_parallelism = default_max_parallelism
         self.adaptive_parallelism = adaptive_parallelism
         self.max_memory_mb = max_memory_mb
+        self.checksum_verification_policy = checksum_verification_policy
+        self.pre_verify_checksums = pre_verify_checksums
+
+        # Validate checksum verification policy
+        valid_policies = ["strict", "warn", "skip"]
+        if checksum_verification_policy not in valid_policies:
+            raise ValueError(
+                f"Invalid checksum verification policy: {checksum_verification_policy}. "
+                f"Must be one of: {valid_policies}"
+            )
 
     def _calculate_optimal_parallelism(
         self,
@@ -162,6 +177,139 @@ class ChunkProcessor:
         )
 
         return optimal_parallelism
+
+    async def _pre_verify_chunk_checksums(
+        self,
+        chunks: list[ChunkMetadata],
+        base_path: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Pre-verify checksums for all chunks before processing begins.
+
+        This allows fast failure detection and provides early feedback
+        about data integrity issues before resource-intensive processing.
+
+        Args:
+            chunks: List of chunks to verify
+            base_path: Base path for chunk files
+
+        Returns:
+            Verification results with details per chunk
+        """
+        if not self.pre_verify_checksums or self.checksum_verification_policy == "skip":
+            logger.debug("Checksum pre-verification disabled, skipping")
+            return {
+                "verified": True,
+                "total_chunks": len(chunks),
+                "verified_chunks": 0,
+                "failed_chunks": 0,
+                "skipped_chunks": len(chunks),
+                "policy": self.checksum_verification_policy,
+                "errors": {},
+            }
+
+        logger.info(
+            "Starting pre-verification of chunk checksums",
+            total_chunks=len(chunks),
+            policy=self.checksum_verification_policy,
+            verify_checksums=self.verify_checksums,
+        )
+
+        verification_results: dict[str, Any] = {
+            "verified": True,
+            "total_chunks": len(chunks),
+            "verified_chunks": 0,
+            "failed_chunks": 0,
+            "skipped_chunks": 0,
+            "policy": self.checksum_verification_policy,
+            "errors": {},
+        }
+
+        # Create a temporary chunk loader for verification only
+        verification_loader = ChunkLoader(
+            verify_checksums=True,  # Always verify for pre-verification
+            database=None,  # No database logging for pre-verification
+        )
+
+        for chunk in chunks:
+            try:
+                # Resolve chunk file path
+                if base_path:
+                    chunk_path = Path(base_path) / chunk.file
+                else:
+                    chunk_path = Path(chunk.file)
+
+                # Quick file existence check
+                if not chunk_path.exists():
+                    verification_results["errors"][chunk.id] = (
+                        f"File not found: {chunk_path}"
+                    )
+                    verification_results["failed_chunks"] += 1
+                    continue
+
+                # Verify file size matches
+                file_size = chunk_path.stat().st_size
+                if file_size != chunk.size_bytes:
+                    error_msg = (
+                        f"Size mismatch: expected {chunk.size_bytes}, got {file_size}"
+                    )
+                    verification_results["errors"][chunk.id] = error_msg
+                    verification_results["failed_chunks"] += 1
+                    continue
+
+                # Verify checksum by reading content
+                async with aiofiles.open(chunk_path, encoding="utf-8") as f:
+                    content = await f.read()
+
+                await verification_loader._verify_chunk_checksum(
+                    content, chunk.checksum_sha256, chunk.id
+                )
+
+                verification_results["verified_chunks"] += 1
+
+                logger.debug(
+                    "Chunk checksum verified successfully",
+                    chunk_id=chunk.id,
+                    file_size=file_size,
+                    checksum=chunk.checksum_sha256[:8] + "...",
+                )
+
+            except Exception as e:
+                error_msg = str(e)
+                verification_results["errors"][chunk.id] = error_msg
+                verification_results["failed_chunks"] += 1
+
+                if self.checksum_verification_policy == "strict":
+                    logger.error(
+                        "Checksum pre-verification failed (strict mode)",
+                        chunk_id=chunk.id,
+                        error=error_msg,
+                    )
+                elif self.checksum_verification_policy == "warn":
+                    logger.warning(
+                        "Checksum pre-verification failed (warn mode)",
+                        chunk_id=chunk.id,
+                        error=error_msg,
+                    )
+
+        # Determine overall verification status
+        if verification_results["failed_chunks"] > 0:
+            verification_results["verified"] = False
+
+        logger.info(
+            "Checksum pre-verification completed",
+            total_chunks=verification_results["total_chunks"],
+            verified_chunks=verification_results["verified_chunks"],
+            failed_chunks=verification_results["failed_chunks"],
+            success_rate=round(
+                (verification_results["verified_chunks"] / len(chunks)) * 100, 1
+            )
+            if chunks
+            else 0,
+            policy=self.checksum_verification_policy,
+        )
+
+        return verification_results
 
     async def _process_chunk_with_transaction(
         self,
@@ -472,6 +620,41 @@ class ChunkProcessor:
                 "results": {},
             }
 
+        # Pre-verify checksums before processing begins
+        verification_result = await self._pre_verify_chunk_checksums(
+            chunks_to_process, base_path
+        )
+
+        # Handle verification failures based on policy
+        if not verification_result["verified"]:
+            if self.checksum_verification_policy == "strict":
+                # In strict mode, fail fast if any checksums are invalid
+                error_summary = f"Pre-verification failed for {verification_result['failed_chunks']} chunks"
+                if verification_result["errors"]:
+                    sample_errors = list(verification_result["errors"].items())[:3]
+                    error_summary += f". Sample errors: {sample_errors}"
+
+                logger.error(
+                    "Aborting batch processing due to checksum verification failures",
+                    failed_chunks=verification_result["failed_chunks"],
+                    total_chunks=len(chunks_to_process),
+                    policy="strict",
+                    errors=verification_result["errors"],
+                )
+
+                raise ChunkProcessingFatalError(
+                    f"Checksum verification failed in strict mode: {error_summary}"
+                )
+            elif self.checksum_verification_policy == "warn":
+                # In warn mode, continue but log warnings
+                logger.warning(
+                    "Continuing batch processing despite checksum verification failures",
+                    failed_chunks=verification_result["failed_chunks"],
+                    total_chunks=len(chunks_to_process),
+                    policy="warn",
+                )
+            # In skip mode, verification is already disabled, so we continue
+
         # Calculate optimal parallelism
         optimal_parallelism = self._calculate_optimal_parallelism(
             chunks_to_process, max_parallelism
@@ -671,6 +854,7 @@ class ChunkProcessor:
             "failed_chunks": failed_count,
             "skipped_chunks": skipped_count,
             "results": results,
+            "checksum_verification": verification_result,
         }
 
         end_time = time.time()
