@@ -15,6 +15,7 @@ import structlog
 from pydantic import ValidationError
 
 from .bridge import RUST_BRIDGE_AVAILABLE
+from .database import Database
 from .models.chunk_models import ChunkManifest, ChunkMetadata
 
 if RUST_BRIDGE_AVAILABLE:
@@ -54,16 +55,23 @@ class ChunkLoader:
     error handling and structured logging.
     """
 
-    def __init__(self, verify_checksums: bool = True, buffer_size: int = 1024 * 1024):
+    def __init__(
+        self,
+        verify_checksums: bool = True,
+        buffer_size: int = 1024 * 1024,
+        database: Database | None = None,
+    ):
         """
         Initialize chunk loader.
 
         Args:
             verify_checksums: Whether to verify SHA256 checksums on load
             buffer_size: Buffer size for streaming file operations (1MB default)
+            database: Optional database instance for caching and logging
         """
         self.verify_checksums = verify_checksums
         self.buffer_size = buffer_size
+        self.database = database
         self._checksum_calculator = None
 
         if RUST_BRIDGE_AVAILABLE and verify_checksums:
@@ -107,6 +115,10 @@ class ChunkLoader:
                 version=manifest.version,
                 total_chunks=manifest.total_chunks,
             )
+
+            # Cache manifest in database if available
+            if self.database:
+                await self._cache_manifest_in_database(manifest, manifest_path)
 
             return manifest
 
@@ -213,6 +225,12 @@ class ChunkLoader:
                 size_bytes=len(content),
                 checksum_verified=verify_checksum,
             )
+
+            # Log chunk load to database if available
+            if self.database:
+                await self._log_chunk_load(
+                    chunk_metadata, len(content), verify_checksum
+                )
 
             return chunk_data
 
@@ -442,6 +460,108 @@ class ChunkLoader:
             raise ChecksumMismatchError(chunk_id, expected_checksum, actual_checksum)
 
         logger.debug("Checksum verified", chunk_id=chunk_id, checksum=actual_checksum)
+
+    async def _cache_manifest_in_database(
+        self, manifest: ChunkManifest, manifest_path: Path
+    ) -> None:
+        """
+        Cache manifest data in the database for faster access.
+
+        Args:
+            manifest: The loaded manifest
+            manifest_path: Path to the manifest file
+        """
+        try:
+            if not self.database:
+                return
+            async with self.database.acquire() as conn:
+                # Check if manifest already exists
+                existing = await conn.fetchrow(
+                    "SELECT version FROM indexing_manifest WHERE version = $1",
+                    manifest.version,
+                )
+
+                if existing:
+                    logger.debug(
+                        "Manifest already cached in database",
+                        version=manifest.version,
+                    )
+                    return
+
+                # Insert manifest record
+                await conn.execute(
+                    """
+                    INSERT INTO indexing_manifest (
+                        version, created, kernel_version, kernel_path, config,
+                        total_chunks, total_size_bytes, manifest_data
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ON CONFLICT (version) DO NOTHING
+                    """,
+                    manifest.version,
+                    manifest.created,
+                    manifest.kernel_version,
+                    manifest.kernel_path,
+                    manifest.config,
+                    manifest.total_chunks,
+                    manifest.total_size_bytes,
+                    manifest.model_dump(),  # Store full manifest as JSONB
+                )
+
+                logger.info(
+                    "Manifest cached in database",
+                    version=manifest.version,
+                    path=str(manifest_path),
+                )
+
+        except Exception as e:
+            logger.warning(
+                "Failed to cache manifest in database",
+                version=manifest.version,
+                error=str(e),
+            )
+            # Don't re-raise - manifest caching is optional
+
+    async def _log_chunk_load(
+        self, chunk_metadata: ChunkMetadata, content_size: int, checksum_verified: bool
+    ) -> None:
+        """
+        Log chunk load operation to database for auditing.
+
+        Args:
+            chunk_metadata: Metadata of the loaded chunk
+            content_size: Size of loaded content in bytes
+            checksum_verified: Whether checksum was verified
+        """
+        try:
+            if not self.database:
+                return
+            async with self.database.acquire() as conn:
+                # Log to a chunk_loads audit table (if it exists)
+                await conn.execute(
+                    """
+                    INSERT INTO chunk_loads (
+                        chunk_id, loaded_at, content_size_bytes, checksum_verified
+                    ) VALUES ($1, CURRENT_TIMESTAMP, $2, $3)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    chunk_metadata.id,
+                    content_size,
+                    checksum_verified,
+                )
+
+                logger.debug(
+                    "Chunk load logged to database",
+                    chunk_id=chunk_metadata.id,
+                    content_size=content_size,
+                )
+
+        except Exception as e:
+            logger.debug(
+                "Failed to log chunk load to database",
+                chunk_id=chunk_metadata.id,
+                error=str(e),
+            )
+            # Don't re-raise - load logging is optional
 
 
 # Convenience functions for common operations

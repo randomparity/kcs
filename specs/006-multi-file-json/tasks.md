@@ -105,7 +105,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ## Phase 3.4: Integration
 
-- [ ] T029 Connect chunk_loader to database connection pool
+- [x] T029 Connect chunk_loader to database connection pool
 - [ ] T030 Add structured logging for chunk progress
 - [ ] T031 Implement parallel chunk processing with semaphore
 - [ ] T032 Add transaction boundaries per chunk

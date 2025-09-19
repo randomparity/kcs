@@ -90,14 +90,14 @@ class ProcessingStats:
         }
 
 
-async def load_manifest(manifest_path: Path) -> ChunkManifest:
+async def load_manifest(manifest_path: Path, database: Database | None = None) -> ChunkManifest:
     """Load and validate chunk manifest."""
     logger.info("Loading chunk manifest", path=str(manifest_path))
 
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest file not found: {manifest_path}")
 
-    chunk_loader = ChunkLoader()
+    chunk_loader = ChunkLoader(database=database)
     try:
         manifest = await chunk_loader.load_manifest(manifest_path)
         logger.info(
@@ -388,11 +388,11 @@ async def main() -> None:
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
     try:
-        # Load manifest
-        manifest = await load_manifest(args.manifest)
-
-        # Setup database
+        # Setup database first for manifest caching
         database, chunk_queries = await setup_database(args.database_url)
+
+        # Load manifest with database connection for caching
+        manifest = await load_manifest(args.manifest, database)
 
         # Handle status-only request
         if args.status:
@@ -420,8 +420,8 @@ async def main() -> None:
             logger.info("No chunks to process")
             return
 
-        # Setup chunk processor
-        chunk_loader = ChunkLoader()
+        # Setup chunk processor with database-connected loader
+        chunk_loader = ChunkLoader(database=database)
         chunk_processor = ChunkProcessor(
             database_queries=chunk_queries,
             chunk_loader=chunk_loader,
@@ -471,7 +471,7 @@ async def main() -> None:
     finally:
         # Close database connection
         if "database" in locals() and database.pool:
-            await database.close()
+            await database.disconnect()
 
 
 if __name__ == "__main__":
