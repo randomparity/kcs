@@ -339,6 +339,7 @@ impl PyManifestBuilder {
             symbol_count: symbol_count.unwrap_or(0),
             entry_point_count: entry_point_count.unwrap_or(0),
             file_count: file_count.unwrap_or(0),
+            checksum_sha256: None, // Will be calculated from file
         };
 
         let chunk_id = self.builder.add_chunk(chunk_input).map_err(|e| {
@@ -740,6 +741,7 @@ fn write_chunk_with_manifest(
         symbol_count: chunk_info.item_count,
         entry_point_count: 0, // Could be provided as parameter
         file_count: 1,
+        checksum_sha256: Some(chunk_info.checksum_sha256.clone()),
     };
 
     let _chunk_id_result = manifest_builder.add_chunk(chunk_input).map_err(|e| {

@@ -17,7 +17,7 @@ import requests
 def is_mcp_server_running() -> bool:
     """Check if MCP server is accessible."""
     try:
-        response = requests.get("http://localhost:8080", timeout=2)
+        response = requests.get("http://localhost:8080/health", timeout=2)
         return response.status_code == 200
     except Exception:
         return False

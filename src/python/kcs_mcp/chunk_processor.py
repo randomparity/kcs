@@ -1062,25 +1062,27 @@ class ChunkProcessor:
         Returns:
             Processing result with counts
         """
-        # Validate chunk data structure
-        required_fields = ["chunk_id", "manifest_version", "subsystem"]
-        for field in required_fields:
-            if field not in chunk_data:
-                raise ChunkProcessingFatalError(
-                    f"Missing required field '{field}' in chunk data", chunk_id
-                )
-
-        # Verify chunk_id matches
-        if chunk_data["chunk_id"] != chunk_id:
+        # Validate chunk data structure - should be chunk object with "files" key
+        if not isinstance(chunk_data, dict):
             raise ChunkProcessingFatalError(
-                f"Chunk ID mismatch: expected {chunk_id}, got {chunk_data['chunk_id']}",
-                chunk_id,
+                f"Expected chunk data to be dict, got {type(chunk_data)}", chunk_id
+            )
+
+        # Extract files data from chunk
+        files_data = chunk_data.get("files", [])
+        if not isinstance(files_data, list):
+            raise ChunkProcessingFatalError(
+                f"Expected chunk files to be list, got {type(files_data)}", chunk_id
             )
 
         # Count items for processing
-        symbols_count = len(chunk_data.get("symbols", []))
-        entry_points_count = len(chunk_data.get("entry_points", []))
-        files_count = len(chunk_data.get("files", []))
+        files_count = len(files_data)
+        symbols_count = sum(
+            len(file_data.get("symbols", [])) for file_data in files_data
+        )
+        entry_points_count = sum(
+            len(file_data.get("entry_points", [])) for file_data in files_data
+        )
 
         logger.debug(
             "Processing chunk data within transaction",
@@ -1090,32 +1092,71 @@ class ChunkProcessor:
             files_count=files_count,
         )
 
-        # TODO: Implement actual database storage of symbols, entry points, etc.
-        # This would involve:
-        # 1. Inserting symbols into symbol table using the provided connection
-        # 2. Inserting entry_points into entry_point table
-        # 3. Inserting files into file table
-        # 4. Creating relationships and updating indexes
-        # All within the same transaction for atomicity
+        # ACTUAL DATABASE INSERTION IMPLEMENTATION
+        # Process the chunk data (list of parsed files) into database tables
 
-        # For now, simulate processing time
-        await asyncio.sleep(0.1)
+        symbols_inserted = 0
+        entry_points_inserted = 0
+        files_inserted = 0
 
-        # Simulate some database operations within the transaction
-        # In a real implementation, these would be actual INSERT/UPDATE statements
-        logger.debug(
-            "Simulated database operations completed within transaction",
-            chunk_id=chunk_id,
-            symbols_inserted=symbols_count,
-            entry_points_inserted=entry_points_count,
-            files_inserted=files_count,
-        )
+        try:
+            # Process each parsed file in the chunk
+            for file_data in files_data:
+                # Insert file record
+                file_id = await self._insert_file(conn, file_data)
+                files_inserted += 1
 
-        return {
-            "symbols_processed": symbols_count,
-            "entry_points_processed": entry_points_count,
-            "files_processed": files_count,
-        }
+                # Insert symbols for this file
+                if file_data.get("symbols"):
+                    for symbol_data in file_data["symbols"]:
+                        await self._insert_symbol(
+                            conn, symbol_data, file_id, file_data["config"]
+                        )
+                        symbols_inserted += 1
+
+                # Insert entry points for this file (if present)
+                if file_data.get("entry_points"):
+                    for entry_point_data in file_data["entry_points"]:
+                        await self._insert_entry_point(
+                            conn, entry_point_data, file_id, file_data["config"]
+                        )
+                        entry_points_inserted += 1
+
+            logger.info(
+                "Database operations completed within transaction",
+                chunk_id=chunk_id,
+                files_inserted=files_inserted,
+                symbols_inserted=symbols_inserted,
+                entry_points_inserted=entry_points_inserted,
+            )
+
+            return {
+                "symbols_processed": symbols_inserted,
+                "entry_points_processed": entry_points_inserted,
+                "files_processed": files_inserted,
+            }
+
+        except Exception as e:
+            logger.error(
+                "Database insertion failed",
+                chunk_id=chunk_id,
+                error=str(e),
+                files_processed=files_inserted,
+                symbols_processed=symbols_inserted,
+            )
+
+            # Re-raise as appropriate error type
+            if (
+                "unique constraint" in str(e).lower()
+                or "duplicate key" in str(e).lower()
+            ):
+                raise ChunkProcessingError(
+                    f"Database constraint violation in chunk {chunk_id}: {e}", chunk_id
+                ) from e
+            else:
+                raise ChunkProcessingFatalError(
+                    f"Database error in chunk {chunk_id}: {e}", chunk_id
+                ) from e
 
     async def _update_chunk_status_transactional(
         self,
@@ -1356,6 +1397,124 @@ class ChunkProcessor:
         return [
             chunk for chunk in manifest.chunks if chunk.id not in completed_chunk_ids
         ]
+
+    async def _insert_file(self, conn: Any, file_data: dict[str, Any]) -> int:
+        """Insert file record and return file_id."""
+        # Handle truncated SHAs from parser (16 chars -> pad to 40 chars for SHA1 format)
+        sha = file_data["sha"]
+        if len(sha) == 16:
+            # Pad with zeros to make it 40 chars (SHA1 format expected by database)
+            sha = sha + ("0" * 24)
+
+        query = """
+            INSERT INTO file (path, sha, config, indexed_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (path, config)
+            DO UPDATE SET sha = EXCLUDED.sha, indexed_at = NOW()
+            RETURNING id;
+        """
+
+        result = await conn.fetchrow(query, file_data["path"], sha, file_data["config"])
+        if result is None:
+            raise ChunkProcessingFatalError(
+                f"Failed to insert file: {file_data['path']}", "unknown"
+            )
+        return int(result["id"])
+
+    async def _insert_symbol(
+        self, conn: Any, symbol_data: dict[str, Any], file_id: int, config: str
+    ) -> None:
+        """Insert symbol record into database."""
+        query = """
+            INSERT INTO symbol (
+                name, kind, file_id, start_line, end_line, start_col, end_col,
+                config, signature
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (name, file_id, config)
+            DO UPDATE SET
+                kind = EXCLUDED.kind,
+                start_line = EXCLUDED.start_line,
+                end_line = EXCLUDED.end_line,
+                start_col = EXCLUDED.start_col,
+                end_col = EXCLUDED.end_col,
+                signature = EXCLUDED.signature;
+        """
+
+        # Map parser symbol kinds to database enum values
+        kind_mapping = {
+            "Function": "function",
+            "Struct": "struct",
+            "Variable": "variable",
+            "Macro": "macro",
+            "Typedef": "typedef",
+            "Enum": "enum",
+            "Union": "union",
+            "Constant": "constant",
+        }
+
+        db_kind = kind_mapping.get(symbol_data.get("kind", ""), "function")
+
+        await conn.execute(
+            query,
+            symbol_data["name"],
+            db_kind,
+            file_id,
+            symbol_data.get("start_line", 1),
+            symbol_data.get("end_line", 1),
+            symbol_data.get("start_col", 0),
+            symbol_data.get("end_col", 0),
+            config,
+            symbol_data.get("signature", ""),
+        )
+
+    async def _insert_entry_point(
+        self, conn: Any, entry_point_data: dict[str, Any], file_id: int, config: str
+    ) -> None:
+        """Insert entry point record into database."""
+        query = """
+            INSERT INTO entrypoint (
+                kind, key, symbol_id, file_id, details, config
+            )
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (kind, key, config)
+            DO UPDATE SET
+                symbol_id = EXCLUDED.symbol_id,
+                file_id = EXCLUDED.file_id,
+                details = EXCLUDED.details;
+        """
+
+        # Map entry point types to database enum values
+        kind_mapping = {
+            "syscall": "syscall",
+            "ioctl": "ioctl",
+            "file_ops": "file_ops",
+            "sysfs": "sysfs",
+        }
+
+        db_kind = kind_mapping.get(entry_point_data.get("type", ""), "syscall")
+
+        # Find symbol_id if we have symbol name
+        symbol_id = None
+        if "symbol_name" in entry_point_data:
+            symbol_row = await conn.fetchrow(
+                "SELECT id FROM symbol WHERE name = $1 AND file_id = $2 AND config = $3",
+                entry_point_data["symbol_name"],
+                file_id,
+                config,
+            )
+            if symbol_row:
+                symbol_id = symbol_row["id"]
+
+        await conn.execute(
+            query,
+            db_kind,
+            entry_point_data.get("key", entry_point_data.get("name", "")),
+            symbol_id,
+            file_id,
+            entry_point_data.get("details", {}),
+            config,
+        )
 
 
 # Convenience functions for common operations

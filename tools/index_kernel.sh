@@ -12,6 +12,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KCS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_FILE="/tmp/kcs-index-$(date +%Y%m%d-%H%M%S).log"
 
+# Use repository binaries directly instead of installed versions
+KCS_PARSER="${KCS_ROOT}/src/rust/target/release/kcs-parser"
+KCS_EXTRACTOR="${KCS_ROOT}/src/rust/target/release/kcs-extractor"
+KCS_GRAPH="${KCS_ROOT}/src/rust/target/release/kcs-graph"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -194,16 +199,16 @@ check_prerequisites() {
     # Check required tools
     local missing_tools=()
 
-    if ! command_exists kcs-parser; then
-        missing_tools+=("kcs-parser")
+    if [ ! -f "$KCS_PARSER" ]; then
+        missing_tools+=("kcs-parser (build with: cd $KCS_ROOT/src/rust && cargo build --release)")
     fi
 
-    if ! command_exists kcs-extractor; then
-        missing_tools+=("kcs-extractor")
+    if [ ! -f "$KCS_EXTRACTOR" ]; then
+        missing_tools+=("kcs-extractor (build with: cd $KCS_ROOT/src/rust && cargo build --release)")
     fi
 
-    if ! command_exists kcs-graph; then
-        missing_tools+=("kcs-graph")
+    if [ ! -f "$KCS_GRAPH" ]; then
+        missing_tools+=("kcs-graph (build with: cd $KCS_ROOT/src/rust && cargo build --release)")
     fi
 
     if ! command_exists psql; then
@@ -319,7 +324,7 @@ parse_kernel_sources_traditional() {
 
     # Parse with kcs-parser
     local parser_cmd=(
-        kcs-parser
+        "$KCS_PARSER"
         --format ndjson
         --workers "$PARALLEL_JOBS"
     )
@@ -332,7 +337,7 @@ parse_kernel_sources_traditional() {
         parse
         --repo "$KERNEL_PATH"
         --config "$CONFIG"
-        --output "$parsed_output"
+        --output-dir "$OUTPUT_DIR"
     )
 
     if [ "$USE_CLANG" = "true" ] && [ -f "$OUTPUT_DIR/compile_commands.json" ]; then
@@ -400,7 +405,7 @@ parse_kernel_sources_chunked() {
 
     # Build kcs-parser command with chunking support
     local parser_cmd=(
-        kcs-parser
+        "$KCS_PARSER"
         --format ndjson
         --workers "$PARALLEL_JOBS"
     )
@@ -413,8 +418,7 @@ parse_kernel_sources_chunked() {
         parse
         --repo "$KERNEL_PATH"
         --config "$CONFIG"
-        --chunk-size "$CHUNK_SIZE"
-        --chunk-output-dir "$CHUNK_OUTPUT_DIR"
+        --output-dir "$CHUNK_OUTPUT_DIR"
     )
 
     # Add subsystem filter if specified
@@ -1195,6 +1199,8 @@ if [ "$ENABLE_CHUNKING" = "true" ]; then
     if [ -z "$CHUNK_OUTPUT_DIR" ]; then
         CHUNK_OUTPUT_DIR="$OUTPUT_DIR/chunks"
     fi
+    # Create chunk output directory before calling realpath
+    mkdir -p "$CHUNK_OUTPUT_DIR"
     CHUNK_OUTPUT_DIR=$(realpath "$CHUNK_OUTPUT_DIR")
 
     if [ -n "$MANIFEST_PATH" ]; then

@@ -201,22 +201,9 @@ class ChunkLoader:
             if not isinstance(chunk_data, dict):
                 raise ChunkLoadError(f"Chunk {chunk_metadata.id} is not a JSON object")
 
-            # Validate required fields exist
-            required_fields = ["manifest_version", "chunk_id", "subsystem"]
-            missing_fields = [
-                field for field in required_fields if field not in chunk_data
-            ]
-            if missing_fields:
-                raise ChunkLoadError(
-                    f"Chunk {chunk_metadata.id} missing required fields: {missing_fields}"
-                )
-
-            # Verify chunk_id matches metadata
-            if chunk_data["chunk_id"] != chunk_metadata.id:
-                raise ChunkLoadError(
-                    f"Chunk ID mismatch: metadata says {chunk_metadata.id}, "
-                    f"file contains {chunk_data['chunk_id']}"
-                )
+            # The chunk file contains just the data (e.g., {"files": [...]})
+            # Metadata comes from the manifest, not from the chunk file itself
+            # Return chunk_data directly since processor now handles it properly
 
             logger.info(
                 "Chunk loaded successfully",

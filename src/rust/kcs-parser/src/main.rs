@@ -45,9 +45,13 @@ enum Commands {
         #[arg(short, long, default_value = "x86_64:defconfig")]
         config: String,
 
-        /// Output file (default: stdout)
+        /// Output directory for chunk files (required)
         #[arg(short, long)]
-        output: Option<PathBuf>,
+        output_dir: PathBuf,
+
+        /// Chunk size (e.g., "32MB", "50MB")
+        #[arg(long, default_value = "32MB")]
+        chunk_size: String,
 
         /// Use clang for semantic analysis
         #[arg(long, default_value = "true")]
@@ -68,14 +72,6 @@ enum Commands {
         /// Include function call graphs in output
         #[arg(long)]
         include_calls: bool,
-
-        /// Split output into chunks of specified size (e.g., "50MB", "100KB")
-        #[arg(long)]
-        chunk_size: Option<String>,
-
-        /// Output directory for chunk files (required when using --chunk-size)
-        #[arg(long)]
-        chunk_output_dir: Option<PathBuf>,
     },
 
     /// Parse a single file
@@ -87,9 +83,9 @@ enum Commands {
         #[arg(short, long, default_value = "x86_64:defconfig")]
         config: String,
 
-        /// Output file (default: stdout)
+        /// Output file (required)
         #[arg(short, long)]
-        output: Option<PathBuf>,
+        output: PathBuf,
 
         /// Include function call graphs in output
         #[arg(long)]
@@ -135,26 +131,24 @@ async fn main() -> Result<()> {
         Commands::Parse {
             repo,
             config,
-            output,
+            output_dir,
+            chunk_size,
             clang,
             compile_commands,
             include,
             define,
             include_calls,
-            chunk_size,
-            chunk_output_dir,
         } => {
             parse_repository(
                 repo,
                 config,
-                output,
+                output_dir,
+                chunk_size,
                 clang,
                 compile_commands,
                 include,
                 define,
                 include_calls,
-                chunk_size,
-                chunk_output_dir,
                 cli.format,
             )
             .await
@@ -173,22 +167,38 @@ async fn main() -> Result<()> {
 async fn parse_repository(
     repo: PathBuf,
     config: String,
-    output: Option<PathBuf>,
+    output_dir: PathBuf,
+    chunk_size: String,
     use_clang: bool,
     compile_commands: Option<PathBuf>,
     include_paths: Vec<PathBuf>,
     defines: Vec<String>,
     include_calls: bool,
-    chunk_size: Option<String>,
-    chunk_output_dir: Option<PathBuf>,
     format: OutputFormat,
 ) -> Result<()> {
     tracing::info!("Parsing repository: {}", repo.display());
     tracing::info!("Configuration: {}", config);
+    tracing::info!("Output directory: {}", output_dir.display());
+    tracing::info!("Chunk size: {}", chunk_size);
 
-    // Validate chunk configuration if provided
-    if chunk_size.is_some() && chunk_output_dir.is_none() {
-        anyhow::bail!("--chunk-output-dir is required when using --chunk-size");
+    // Create output directory if it doesn't exist
+    std::fs::create_dir_all(&output_dir).with_context(|| {
+        format!(
+            "Failed to create output directory: {}",
+            output_dir.display()
+        )
+    })?;
+
+    // Validate chunk size doesn't exceed constitutional limit
+    // Increased to 100MB to handle edge cases with very large generated files
+    const CONSTITUTIONAL_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+    let chunk_size_bytes = parse_chunk_size(&chunk_size)?;
+    if chunk_size_bytes > CONSTITUTIONAL_LIMIT {
+        anyhow::bail!(
+            "Chunk size {} ({} bytes) exceeds constitutional limit of 100MB. Maximum allowed chunk size is 100MB to ensure memory-efficient processing.",
+            chunk_size,
+            chunk_size_bytes
+        );
     }
 
     // Parse config string (e.g., "x86_64:defconfig")
@@ -218,13 +228,8 @@ async fn parse_repository(
 
     tracing::info!("Parsed {} files", parsed_files.len());
 
-    // Output results with optional chunking
-    if let Some(chunk_size_str) = chunk_size {
-        let chunk_dir = chunk_output_dir.unwrap(); // Already validated above
-        output_chunked_results(&parsed_files, chunk_size_str, chunk_dir, format).await?;
-    } else {
-        output_results(&parsed_files, output, format)?;
-    }
+    // Always output as chunks
+    output_chunked_results(&parsed_files, chunk_size, output_dir, format).await?;
 
     Ok(())
 }
@@ -232,7 +237,7 @@ async fn parse_repository(
 async fn parse_single_file(
     file: PathBuf,
     config: String,
-    output: Option<PathBuf>,
+    output: PathBuf,
     include_calls: bool,
     format: OutputFormat,
 ) -> Result<()> {
@@ -250,7 +255,16 @@ async fn parse_single_file(
     let mut parser = Parser::new(parser_config)?;
     let parsed_file = parser.parse_file(&file)?;
 
-    output_results(&[parsed_file], output, format)?;
+    // For single file, just write JSON directly
+    let json_output = match format {
+        OutputFormat::Json => serde_json::to_string(&parsed_file)?,
+        OutputFormat::JsonPretty => serde_json::to_string_pretty(&parsed_file)?,
+        _ => serde_json::to_string_pretty(&parsed_file)?,
+    };
+
+    std::fs::write(&output, json_output)
+        .with_context(|| format!("Failed to write output to {}", output.display()))?;
+    tracing::info!("Output written to: {}", output.display());
 
     Ok(())
 }
@@ -301,64 +315,11 @@ fn parse_defines(defines: &[String]) -> Result<HashMap<String, String>> {
     Ok(defines_map)
 }
 
-fn output_results(
-    parsed_files: &[ParsedFile],
-    output: Option<PathBuf>,
-    format: OutputFormat,
-) -> Result<()> {
-    let output_string = match format {
-        OutputFormat::Json => serde_json::to_string(parsed_files)?,
-        OutputFormat::JsonPretty => serde_json::to_string_pretty(parsed_files)?,
-        OutputFormat::Ndjson => {
-            // Output each file as a separate JSON line
-            parsed_files
-                .iter()
-                .map(serde_json::to_string)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| anyhow::anyhow!("JSON serialization error: {}", e))?
-                .join("\n")
-        }
-        OutputFormat::Csv => {
-            // Simple CSV output with symbol information
-            let mut csv = String::new();
-            csv.push_str("file,symbol,kind,start_line,end_line\n");
-
-            for file in parsed_files {
-                for symbol in &file.symbols {
-                    let kind_str = format!("{:?}", symbol.kind);
-                    csv.push_str(&format!(
-                        "{},{},{},{},{}\n",
-                        file.path.display(),
-                        symbol.name,
-                        kind_str,
-                        symbol.start_line,
-                        symbol.end_line
-                    ));
-                }
-            }
-            csv
-        }
-    };
-
-    match output {
-        Some(output_path) => {
-            std::fs::write(&output_path, output_string)
-                .with_context(|| format!("Failed to write output to {}", output_path.display()))?;
-            tracing::info!("Output written to: {}", output_path.display());
-        }
-        None => {
-            print!("{}", output_string);
-        }
-    }
-
-    Ok(())
-}
-
 /// Output results with chunking support
 async fn output_chunked_results(
     parsed_files: &[ParsedFile],
     chunk_size_str: String,
-    chunk_output_dir: PathBuf,
+    output_dir: PathBuf,
     _format: OutputFormat,
 ) -> Result<()> {
     // Parse chunk size string (e.g., "50MB", "100KB")
@@ -370,20 +331,24 @@ async fn output_chunked_results(
         chunk_size_str
     );
 
-    // Create output directory if it doesn't exist
-    std::fs::create_dir_all(&chunk_output_dir).with_context(|| {
-        format!(
-            "Failed to create chunk output directory: {}",
-            chunk_output_dir.display()
-        )
-    })?;
+    // Validate chunk size doesn't exceed constitutional limit
+    const CONSTITUTIONAL_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+    if chunk_size_bytes > CONSTITUTIONAL_LIMIT {
+        return Err(anyhow::anyhow!(
+            "Chunk size {} ({}) exceeds constitutional limit of 100MB. Maximum allowed chunk size is 100MB to ensure memory-efficient processing.",
+            chunk_size_str,
+            chunk_size_bytes
+        ));
+    }
+
+    // Output directory already created in parse_repository
 
     // Configure chunk writer
     let chunk_config = ChunkWriterConfig {
-        max_chunk_size: chunk_size_bytes,
-        target_chunk_size: (chunk_size_bytes as f64 * 0.9) as usize, // 90% of max
+        max_chunk_size: CONSTITUTIONAL_LIMIT, // Constitutional 100MB limit
+        target_chunk_size: chunk_size_bytes,  // User-provided target size (validated ≤ 50MB)
         auto_split: true,
-        output_directory: Some(chunk_output_dir.clone()),
+        output_directory: Some(output_dir.clone()),
         include_metadata: true,
         ..Default::default()
     };
@@ -393,13 +358,15 @@ async fn output_chunked_results(
     // Write parsed files in chunks using splittable data API
     let chunk_infos = chunk_writer.write_splittable_data("kernel_data", parsed_files)?;
 
+    tracing::info!("Finished writing {} chunks", chunk_infos.len());
+
     // Create manifest builder
     let manifest_config = ManifestBuilderConfig {
         version: "1.0.0".to_string(),
         kernel_version: None,
         kernel_path: None,
         config: None,
-        output_directory: Some(chunk_output_dir.clone()),
+        output_directory: Some(output_dir.clone()),
         chunk_prefix: "kernel".to_string(),
         validate_schema: true,
         sort_chunks: true,
@@ -407,10 +374,15 @@ async fn output_chunked_results(
 
     let mut manifest_builder = ManifestBuilder::new(manifest_config)?;
 
+    tracing::info!("Adding {} chunks to manifest", chunk_infos.len());
+
     // Add chunks to manifest
     for (i, chunk_info) in chunk_infos.iter().enumerate() {
+        if i % 50 == 0 {
+            tracing::info!("Processing chunk {}/{}", i + 1, chunk_infos.len());
+        }
         let chunk_input = ChunkInput {
-            file_path: chunk_output_dir.join(format!("kernel_{:03}.json", i + 1)),
+            file_path: output_dir.join(format!("kernel_data_{:03}.json", i + 1)),
             subsystem: "kernel".to_string(),
             symbol_count: chunk_info
                 .metadata
@@ -423,18 +395,25 @@ async fn output_chunked_results(
                 .map(|m| m.total_entry_points)
                 .unwrap_or(0),
             file_count: parsed_files.len(),
+            checksum_sha256: Some(chunk_info.checksum_sha256.clone()),
         };
         manifest_builder.add_chunk(chunk_input)?;
     }
 
+    tracing::info!("All chunks added to manifest builder");
+
     // Build and write manifest
-    let manifest_path = chunk_output_dir.join("manifest.json");
+    let manifest_path = output_dir.join("manifest.json");
+    tracing::info!(
+        "Building and writing manifest to {}",
+        manifest_path.display()
+    );
     let manifest = manifest_builder.build_and_write(&manifest_path)?;
 
     tracing::info!(
         "Created {} chunks in directory: {}",
         manifest.total_chunks,
-        chunk_output_dir.display()
+        output_dir.display()
     );
     tracing::info!("Manifest written to: {}", manifest_path.display());
 

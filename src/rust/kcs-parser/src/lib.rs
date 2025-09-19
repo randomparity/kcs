@@ -419,12 +419,12 @@ impl Parser {
 
 /// Calculate SHA256 hash of content for version tracking
 fn calculate_sha(content: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    use sha2::{Digest, Sha256};
 
-    let mut hasher = DefaultHasher::new();
-    content.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    let result = hasher.finalize();
+    format!("{:x}", result)
 }
 
 /// Find all C source files in a directory
@@ -440,7 +440,8 @@ fn find_c_files<P: AsRef<Path>>(dir_path: P) -> Result<Vec<PathBuf>> {
     {
         let path = entry.path();
         if let Some(extension) = path.extension() {
-            if matches!(extension.to_str(), Some("c") | Some("h") | Some("S")) {
+            // Only parse C source and header files, skip assembly files (.S, .s)
+            if matches!(extension.to_str(), Some("c") | Some("h")) {
                 // Skip some common non-kernel files
                 if !should_skip_file(path) {
                     c_files.push(path.to_path_buf());

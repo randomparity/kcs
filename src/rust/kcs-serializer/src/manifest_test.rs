@@ -30,6 +30,7 @@ mod tests {
             symbol_count: 1250,
             entry_point_count: 45,
             file_count: 23,
+            checksum_sha256: Some("abcd1234".repeat(16)),
         };
 
         let chunk_id = builder.add_chunk(chunk_input)?;
@@ -95,6 +96,7 @@ mod tests {
             symbol_count: 100,
             entry_point_count: 5,
             file_count: 10,
+            checksum_sha256: Some("abcd1234".repeat(16)),
         };
 
         // Add first chunk successfully
@@ -126,6 +128,7 @@ mod tests {
             symbol_count: 500,
             entry_point_count: 20,
             file_count: 15,
+            checksum_sha256: Some("abcd1234".repeat(16)),
         };
 
         let chunk2 = ChunkInput {
@@ -134,6 +137,7 @@ mod tests {
             symbol_count: 750,
             entry_point_count: 30,
             file_count: 25,
+            checksum_sha256: Some("abcd1234".repeat(16)),
         };
 
         builder.add_chunk(chunk1)?;
@@ -176,6 +180,7 @@ mod tests {
                 symbol_count: 100,
                 entry_point_count: 5,
                 file_count: 10,
+                checksum_sha256: Some("abcd1234".repeat(16)),
             };
             builder.add_chunk(chunk_input)?;
         }
@@ -210,6 +215,7 @@ mod tests {
             symbol_count: 250,
             entry_point_count: 12,
             file_count: 8,
+            checksum_sha256: Some("abcd1234".repeat(16)),
         };
 
         builder.add_chunk(chunk_input)?;
@@ -246,6 +252,7 @@ mod tests {
             symbol_count: 300,
             entry_point_count: 15,
             file_count: 12,
+            checksum_sha256: Some("abcd1234".repeat(16)),
         };
 
         builder.add_chunk(chunk_input)?;
@@ -278,6 +285,7 @@ mod tests {
             symbol_count: 100,
             entry_point_count: 5,
             file_count: 10,
+            checksum_sha256: Some("abcd1234".repeat(16)),
         };
 
         let chunk_id = builder.add_chunk(chunk_input)?;
@@ -319,6 +327,7 @@ mod tests {
                 symbol_count: 100 * i,
                 entry_point_count: 5 * i,
                 file_count: 10 * i,
+                checksum_sha256: Some("abcd1234".repeat(16)),
             };
             builder.add_chunk(chunk_input)?;
         }
@@ -364,6 +373,7 @@ mod tests {
                 symbol_count: 50 + i,
                 entry_point_count: 2 + (i % 10),
                 file_count: 5 + (i % 20),
+                checksum_sha256: Some("abcd1234".repeat(16)),
             };
 
             builder.add_chunk(chunk_input)?;

@@ -287,7 +287,16 @@ impl ChunkWriter {
     ) -> Result<Vec<ChunkInfo>, ChunkWriterError> {
         if !self.config.auto_split {
             // Write as single chunk
-            return Ok(vec![self.write_json_chunk(dataset_id, data)?]);
+            let chunk_id = dataset_id;
+            let json_data = serde_json::to_vec(data)?;
+
+            // Write to file if output directory is configured
+            if let Some(ref output_dir) = self.config.output_directory {
+                let file_path = output_dir.join(format!("{}.json", chunk_id));
+                std::fs::write(&file_path, &json_data)?;
+            }
+
+            return Ok(vec![self.write_json_chunk(chunk_id, data)?]);
         }
 
         let mut chunks = Vec::new();
@@ -298,14 +307,68 @@ impl ChunkWriter {
             let end_idx = self.find_optimal_split_point(data, start_idx)?;
             let chunk_data = &data[start_idx..end_idx];
 
+            // Only log every 10th chunk to reduce noise
+            if chunks.len() % 10 == 0 {
+                tracing::info!(
+                    "Progress: Creating chunk {} with {} items",
+                    chunks.len() + 1,
+                    chunk_data.len()
+                );
+            }
+
             let chunk_id = format!("{}_{:03}", dataset_id, chunks.len() + 1);
-            let mut chunk_info = self.write_json_chunk(&chunk_id, chunk_data)?;
-            chunk_info.item_count = chunk_data.len();
+
+            // Wrap chunk data in object with "files" key for Python compatibility
+            let wrapped_data = serde_json::json!({
+                "files": chunk_data
+            });
+            // Serialize the wrapped data
+            let json_data = serde_json::to_vec(&wrapped_data)?;
+
+            // Write to file if output directory is configured
+            if let Some(ref output_dir) = self.config.output_directory {
+                let file_path = output_dir.join(format!("{}.json", &chunk_id));
+                // Write and sync to ensure data is on disk
+                use std::fs::OpenOptions;
+                use std::io::Write;
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(&file_path)?;
+                file.write_all(&json_data)?;
+                file.sync_all()?; // Ensure data is written to disk
+            }
+
+            // Create chunk info with correct checksum from actual file data
+            // Don't use write_chunk since it may apply compression
+            let checksum = self.calculate_checksum(&json_data);
+            let chunk_info = ChunkInfo {
+                chunk_id: chunk_id.clone(),
+                size_bytes: json_data.len(),
+                checksum_sha256: checksum,
+                format: self.format_string(),
+                compressed_size: json_data.len(),
+                uncompressed_size: json_data.len(),
+                compression_ratio: 1.0,
+                metadata: if self.config.include_metadata {
+                    Some(ChunkWriterMetadata {
+                        created_at: chrono::Utc::now().to_rfc3339(),
+                        chunk_version: "1.0.0".to_string(),
+                        total_symbols: self.estimate_symbols(&json_data),
+                        total_entry_points: self.estimate_entry_points(&json_data),
+                    })
+                } else {
+                    None
+                },
+                item_count: chunk_data.len(),
+            };
 
             chunks.push(chunk_info);
             start_idx = end_idx;
         }
 
+        eprintln!("Completed: Created {} chunks for dataset", chunks.len());
         Ok(chunks)
     }
 
@@ -391,40 +454,115 @@ impl ChunkWriter {
         start_idx: usize,
     ) -> Result<usize, ChunkWriterError> {
         let remaining = data.len() - start_idx;
+
         if remaining == 0 {
             return Ok(start_idx);
         }
 
-        // Binary search for optimal split point
-        let mut low = start_idx + 1;
-        let mut high = (start_idx + remaining).min(start_idx + 1000); // Reasonable upper bound
-        let mut best_split = high;
+        // Check if the first item alone exceeds the target
+        let first_item = &data[start_idx..start_idx + 1];
+        let first_item_json = serde_json::to_vec(first_item)?;
+        let first_item_size = first_item_json.len();
 
-        while low <= high && low < data.len() {
-            let mid = (low + high) / 2;
-            let chunk_data = &data[start_idx..mid];
+        if first_item_size > self.config.target_chunk_size {
+            tracing::warn!(
+                "Single item at index {} has size {} which exceeds target {}",
+                start_idx,
+                first_item_size,
+                self.config.target_chunk_size
+            );
 
-            // Estimate serialized size
-            let estimated_size = self.estimate_serialized_size(chunk_data)?;
+            // Check if it exceeds the hard maximum limit (constitutional limit)
+            if first_item_size > self.config.max_chunk_size {
+                // Try to get more info about this item for debugging
+                if let Ok(json_str) = serde_json::to_string(first_item) {
+                    // Extract the file path from the JSON if possible
+                    if let Some(path_start) = json_str.find("\"path\":\"") {
+                        let path_substr = &json_str[path_start + 8..];
+                        if let Some(path_end) = path_substr.find("\"") {
+                            let file_path = &path_substr[..path_end];
+                            tracing::error!("File '{}' produces {} bytes when serialized, exceeding the {} byte limit!",
+                                     file_path, first_item_size, self.config.max_chunk_size);
+                        }
+                    }
+                }
 
-            if estimated_size <= self.config.target_chunk_size {
-                best_split = mid;
-                low = mid + 1;
-            } else {
-                high = mid - 1;
+                tracing::error!(
+                    "Single item exceeds constitutional limit of {} bytes!",
+                    self.config.max_chunk_size
+                );
+                return Err(ChunkWriterError::ChunkTooLarge {
+                    size: first_item_size,
+                    limit: self.config.max_chunk_size,
+                });
+            }
+
+            // Single item exceeds target but is below max - allow it as its own chunk
+            tracing::warn!("Single item exceeds target but is below max limit ({}), creating single-item chunk",
+                     self.config.max_chunk_size);
+            return Ok(start_idx + 1);
+        }
+
+        // If only one item remaining and it fits, return it
+        if remaining == 1 {
+            return Ok(start_idx + 1);
+        }
+
+        // Conservative incremental approach: build chunks by adding items one by one
+        // until we approach the target size, then back off for safety
+        let mut current_end = start_idx + 1;
+        let mut last_good_size = start_idx + 1;
+
+        while current_end <= data.len() {
+            let chunk_data = &data[start_idx..current_end];
+            let actual_json = serde_json::to_vec(chunk_data)?;
+            let actual_size = actual_json.len();
+
+            // If we're still comfortably under target (80% of target), keep going
+            if actual_size <= (self.config.target_chunk_size * 80) / 100 {
+                last_good_size = current_end;
+                current_end += 100.min(remaining - (current_end - start_idx)); // Don't exceed bounds
+            }
+            // If we're between 80% and target, add items more carefully
+            else if actual_size <= self.config.target_chunk_size {
+                last_good_size = current_end;
+                current_end += 1; // Add one item at a time
+            }
+            // If we've exceeded target, use the last good size
+            else {
+                break;
             }
         }
 
-        Ok(best_split.min(data.len()))
+        Ok(last_good_size.min(data.len()))
     }
 
+    #[allow(dead_code)]
     fn estimate_serialized_size<T: Serialize>(
         &self,
         data: &[T],
     ) -> Result<usize, ChunkWriterError> {
-        // For performance, we estimate rather than fully serialize
-        // This is a heuristic based on the assumption that each item averages ~1KB when serialized
-        Ok(data.len() * 1024)
+        if data.is_empty() {
+            return Ok(0);
+        }
+
+        // Sample a few items to get a more accurate estimate
+        let sample_size = data.len().clamp(1, 5); // Sample up to 5 items, minimum 1
+        let mut total_sample_size = 0;
+
+        for i in 0..sample_size {
+            let idx = (i * data.len()) / sample_size; // Spread samples across the data
+            let sample_json = serde_json::to_vec(&data[idx])?;
+            total_sample_size += sample_json.len();
+        }
+
+        // Calculate average size per item from samples
+        let avg_size_per_item = total_sample_size / sample_size;
+
+        // Add 50% safety margin to account for variation and ensure we stay well under limits
+        let estimated_total = (data.len() * avg_size_per_item * 150) / 100;
+
+        Ok(estimated_total)
     }
 
     fn generate_filename(&self, chunk_id: &str) -> String {

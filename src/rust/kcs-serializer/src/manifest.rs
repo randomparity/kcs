@@ -165,6 +165,8 @@ pub struct ChunkInput {
     pub entry_point_count: usize,
     /// Number of files in the chunk
     pub file_count: usize,
+    /// SHA256 checksum of the chunk file (optional, will be calculated if not provided)
+    pub checksum_sha256: Option<String>,
 }
 
 /// Builder for creating chunk manifests
@@ -219,8 +221,20 @@ impl ManifestBuilder {
             (input.symbol_count * 100 + input.entry_point_count * 50 + input.file_count * 25) as u64
         };
 
-        // Generate a deterministic checksum for testing
-        let checksum = self.generate_placeholder_checksum(&chunk_id, file_size);
+        // Use provided checksum or calculate from file
+        let checksum = if let Some(checksum) = input.checksum_sha256 {
+            checksum
+        } else if input.file_path.exists() {
+            // Calculate actual checksum from file
+            let file_data = std::fs::read(&input.file_path)?;
+            use sha2::{Digest, Sha256};
+            let mut hasher = Sha256::new();
+            hasher.update(&file_data);
+            hex::encode(hasher.finalize())
+        } else {
+            // Fallback to placeholder for testing
+            self.generate_placeholder_checksum(&chunk_id, file_size)
+        };
 
         let chunk_metadata = ChunkMetadata {
             id: chunk_id.clone(),
@@ -255,9 +269,10 @@ impl ManifestBuilder {
         let chunk_input = ChunkInput {
             file_path: file_path.to_path_buf(),
             subsystem,
-            symbol_count: 100,    // Placeholder
-            entry_point_count: 5, // Placeholder
-            file_count: 10,       // Placeholder
+            symbol_count: 100,     // Placeholder
+            entry_point_count: 5,  // Placeholder
+            file_count: 10,        // Placeholder
+            checksum_sha256: None, // Will be calculated from file
         };
 
         self.add_chunk(chunk_input)
@@ -495,6 +510,7 @@ mod tests {
             symbol_count: 100,
             entry_point_count: 5,
             file_count: 10,
+            checksum_sha256: None,
         };
 
         let id1 = builder.add_chunk(chunk_input.clone())?;
