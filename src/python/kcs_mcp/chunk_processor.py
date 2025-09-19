@@ -109,6 +109,10 @@ class ChunkProcessor:
             chunk_id=chunk_id,
             manifest_version=manifest_version,
             force=force,
+            chunk_size_bytes=chunk_metadata.size_bytes,
+            chunk_size_mb=round(chunk_metadata.size_bytes / (1024 * 1024), 2),
+            chunk_subsystem=getattr(chunk_metadata, "subsystem", "unknown"),
+            chunk_file=chunk_metadata.file,
         )
 
         # Check existing status
@@ -138,6 +142,12 @@ class ChunkProcessor:
                 )
 
         # Create or update status record to "processing"
+        logger.debug(
+            "Updating chunk status to processing",
+            chunk_id=chunk_id,
+            manifest_version=manifest_version,
+        )
+
         await self._update_chunk_status(
             chunk_id,
             manifest_version,
@@ -148,11 +158,31 @@ class ChunkProcessor:
 
         try:
             # Load and validate chunk
+            logger.debug(
+                "Loading chunk data",
+                chunk_id=chunk_id,
+                base_path=str(base_path) if base_path else None,
+                verify_checksums=self.verify_checksums,
+            )
+
             chunk_data = await self.chunk_loader.load_chunk(
                 chunk_metadata, base_path, verify_checksum=self.verify_checksums
             )
 
+            logger.debug(
+                "Chunk data loaded successfully",
+                chunk_id=chunk_id,
+                symbols_count=len(chunk_data.get("symbols", [])),
+                entry_points_count=len(chunk_data.get("entry_points", [])),
+                files_count=len(chunk_data.get("files", [])),
+            )
+
             # Process chunk data into database
+            logger.debug(
+                "Processing chunk data into database",
+                chunk_id=chunk_id,
+            )
+
             processing_result = await self._process_chunk_data(
                 chunk_id, chunk_data, chunk_metadata
             )
@@ -245,12 +275,19 @@ class ChunkProcessor:
         Returns:
             Batch processing result with overall status and per-chunk results
         """
+        import time
+
+        start_time = time.time()
+        processed_count = 0
+
         logger.info(
             "Starting batch chunk processing",
             total_chunks=len(chunks),
             max_parallelism=max_parallelism,
             resume_from=resume_from,
             force=force,
+            manifest_version=manifest_version,
+            batch_start_time=start_time,
         )
 
         # Filter chunks for processing based on resume_from
@@ -271,6 +308,8 @@ class ChunkProcessor:
             "Processing chunks after resume filtering",
             chunks_to_process=len(chunks_to_process),
             skipped_chunks=len(chunks) - len(chunks_to_process),
+            estimated_total_size_mb=sum(chunk.size_bytes for chunk in chunks_to_process)
+            / (1024 * 1024),
         )
 
         # Create semaphore to limit parallelism
@@ -278,37 +317,87 @@ class ChunkProcessor:
         results: dict[str, dict[str, Any]] = {}
 
         async def process_single_chunk(chunk_metadata: ChunkMetadata) -> None:
+            nonlocal processed_count
             async with semaphore:
                 chunk_id = chunk_metadata.id
+                chunk_start_time = time.time()
+
                 try:
                     result = await self._process_chunk_with_retry(
                         chunk_metadata, manifest_version, base_path, force
                     )
                     results[chunk_id] = {"status": "success", "result": result}
-                    logger.debug("Chunk processed successfully", chunk_id=chunk_id)
+
+                    processed_count += 1
+                    current_time = time.time()
+                    elapsed_time = current_time - start_time
+                    chunks_per_second = (
+                        processed_count / elapsed_time if elapsed_time > 0 else 0
+                    )
+                    eta_seconds = (
+                        ((len(chunks_to_process) - processed_count) / chunks_per_second)
+                        if chunks_per_second > 0
+                        else 0
+                    )
+
+                    logger.info(
+                        "Chunk processed successfully",
+                        chunk_id=chunk_id,
+                        progress_completed=processed_count,
+                        progress_total=len(chunks_to_process),
+                        progress_percentage=round(
+                            (processed_count / len(chunks_to_process)) * 100, 1
+                        ),
+                        processing_rate_chunks_per_sec=round(chunks_per_second, 2),
+                        eta_seconds=round(eta_seconds, 0),
+                        chunk_processing_time_sec=round(
+                            current_time - chunk_start_time, 2
+                        ),
+                        symbols_processed=result.get("symbols_processed", 0),
+                        manifest_version=manifest_version,
+                    )
 
                 except ChunkProcessingFatalError as e:
+                    processed_count += 1
                     results[chunk_id] = {
                         "status": "failed_fatal",
                         "error": str(e),
                         "retryable": False,
                     }
                     logger.error(
-                        "Chunk failed with fatal error", chunk_id=chunk_id, error=str(e)
+                        "Chunk failed with fatal error",
+                        chunk_id=chunk_id,
+                        error=str(e),
+                        progress_completed=processed_count,
+                        progress_total=len(chunks_to_process),
+                        progress_percentage=round(
+                            (processed_count / len(chunks_to_process)) * 100, 1
+                        ),
+                        manifest_version=manifest_version,
                     )
 
                 except ChunkProcessingError as e:
+                    processed_count += 1
                     results[chunk_id] = {
                         "status": "failed_retryable",
                         "error": str(e),
                         "retryable": True,
                     }
                     logger.error(
-                        "Chunk failed after retries", chunk_id=chunk_id, error=str(e)
+                        "Chunk failed after retries",
+                        chunk_id=chunk_id,
+                        error=str(e),
+                        progress_completed=processed_count,
+                        progress_total=len(chunks_to_process),
+                        progress_percentage=round(
+                            (processed_count / len(chunks_to_process)) * 100, 1
+                        ),
+                        manifest_version=manifest_version,
                     )
 
                 except Exception as e:
                     # Unexpected error - treat as retryable
+                    processed_count += 1
                     results[chunk_id] = {
                         "status": "failed_unexpected",
                         "error": str(e),
@@ -318,11 +407,63 @@ class ChunkProcessor:
                         "Chunk failed with unexpected error",
                         chunk_id=chunk_id,
                         error=str(e),
+                        progress_completed=processed_count,
+                        progress_total=len(chunks_to_process),
+                        progress_percentage=round(
+                            (processed_count / len(chunks_to_process)) * 100, 1
+                        ),
+                        manifest_version=manifest_version,
                     )
 
-        # Execute all chunk processing tasks concurrently
+        # Progress reporting task for periodic updates
+        async def report_progress() -> None:
+            """Report progress every 30 seconds."""
+            report_interval = 30  # seconds
+            last_reported_count = 0
+
+            while processed_count < len(chunks_to_process):
+                await asyncio.sleep(report_interval)
+
+                if processed_count > last_reported_count:
+                    current_time = time.time()
+                    elapsed = current_time - start_time
+                    rate = processed_count / elapsed if elapsed > 0 else 0
+                    eta = (
+                        ((len(chunks_to_process) - processed_count) / rate)
+                        if rate > 0
+                        else 0
+                    )
+
+                    logger.info(
+                        "Batch processing progress update",
+                        progress_completed=processed_count,
+                        progress_total=len(chunks_to_process),
+                        progress_percentage=round(
+                            (processed_count / len(chunks_to_process)) * 100, 1
+                        ),
+                        elapsed_time_sec=round(elapsed, 1),
+                        processing_rate_chunks_per_sec=round(rate, 2),
+                        eta_minutes=round(eta / 60, 1),
+                        manifest_version=manifest_version,
+                        active_tasks=0,  # Task counting removed due to async complexity
+                    )
+                    last_reported_count = processed_count
+
+        # Execute all chunk processing tasks concurrently with progress reporting
         tasks = [process_single_chunk(chunk) for chunk in chunks_to_process]
-        await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Start progress reporting task
+        progress_task = asyncio.create_task(report_progress())
+
+        try:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            # Cancel progress reporting
+            progress_task.cancel()
+            try:
+                await progress_task
+            except asyncio.CancelledError:
+                pass
 
         # Compute batch statistics
         successful_count = sum(
@@ -340,12 +481,29 @@ class ChunkProcessor:
             "results": results,
         }
 
+        end_time = time.time()
+        total_duration = end_time - start_time
+        overall_processing_rate = (
+            processed_count / total_duration if total_duration > 0 else 0
+        )
+
         logger.info(
             "Batch chunk processing completed",
             total_chunks=len(chunks),
             successful_chunks=successful_count,
             failed_chunks=failed_count,
             skipped_chunks=skipped_count,
+            total_duration_sec=round(total_duration, 2),
+            overall_processing_rate_chunks_per_sec=round(overall_processing_rate, 2),
+            manifest_version=manifest_version,
+            success_rate_percentage=round(
+                (successful_count / len(chunks_to_process)) * 100, 1
+            )
+            if chunks_to_process
+            else 0,
+            batch_size_mb=round(
+                sum(chunk.size_bytes for chunk in chunks_to_process) / (1024 * 1024), 2
+            ),
         )
 
         return batch_result

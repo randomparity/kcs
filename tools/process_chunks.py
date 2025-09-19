@@ -206,7 +206,11 @@ async def process_chunks_parallel(
         """Process a single chunk with semaphore."""
         async with semaphore:
             try:
-                logger.debug("Processing chunk", chunk_id=chunk_id)
+                logger.debug(
+                    "Processing chunk with metadata lookup",
+                    chunk_id=chunk_id,
+                    manifest_version=manifest.version,
+                )
 
                 # Find chunk metadata
                 chunk_metadata = None
@@ -216,29 +220,45 @@ async def process_chunks_parallel(
                         break
 
                 if not chunk_metadata:
-                    logger.error("Chunk metadata not found", chunk_id=chunk_id)
+                    logger.error(
+                        "Chunk metadata not found in manifest",
+                        chunk_id=chunk_id,
+                        manifest_version=manifest.version,
+                        total_chunks_in_manifest=len(manifest.chunks),
+                    )
                     stats.failed_chunks += 1
                     return
 
-                # Process the chunk
-                result = await chunk_processor.process_chunk(chunk_metadata)
+                # Process the chunk - structured logging handled in chunk_processor
+                result = await chunk_processor.process_chunk(
+                    chunk_metadata, manifest.version
+                )
 
                 if result["status"] == "completed":
                     stats.processed_chunks += 1
                     logger.info(
-                        "Chunk processed successfully",
+                        "Chunk completed in orchestrator",
                         chunk_id=chunk_id,
                         symbols_processed=result.get("symbols_processed", 0),
+                        entry_points_processed=result.get("entry_points_processed", 0),
+                        checksum_verified=result.get("checksum_verified", False),
+                        manifest_version=manifest.version,
                     )
                 elif result["status"] == "skipped":
                     stats.skipped_chunks += 1
-                    logger.info("Chunk skipped", chunk_id=chunk_id, reason=result.get("message"))
+                    logger.info(
+                        "Chunk skipped in orchestrator",
+                        chunk_id=chunk_id,
+                        reason=result.get("message"),
+                        manifest_version=manifest.version,
+                    )
                 else:
                     stats.failed_chunks += 1
                     logger.error(
-                        "Chunk processing failed",
+                        "Chunk failed in orchestrator",
                         chunk_id=chunk_id,
                         error=result.get("error_message"),
+                        manifest_version=manifest.version,
                     )
 
             except ChunkProcessingError as e:
@@ -260,14 +280,58 @@ async def process_chunks_parallel(
     # Create tasks for all chunks
     tasks = [process_single_chunk(chunk_id) for chunk_id in chunk_ids]
 
-    # Process all tasks
+    # Process all tasks with progress reporting
     logger.info(
-        "Starting parallel chunk processing",
+        "Starting parallel chunk processing in orchestrator",
         total_chunks=len(chunk_ids),
         parallelism=parallel,
+        manifest_version=manifest.version,
+        estimated_total_size_mb=round(sum(chunk.size_bytes for chunk in manifest.chunks if chunk.id in chunk_ids) / (1024 * 1024), 2),
     )
 
-    await asyncio.gather(*tasks, return_exceptions=True)
+    # Start timing
+    import time
+    start_time = time.time()
+
+    # Periodic progress reporting
+    async def report_orchestrator_progress():
+        """Report progress from orchestrator perspective."""
+        report_interval = 60  # Report every minute from orchestrator
+        while True:
+            await asyncio.sleep(report_interval)
+            current_time = time.time()
+            elapsed = current_time - start_time
+            total_completed = stats.processed_chunks + stats.failed_chunks + stats.skipped_chunks
+
+            if total_completed > 0:
+                rate = total_completed / elapsed
+                eta = ((stats.total_chunks - total_completed) / rate) if rate > 0 else 0
+
+                logger.info(
+                    "Orchestrator progress report",
+                    completed_chunks=total_completed,
+                    successful_chunks=stats.processed_chunks,
+                    failed_chunks=stats.failed_chunks,
+                    skipped_chunks=stats.skipped_chunks,
+                    total_chunks=stats.total_chunks,
+                    completion_percentage=round((total_completed / stats.total_chunks) * 100, 1),
+                    success_rate_percentage=round((stats.processed_chunks / total_completed) * 100, 1) if total_completed > 0 else 0,
+                    elapsed_minutes=round(elapsed / 60, 1),
+                    eta_minutes=round(eta / 60, 1),
+                    manifest_version=manifest.version,
+                )
+
+    # Start progress reporting
+    progress_task = asyncio.create_task(report_orchestrator_progress())
+
+    try:
+        await asyncio.gather(*tasks, return_exceptions=True)
+    finally:
+        progress_task.cancel()
+        try:
+            await progress_task
+        except asyncio.CancelledError:
+            pass
 
 
 async def cleanup_stuck_chunks(
