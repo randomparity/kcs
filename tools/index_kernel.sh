@@ -414,7 +414,7 @@ parse_kernel_sources_chunked() {
         --repo "$KERNEL_PATH"
         --config "$CONFIG"
         --chunk-size "$CHUNK_SIZE"
-        --output-dir "$CHUNK_OUTPUT_DIR"
+        --chunk-output-dir "$CHUNK_OUTPUT_DIR"
     )
 
     # Add subsystem filter if specified

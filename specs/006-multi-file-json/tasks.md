@@ -127,9 +127,9 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Validation
 
-- [ ] T040 Run quickstart.md end-to-end test scenario
-- [ ] T041 Verify all contract tests pass with implementation
-- [ ] T042 Check performance meets targets (<30 min full index)
+- [x] T040 Run quickstart.md end-to-end test scenario
+- [x] T041 Verify all contract tests pass with implementation
+- [x] T042 Check performance meets targets (<30 min full index)
 
 ## Dependencies
 
