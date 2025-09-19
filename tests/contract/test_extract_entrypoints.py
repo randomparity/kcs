@@ -1,7 +1,7 @@
 """
-Contract tests for extract_entry_points endpoint.
+Contract tests for extract_entrypoints endpoint.
 
-These tests verify the API contract defined in specs/004-current-code-has/contracts/extract_entry_points.yaml.
+These tests verify the API contract defined in specs/004-current-code-has/contracts/extract_entrypoints.yaml.
 They MUST fail before implementation and pass after.
 """
 
@@ -62,22 +62,22 @@ def sample_kernel_path() -> str:
 @skip_integration_in_ci
 @skip_without_mcp_server
 class TestExtractEntryPointsContract:
-    """Contract tests for extract_entry_points endpoint."""
+    """Contract tests for extract_entrypoints endpoint."""
 
     @pytest.mark.asyncio
     async def test_endpoint_exists(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ) -> None:
-        """Test that the extract_entry_points endpoint exists and accepts POST requests."""
+        """Test that the extract_entrypoints endpoint exists and accepts POST requests."""
         payload = {"kernel_path": "/tmp/test_kernel"}
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         # Should not return 404 (endpoint exists)
         # NOTE: This MUST fail initially as endpoint doesn't exist yet
-        assert response.status_code != 404, "extract_entry_points endpoint should exist"
+        assert response.status_code != 404, "extract_entrypoints endpoint should exist"
 
     @pytest.mark.asyncio
     async def test_requires_kernel_path(
@@ -87,7 +87,7 @@ class TestExtractEntryPointsContract:
         payload: dict[str, Any] = {}  # Missing kernel_path
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         assert response.status_code == 400, "Should return 400 for missing kernel_path"
@@ -107,20 +107,18 @@ class TestExtractEntryPointsContract:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
 
             # Verify response structure matches contract
-            assert "entry_points" in data, "Response should contain entry_points"
-            assert isinstance(data["entry_points"], list), (
-                "entry_points should be a list"
-            )
+            assert "entrypoints" in data, "Response should contain entrypoints"
+            assert isinstance(data["entrypoints"], list), "entrypoints should be a list"
 
-            if data["entry_points"]:
-                entry = data["entry_points"][0]
+            if data["entrypoints"]:
+                entry = data["entrypoints"][0]
 
                 # Required fields
                 assert "name" in entry, "Entry point must have name"
@@ -180,16 +178,16 @@ class TestExtractEntryPointsContract:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Check if any of the new types are detected
             # NOTE: This MUST fail initially as these types aren't implemented yet
-            detected_types = {ep["entry_type"] for ep in entry_points}
+            detected_types = {ep["entry_type"] for ep in entrypoints}
             new_types = {"procfs", "debugfs", "netlink"}
 
             assert detected_types & new_types, (
@@ -211,15 +209,15 @@ class TestExtractEntryPointsContract:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Check for ioctl entries with metadata
-            ioctl_entries = [ep for ep in entry_points if ep["entry_type"] == "ioctl"]
+            ioctl_entries = [ep for ep in entrypoints if ep["entry_type"] == "ioctl"]
 
             if ioctl_entries:
                 # At least some ioctl entries should have metadata
@@ -253,7 +251,7 @@ class TestExtractEntryPointsContract:
         }
 
         response_no_clang = await http_client.post(
-            "/extract/entry_points", json=payload_no_clang, headers=auth_headers
+            "/extract/entrypoints", json=payload_no_clang, headers=auth_headers
         )
 
         # Test with Clang but no compile_commands
@@ -264,7 +262,7 @@ class TestExtractEntryPointsContract:
         }
 
         response_clang = await http_client.post(
-            "/extract/entry_points",
+            "/extract/entrypoints",
             json=payload_clang_no_commands,
             headers=auth_headers,
         )
@@ -289,7 +287,7 @@ class TestExtractEntryPointsContract:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         assert response.status_code == 404, (
@@ -311,15 +309,15 @@ class TestExtractEntryPointsContract:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # All returned entries should be syscalls
-            for ep in entry_points:
+            for ep in entrypoints:
                 assert ep["entry_type"] == "syscall", (
                     f"Expected only syscalls, got {ep['entry_type']}"
                 )

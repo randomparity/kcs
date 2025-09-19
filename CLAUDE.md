@@ -142,8 +142,25 @@ curl http://localhost:8080/health
 ### Indexing Kernels
 
 ```bash
-# Full kernel indexing
+# Full kernel indexing (single file - legacy)
 tools/index_kernel.sh ~/src/linux
+
+# NEW: Chunked indexing (recommended for large kernels)
+tools/index_kernel.sh \
+  --chunk-size 50MB \
+  --parallel-chunks 4 \
+  --output-dir /tmp/kcs-chunks \
+  ~/src/linux
+
+# Process chunks into database
+tools/process_chunks.py \
+  --manifest /tmp/kcs-chunks/manifest.json \
+  --parallel 4
+
+# Resume after failure
+tools/process_chunks.py \
+  --manifest /tmp/kcs-chunks/manifest.json \
+  --resume
 
 # Subsystem only (faster for testing)
 tools/index_kernel.sh --subsystem fs/ext4 ~/src/linux
@@ -151,11 +168,14 @@ tools/index_kernel.sh --subsystem fs/ext4 ~/src/linux
 # With specific config
 tools/index_kernel.sh --config arm64:defconfig ~/src/linux
 
-# Incremental update
-tools/index_kernel.sh --incremental ~/src/linux
+# Incremental update with chunks
+tools/index_kernel.sh \
+  --incremental \
+  --manifest /tmp/kcs-chunks/manifest.json \
+  ~/src/linux
 
 # Extract entry points only (streaming)
-tools/extract_entry_points_streaming.py ~/src/linux | head -20
+tools/extract_entrypoints_streaming.py ~/src/linux | head -20
 ```
 
 ### Database Operations
@@ -168,7 +188,7 @@ psql -d kcs -U kcs -h localhost
 for f in src/sql/migrations/*.sql; do psql -d kcs -f "$f"; done
 
 # Common queries for debugging
-psql -d kcs -c "SELECT COUNT(*) FROM entry_point GROUP BY entry_type;"
+psql -d kcs -c "SELECT COUNT(*) FROM entrypoint GROUP BY entry_type;"
 psql -d kcs -c "SELECT name, file_path FROM symbol WHERE name LIKE 'vfs_%' LIMIT 10;"
 
 # Check recursive CTE performance
@@ -201,7 +221,7 @@ tests/
 
 tools/                  # Shell and Python scripts
 ├── index_kernel.sh       # Main indexing orchestrator
-└── extract_entry_points_streaming.py  # Streaming parser wrapper
+└── extract_entrypoints_streaming.py  # Streaming parser wrapper
 ```
 
 ## Constitutional Requirements
@@ -235,7 +255,7 @@ tools/                  # Shell and Python scripts
 
 ### Entry Point Detection
 
-Current implementation in `src/rust/kcs-extractor/src/entry_points.rs`:
+Current implementation in `src/rust/kcs-extractor/src/entrypoints.rs`:
 
 - Syscalls: Mapped from `__NR_*` to `sys_*` functions
 - File ops: Regex patterns for `file_operations` structs
@@ -269,13 +289,16 @@ All endpoints in `src/python/kcs_mcp/tools.py` follow:
 
 ## Current Development Status
 
-### Infrastructure Components (Branch: 005-infrastructure-empty-stub)
+### Infrastructure Components
 
 - **kcs-config**: Empty stub - kernel config parsing not implemented
 - **kcs-drift**: Module exists but `drift_detector` and `report_generator` commented out
 - **kcs-search**: Semantic search DB schema ready, implementation pending
 - **kcs-graph**: Path reconstruction and cycle detection marked as TODO
-- **kcs-serializer**: Graph export placeholder only
+- **kcs-serializer**: Chunked JSON output (Branch: 006-multi-file-json)
+  - Splits large output into 50MB chunks
+  - Generates manifest with checksums
+  - Supports parallel processing and resume
 
 ### Working Features
 
@@ -283,6 +306,7 @@ All endpoints in `src/python/kcs_mcp/tools.py` follow:
 - Entry point detection for syscalls and file_ops
 - PostgreSQL with pgvector configured
 - MCP endpoints for basic queries
+- **NEW**: Chunked output for memory-efficient processing
 
 ## Common Pitfalls
 

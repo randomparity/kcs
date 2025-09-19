@@ -5,6 +5,9 @@
 use anyhow::{Context, Result};
 use clap::{Parser as ClapParser, Subcommand};
 use kcs_parser::{ExtendedParserConfig, ParsedFile, Parser};
+use kcs_serializer::{
+    ChunkInput, ChunkWriter, ChunkWriterConfig, ManifestBuilder, ManifestBuilderConfig,
+};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -42,9 +45,13 @@ enum Commands {
         #[arg(short, long, default_value = "x86_64:defconfig")]
         config: String,
 
-        /// Output file (default: stdout)
+        /// Output directory for chunk files (required)
         #[arg(short, long)]
-        output: Option<PathBuf>,
+        output_dir: PathBuf,
+
+        /// Chunk size (e.g., "32MB", "50MB")
+        #[arg(long, default_value = "32MB")]
+        chunk_size: String,
 
         /// Use clang for semantic analysis
         #[arg(long, default_value = "true")]
@@ -76,9 +83,9 @@ enum Commands {
         #[arg(short, long, default_value = "x86_64:defconfig")]
         config: String,
 
-        /// Output file (default: stdout)
+        /// Output file (required)
         #[arg(short, long)]
-        output: Option<PathBuf>,
+        output: PathBuf,
 
         /// Include function call graphs in output
         #[arg(long)]
@@ -124,7 +131,8 @@ async fn main() -> Result<()> {
         Commands::Parse {
             repo,
             config,
-            output,
+            output_dir,
+            chunk_size,
             clang,
             compile_commands,
             include,
@@ -134,7 +142,8 @@ async fn main() -> Result<()> {
             parse_repository(
                 repo,
                 config,
-                output,
+                output_dir,
+                chunk_size,
                 clang,
                 compile_commands,
                 include,
@@ -158,7 +167,8 @@ async fn main() -> Result<()> {
 async fn parse_repository(
     repo: PathBuf,
     config: String,
-    output: Option<PathBuf>,
+    output_dir: PathBuf,
+    chunk_size: String,
     use_clang: bool,
     compile_commands: Option<PathBuf>,
     include_paths: Vec<PathBuf>,
@@ -168,6 +178,28 @@ async fn parse_repository(
 ) -> Result<()> {
     tracing::info!("Parsing repository: {}", repo.display());
     tracing::info!("Configuration: {}", config);
+    tracing::info!("Output directory: {}", output_dir.display());
+    tracing::info!("Chunk size: {}", chunk_size);
+
+    // Create output directory if it doesn't exist
+    std::fs::create_dir_all(&output_dir).with_context(|| {
+        format!(
+            "Failed to create output directory: {}",
+            output_dir.display()
+        )
+    })?;
+
+    // Validate chunk size doesn't exceed constitutional limit
+    // Increased to 100MB to handle edge cases with very large generated files
+    const CONSTITUTIONAL_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+    let chunk_size_bytes = parse_chunk_size(&chunk_size)?;
+    if chunk_size_bytes > CONSTITUTIONAL_LIMIT {
+        anyhow::bail!(
+            "Chunk size {} ({} bytes) exceeds constitutional limit of 100MB. Maximum allowed chunk size is 100MB to ensure memory-efficient processing.",
+            chunk_size,
+            chunk_size_bytes
+        );
+    }
 
     // Parse config string (e.g., "x86_64:defconfig")
     let (arch, config_name) = parse_config_string(&config)?;
@@ -196,8 +228,8 @@ async fn parse_repository(
 
     tracing::info!("Parsed {} files", parsed_files.len());
 
-    // Output results
-    output_results(&parsed_files, output, format)?;
+    // Always output as chunks
+    output_chunked_results(&parsed_files, chunk_size, output_dir, format).await?;
 
     Ok(())
 }
@@ -205,7 +237,7 @@ async fn parse_repository(
 async fn parse_single_file(
     file: PathBuf,
     config: String,
-    output: Option<PathBuf>,
+    output: PathBuf,
     include_calls: bool,
     format: OutputFormat,
 ) -> Result<()> {
@@ -223,7 +255,16 @@ async fn parse_single_file(
     let mut parser = Parser::new(parser_config)?;
     let parsed_file = parser.parse_file(&file)?;
 
-    output_results(&[parsed_file], output, format)?;
+    // For single file, just write JSON directly
+    let json_output = match format {
+        OutputFormat::Json => serde_json::to_string(&parsed_file)?,
+        OutputFormat::JsonPretty => serde_json::to_string_pretty(&parsed_file)?,
+        _ => serde_json::to_string_pretty(&parsed_file)?,
+    };
+
+    std::fs::write(&output, json_output)
+        .with_context(|| format!("Failed to write output to {}", output.display()))?;
+    tracing::info!("Output written to: {}", output.display());
 
     Ok(())
 }
@@ -274,57 +315,165 @@ fn parse_defines(defines: &[String]) -> Result<HashMap<String, String>> {
     Ok(defines_map)
 }
 
-fn output_results(
+/// Output results with chunking support
+async fn output_chunked_results(
     parsed_files: &[ParsedFile],
-    output: Option<PathBuf>,
-    format: OutputFormat,
+    chunk_size_str: String,
+    output_dir: PathBuf,
+    _format: OutputFormat,
 ) -> Result<()> {
-    let output_string = match format {
-        OutputFormat::Json => serde_json::to_string(parsed_files)?,
-        OutputFormat::JsonPretty => serde_json::to_string_pretty(parsed_files)?,
-        OutputFormat::Ndjson => {
-            // Output each file as a separate JSON line
-            parsed_files
-                .iter()
-                .map(serde_json::to_string)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| anyhow::anyhow!("JSON serialization error: {}", e))?
-                .join("\n")
-        }
-        OutputFormat::Csv => {
-            // Simple CSV output with symbol information
-            let mut csv = String::new();
-            csv.push_str("file,symbol,kind,start_line,end_line\n");
+    // Parse chunk size string (e.g., "50MB", "100KB")
+    let chunk_size_bytes = parse_chunk_size(&chunk_size_str)?;
 
-            for file in parsed_files {
-                for symbol in &file.symbols {
-                    let kind_str = format!("{:?}", symbol.kind);
-                    csv.push_str(&format!(
-                        "{},{},{},{},{}\n",
-                        file.path.display(),
-                        symbol.name,
-                        kind_str,
-                        symbol.start_line,
-                        symbol.end_line
-                    ));
-                }
-            }
-            csv
-        }
-    };
+    tracing::info!(
+        "Chunking output with max size: {} bytes ({})",
+        chunk_size_bytes,
+        chunk_size_str
+    );
 
-    match output {
-        Some(output_path) => {
-            std::fs::write(&output_path, output_string)
-                .with_context(|| format!("Failed to write output to {}", output_path.display()))?;
-            tracing::info!("Output written to: {}", output_path.display());
-        }
-        None => {
-            print!("{}", output_string);
-        }
+    // Validate chunk size doesn't exceed constitutional limit
+    const CONSTITUTIONAL_LIMIT: usize = 100 * 1024 * 1024; // 100MB
+    if chunk_size_bytes > CONSTITUTIONAL_LIMIT {
+        return Err(anyhow::anyhow!(
+            "Chunk size {} ({}) exceeds constitutional limit of 100MB. Maximum allowed chunk size is 100MB to ensure memory-efficient processing.",
+            chunk_size_str,
+            chunk_size_bytes
+        ));
     }
 
+    // Output directory already created in parse_repository
+
+    // Configure chunk writer
+    let chunk_config = ChunkWriterConfig {
+        max_chunk_size: CONSTITUTIONAL_LIMIT, // Constitutional 100MB limit
+        target_chunk_size: chunk_size_bytes,  // User-provided target size (validated ≤ 50MB)
+        auto_split: true,
+        output_directory: Some(output_dir.clone()),
+        include_metadata: true,
+        buffer_size: 8 * 1024 * 1024, // 8MB buffer for better performance
+        ..Default::default()
+    };
+
+    let mut chunk_writer = ChunkWriter::new(chunk_config)?;
+
+    // Write parsed files in chunks using splittable data API
+    let chunk_infos = chunk_writer.write_splittable_data("kernel_data", parsed_files)?;
+
+    tracing::info!("Finished writing {} chunks", chunk_infos.len());
+
+    // Create manifest builder
+    let manifest_config = ManifestBuilderConfig {
+        version: "1.0.0".to_string(),
+        kernel_version: None,
+        kernel_path: None,
+        config: None,
+        output_directory: Some(output_dir.clone()),
+        chunk_prefix: "kernel".to_string(),
+        validate_schema: true,
+        sort_chunks: true,
+    };
+
+    let mut manifest_builder = ManifestBuilder::new(manifest_config)?;
+
+    tracing::info!("Adding {} chunks to manifest", chunk_infos.len());
+
+    // Add chunks to manifest
+    for (i, chunk_info) in chunk_infos.iter().enumerate() {
+        if i % 50 == 0 {
+            tracing::info!("Processing chunk {}/{}", i + 1, chunk_infos.len());
+        }
+        let chunk_input = ChunkInput {
+            file_path: output_dir.join(format!("kernel_data_{:03}.json", i + 1)),
+            subsystem: "kernel".to_string(),
+            symbol_count: chunk_info
+                .metadata
+                .as_ref()
+                .map(|m| m.total_symbols)
+                .unwrap_or(0),
+            entrypoint_count: chunk_info
+                .metadata
+                .as_ref()
+                .map(|m| m.total_entrypoints)
+                .unwrap_or(0),
+            file_count: parsed_files.len(),
+            checksum_sha256: Some(chunk_info.checksum_sha256.clone()),
+        };
+        manifest_builder.add_chunk(chunk_input)?;
+    }
+
+    tracing::info!("All chunks added to manifest builder");
+
+    // Build and write manifest
+    let manifest_path = output_dir.join("manifest.json");
+    tracing::info!(
+        "Building and writing manifest to {}",
+        manifest_path.display()
+    );
+    let manifest = manifest_builder.build_and_write(&manifest_path)?;
+
+    tracing::info!(
+        "Created {} chunks in directory: {}",
+        manifest.total_chunks,
+        output_dir.display()
+    );
+    tracing::info!("Manifest written to: {}", manifest_path.display());
+
     Ok(())
+}
+
+/// Parse chunk size string into bytes
+fn parse_chunk_size(size_str: &str) -> Result<usize> {
+    let size_str = size_str.trim().to_uppercase();
+
+    // Extract number and unit
+    let (number_part, unit_part) = if let Some(pos) = size_str.find(|c: char| c.is_alphabetic()) {
+        size_str.split_at(pos)
+    } else {
+        // No unit, assume bytes
+        return size_str
+            .parse::<usize>()
+            .with_context(|| format!("Invalid chunk size format: {}", size_str));
+    };
+
+    let number: f64 = number_part
+        .trim()
+        .parse()
+        .with_context(|| format!("Invalid number in chunk size: {}", number_part))?;
+
+    let multiplier = match unit_part.trim() {
+        "B" | "BYTES" => 1,
+        "KB" | "K" => 1024,
+        "MB" | "M" => 1024 * 1024,
+        "GB" | "G" => 1024 * 1024 * 1024,
+        _ => anyhow::bail!(
+            "Unsupported chunk size unit: {} (supported: B, KB, MB, GB)",
+            unit_part
+        ),
+    };
+
+    let bytes = (number * multiplier as f64) as usize;
+
+    // Validate reasonable limits
+    const MIN_CHUNK_SIZE: usize = 1024; // 1KB minimum
+    const MAX_CHUNK_SIZE: usize = 1024 * 1024 * 1024; // 1GB maximum
+
+    if bytes < MIN_CHUNK_SIZE {
+        anyhow::bail!(
+            "Chunk size too small: {} (minimum: {})",
+            bytes,
+            MIN_CHUNK_SIZE
+        );
+    }
+
+    if bytes > MAX_CHUNK_SIZE {
+        anyhow::bail!(
+            "Chunk size too large: {} (maximum: {})",
+            bytes,
+            MAX_CHUNK_SIZE
+        );
+    }
+
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -347,5 +496,33 @@ mod tests {
 
         assert_eq!(defines_map.get("CONFIG_DEBUG"), Some(&"1".to_string()));
         assert_eq!(defines_map.get("CONFIG_FEATURE"), Some(&"1".to_string()));
+    }
+
+    #[test]
+    fn test_parse_chunk_size() {
+        // Test basic units
+        assert_eq!(parse_chunk_size("1024").unwrap(), 1024);
+        assert_eq!(parse_chunk_size("1KB").unwrap(), 1024);
+        assert_eq!(parse_chunk_size("1MB").unwrap(), 1024 * 1024);
+        assert_eq!(parse_chunk_size("1GB").unwrap(), 1024 * 1024 * 1024);
+
+        // Test case insensitive
+        assert_eq!(parse_chunk_size("50mb").unwrap(), 50 * 1024 * 1024);
+        assert_eq!(parse_chunk_size("50MB").unwrap(), 50 * 1024 * 1024);
+
+        // Test fractional values
+        assert_eq!(parse_chunk_size("0.5MB").unwrap(), 512 * 1024);
+
+        // Test alternative units
+        assert_eq!(parse_chunk_size("1K").unwrap(), 1024);
+        assert_eq!(parse_chunk_size("1M").unwrap(), 1024 * 1024);
+
+        // Test whitespace handling
+        assert_eq!(parse_chunk_size(" 10 MB ").unwrap(), 10 * 1024 * 1024);
+
+        // Test error cases
+        assert!(parse_chunk_size("invalid").is_err());
+        assert!(parse_chunk_size("10XB").is_err());
+        assert!(parse_chunk_size("100").unwrap() < 1024); // Too small should be caught in validation
     }
 }

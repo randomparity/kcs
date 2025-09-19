@@ -17,7 +17,11 @@ repos:
     hooks:
       - id: mypy
         files: ^src/python/.*\.py$
-        additional_dependencies: [types-requests, types-PyYAML, types-psutil]
+        additional_dependencies: [
+          types-requests, types-PyYAML, types-psutil, types-aiofiles,
+          pydantic, structlog, fastapi, asyncpg
+        ]
+        args: [--config-file=pyproject.toml]
 
   # Rust formatting and linting
   - repo: local

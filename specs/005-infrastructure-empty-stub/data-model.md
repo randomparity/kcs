@@ -126,7 +126,7 @@ Represents a function in the call graph.
 - `file_path`: String - Source file containing function
 - `line_number`: Integer - Line where function defined
 - `signature`: String - Full function signature
-- `is_entry_point`: Boolean - Whether this is a kernel entry point
+- `is_entrypoint`: Boolean - Whether this is a kernel entry point
 - `entry_type`: `Optional<Enum>` - Type if entry point (syscall, ioctl, file_ops, sysfs)
 - `config_visibility`: `Vec<String>` - Configs where this function exists
 - `metadata`: JSONB - Additional function metadata
@@ -136,7 +136,7 @@ Represents a function in the call graph.
 - node_id must be unique
 - file_path must be relative to kernel root
 - line_number must be positive
-- entry_type required if is_entry_point is true
+- entry_type required if is_entrypoint is true
 
 ### 6. CallGraphEdge
 
@@ -287,7 +287,7 @@ CREATE TABLE graph_export (
 ```sql
 -- Add config awareness to existing tables
 ALTER TABLE symbol ADD COLUMN config_visibility JSONB DEFAULT '["x86_64:defconfig"]';
-ALTER TABLE entry_point ADD COLUMN config_dependent VARCHAR(255);
+ALTER TABLE entrypoint ADD COLUMN config_dependent VARCHAR(255);
 ALTER TABLE call_edge ADD COLUMN config_dependent VARCHAR(255);
 
 -- Add embedding support index

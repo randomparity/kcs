@@ -5,7 +5,7 @@ These tests verify the API contract defined in contracts/mcp-endpoints.json.
 They MUST fail before implementation and pass after.
 
 Enhanced contract with call graph features:
-- entry_point parameter (syscall, ioctl, etc.)
+- entrypoint parameter (syscall, ioctl, etc.)
 - target_function parameter (optional, specific implementation)
 - call_paths array with path arrays containing function steps
 - Each path step has function_name, file_path, line_number, call_type
@@ -71,7 +71,7 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test that entrypoint_flow endpoint exists and accepts requests."""
-        payload = {"entry_point": "sys_open"}
+        payload = {"entrypoint": "sys_open"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -86,7 +86,7 @@ class TestEntrypointFlowContract:
         """Test request schema validation according to contract."""
         # Valid request with all parameters
         payload = {
-            "entry_point": "sys_open",
+            "entrypoint": "sys_open",
             "target_function": "ext4_file_open",
             "config": "defconfig",
         }
@@ -97,7 +97,7 @@ class TestEntrypointFlowContract:
 
         assert response.status_code not in [422], "Valid schema should be accepted"
 
-        # Test missing required field (entry_point)
+        # Test missing required field (entrypoint)
         invalid_payload = {"target_function": "ext4_file_open", "config": "defconfig"}
 
         response = await http_client.post(
@@ -105,14 +105,14 @@ class TestEntrypointFlowContract:
         )
 
         assert response.status_code == 422, (
-            "Should reject request without required entry_point"
+            "Should reject request without required entrypoint"
         )
 
     async def test_entrypoint_flow_response_structure(
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test response schema matches contract specification."""
-        payload = {"entry_point": "sys_read"}
+        payload = {"entrypoint": "sys_read"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -194,19 +194,19 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test target_function parameter behavior."""
-        entry_point = "sys_open"
+        entrypoint = "sys_open"
 
         # Test without target_function (find all paths)
         response1 = await http_client.post(
             "/mcp/tools/entrypoint_flow",
-            json={"entry_point": entry_point},
+            json={"entrypoint": entrypoint},
             headers=auth_headers,
         )
 
         # Test with specific target_function
         response2 = await http_client.post(
             "/mcp/tools/entrypoint_flow",
-            json={"entry_point": entry_point, "target_function": "ext4_file_open"},
+            json={"entrypoint": entrypoint, "target_function": "ext4_file_open"},
             headers=auth_headers,
         )
 
@@ -248,19 +248,19 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test config parameter for kernel configuration context."""
-        entry_point = "sys_open"
+        entrypoint = "sys_open"
 
         # Test without config
         response1 = await http_client.post(
             "/mcp/tools/entrypoint_flow",
-            json={"entry_point": entry_point},
+            json={"entrypoint": entrypoint},
             headers=auth_headers,
         )
 
         # Test with config
         response2 = await http_client.post(
             "/mcp/tools/entrypoint_flow",
-            json={"entry_point": entry_point, "config": "defconfig"},
+            json={"entrypoint": entrypoint, "config": "defconfig"},
             headers=auth_headers,
         )
 
@@ -285,7 +285,7 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test that call paths are logically consistent."""
-        payload = {"entry_point": "sys_read"}
+        payload = {"entrypoint": "sys_read"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -330,7 +330,7 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test confidence scoring for call paths."""
-        payload = {"entry_point": "sys_write"}
+        payload = {"entrypoint": "sys_write"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -364,7 +364,7 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test behavior with nonexistent entry point."""
-        payload = {"entry_point": "nonexistent_syscall_xyz_999"}
+        payload = {"entrypoint": "nonexistent_syscall_xyz_999"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -387,7 +387,7 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test performance meets p95 < 600ms requirement."""
-        payload = {"entry_point": "sys_read", "config": "defconfig"}
+        payload = {"entrypoint": "sys_read", "config": "defconfig"}
 
         import time
 
@@ -411,7 +411,7 @@ class TestEntrypointFlowContract:
 
     async def test_entrypoint_flow_authentication(self, http_client: httpx.AsyncClient):
         """Test that entrypoint_flow requires authentication."""
-        payload = {"entry_point": "sys_open"}
+        payload = {"entrypoint": "sys_open"}
 
         # Request without auth headers
         response = await http_client.post("/mcp/tools/entrypoint_flow", json=payload)
@@ -422,7 +422,7 @@ class TestEntrypointFlowContract:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test realistic distribution of call types in paths."""
-        payload = {"entry_point": "sys_open"}
+        payload = {"entrypoint": "sys_open"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -462,7 +462,7 @@ class TestEntrypointFlowIntegration:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test with actual kernel syscall entry point."""
-        payload = {"entry_point": "sys_read"}
+        payload = {"entrypoint": "sys_read"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -500,7 +500,7 @@ class TestEntrypointFlowIntegration:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test targeted search from entry point to specific function."""
-        payload = {"entry_point": "sys_open", "target_function": "vfs_open"}
+        payload = {"entrypoint": "sys_open", "target_function": "vfs_open"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -532,7 +532,7 @@ class TestEntrypointFlowIntegration:
     ):
         """Test that complex entry points can have multiple paths."""
         # Use a syscall that likely has multiple implementation paths
-        payload = {"entry_point": "sys_write"}
+        payload = {"entrypoint": "sys_write"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers
@@ -555,7 +555,7 @@ class TestEntrypointFlowIntegration:
         self, http_client: httpx.AsyncClient, auth_headers: dict[str, str]
     ):
         """Test that confidence scores reflect path quality."""
-        payload = {"entry_point": "sys_read"}
+        payload = {"entrypoint": "sys_read"}
 
         response = await http_client.post(
             "/mcp/tools/entrypoint_flow", json=payload, headers=auth_headers

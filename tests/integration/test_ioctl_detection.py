@@ -28,8 +28,8 @@ def run_ioctl_extraction(kernel_path: Path) -> dict[str, Any]:
     This simulates what the full pipeline would do when processing
     kernel source files for ioctl detection.
     """
-    # For now, use the extract_entry_points_streaming tool if available
-    extract_tool = Path("tools/extract_entry_points_streaming.py")
+    # For now, use the extract_entrypoints_streaming tool if available
+    extract_tool = Path("tools/extract_entrypoints_streaming.py")
 
     if not extract_tool.exists():
         # If tool doesn't exist yet, return empty results

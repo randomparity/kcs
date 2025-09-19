@@ -122,7 +122,7 @@ async def graph_db(postgres_container: PostgresContainer) -> Any:
         """)
 
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS entry_point (
+            CREATE TABLE IF NOT EXISTS entrypoint (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 entry_type TEXT NOT NULL,
@@ -152,7 +152,7 @@ async def graph_db(postgres_container: PostgresContainer) -> Any:
             "CREATE INDEX IF NOT EXISTS idx_call_edge_type ON call_edge(call_type)"
         )
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_entry_point_name ON entry_point(name)"
+            "CREATE INDEX IF NOT EXISTS idx_entrypoint_name ON entrypoint(name)"
         )
 
         print("Generating complex call graph data for performance testing...")
@@ -320,7 +320,7 @@ async def graph_db(postgres_container: PostgresContainer) -> Any:
             if symbol_idx < len(symbol_ids):
                 await conn.execute(
                     """
-                    INSERT INTO entry_point (name, entry_type, symbol_id, file_id, line_number, syscall_number)
+                    INSERT INTO entrypoint (name, entry_type, symbol_id, file_id, line_number, syscall_number)
                     VALUES ($1, $2, $3, $4, $5, $6)
                     """,
                     f"__NR_perf_syscall_{i}",

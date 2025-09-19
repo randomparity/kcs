@@ -10,7 +10,7 @@ Enhanced contract with call graph features:
 - direct_callers count (immediate callers)
 - total_affected count (all transitively affected functions)
 - affected_subsystems array (kernel subsystems impacted)
-- critical_paths array with entry_point, path_length, subsystem
+- critical_paths array with entrypoint, path_length, subsystem
 - risk_level enum (Low, Medium, High, Critical)
 - config parameter support
 """
@@ -216,14 +216,14 @@ class TestImpactOfContract:
 
             # Verify critical_paths structure
             for critical_path in data["critical_paths"]:
-                required_path_fields = ["entry_point", "path_length", "subsystem"]
+                required_path_fields = ["entrypoint", "path_length", "subsystem"]
                 for field in required_path_fields:
                     assert field in critical_path, (
                         f"Critical path must have '{field}' field"
                     )
 
-                assert isinstance(critical_path["entry_point"], str), (
-                    "entry_point should be string"
+                assert isinstance(critical_path["entrypoint"], str), (
+                    "entrypoint should be string"
                 )
                 assert isinstance(critical_path["path_length"], int), (
                     "path_length should be integer"
@@ -233,7 +233,7 @@ class TestImpactOfContract:
                 )
 
                 # Verify constraints
-                assert critical_path["entry_point"], "entry_point should not be empty"
+                assert critical_path["entrypoint"], "entrypoint should not be empty"
                 assert critical_path["path_length"] > 0, (
                     "path_length should be positive"
                 )
@@ -389,8 +389,8 @@ class TestImpactOfContract:
 
             for critical_path in data["critical_paths"]:
                 # Entry points should be realistic kernel entry points
-                entry_point = critical_path["entry_point"]
-                assert entry_point, "Entry point should not be empty"
+                entrypoint = critical_path["entrypoint"]
+                assert entrypoint, "Entry point should not be empty"
 
                 # Common entry point patterns in kernel
                 # (syscalls, interrupts, etc.)

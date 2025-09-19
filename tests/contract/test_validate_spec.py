@@ -67,7 +67,7 @@ class TestValidateSpecContract:
             "specification": {
                 "name": "VFS Read Operation",
                 "version": "1.0.0",
-                "entry_point": "vfs_read",
+                "entrypoint": "vfs_read",
                 "expected_behavior": {
                     "description": "Read data from file",
                     "preconditions": ["Valid file descriptor", "Buffer allocated"],
@@ -92,7 +92,7 @@ class TestValidateSpecContract:
             "specification": {
                 "name": "Test Spec",
                 "version": "1.0.0",
-                "entry_point": "test_func",
+                "entrypoint": "test_func",
             }
         }
 
@@ -121,7 +121,7 @@ class TestValidateSpecContract:
             json={
                 "specification": {
                     "name": "Test Spec",
-                    # Missing version and entry_point
+                    # Missing version and entrypoint
                 }
             },
             headers=auth_headers,
@@ -137,7 +137,7 @@ class TestValidateSpecContract:
                 "specification": {
                     "name": "Test Spec",
                     "version": "invalid-version",
-                    "entry_point": "test_func",
+                    "entrypoint": "test_func",
                 }
             },
             headers=auth_headers,
@@ -152,7 +152,7 @@ class TestValidateSpecContract:
             "specification": {
                 "name": "VFS Read Operation",
                 "version": "1.0.0",
-                "entry_point": "vfs_read",
+                "entrypoint": "vfs_read",
                 "expected_behavior": {
                     "description": "Read data from file",
                     "preconditions": ["Valid file descriptor"],
@@ -247,14 +247,14 @@ class TestValidateSpecContract:
 
             # Verify implementation_details structure
             impl_details = data["implementation_details"]
-            if "entry_point" in impl_details:
-                assert isinstance(impl_details["entry_point"], dict), (
-                    "entry_point should be object"
+            if "entrypoint" in impl_details:
+                assert isinstance(impl_details["entrypoint"], dict), (
+                    "entrypoint should be object"
                 )
-                assert "symbol" in impl_details["entry_point"], (
+                assert "symbol" in impl_details["entrypoint"], (
                     "Entry point should have symbol"
                 )
-                assert "span" in impl_details["entry_point"], (
+                assert "span" in impl_details["entrypoint"], (
                     "Entry point should have span"
                 )
 
@@ -276,7 +276,7 @@ class TestValidateSpecContract:
             "specification": {
                 "name": "Test Function",
                 "version": "1.0.0",
-                "entry_point": "test_func",
+                "entrypoint": "test_func",
             },
             "drift_threshold": 0.8,  # 80% compliance required
         }
@@ -304,12 +304,12 @@ class TestValidateSpecContract:
                 {
                     "name": "VFS Read",
                     "version": "1.0.0",
-                    "entry_point": "vfs_read",
+                    "entrypoint": "vfs_read",
                 },
                 {
                     "name": "VFS Write",
                     "version": "1.0.0",
-                    "entry_point": "vfs_write",
+                    "entrypoint": "vfs_write",
                 },
             ],
             "kernel_version": "6.1.0",
@@ -339,7 +339,7 @@ class TestValidateSpecContract:
             "specification": {
                 "name": "Custom IOCTL Handler",
                 "version": "1.0.0",
-                "entry_point": "my_ioctl",
+                "entrypoint": "my_ioctl",
                 "implementation_hints": {
                     "file_pattern": "drivers/custom/*.c",
                     "subsystem": "drivers",
@@ -374,7 +374,7 @@ class TestValidateSpecContract:
             "specification": {
                 "name": "VFS Operation",
                 "version": "2.0.0",
-                "entry_point": "vfs_read",
+                "entrypoint": "vfs_read",
                 "previous_version": "1.0.0",
             },
             "compare_with_previous": True,
@@ -411,7 +411,7 @@ class TestValidateSpecContract:
             "specification": {
                 "name": "Non-existent Function",
                 "version": "1.0.0",
-                "entry_point": "nonexistent_function_xyz123",
+                "entrypoint": "nonexistent_function_xyz123",
             }
         }
 

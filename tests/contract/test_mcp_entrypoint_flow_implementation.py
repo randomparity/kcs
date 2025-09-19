@@ -95,7 +95,7 @@ async def test_db(postgres_container: PostgresContainer) -> Database:
         """)
 
         await conn.execute("""
-            CREATE TABLE IF NOT EXISTS entry_point (
+            CREATE TABLE IF NOT EXISTS entrypoint (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 type TEXT NOT NULL,
@@ -149,7 +149,7 @@ async def test_db(postgres_container: PostgresContainer) -> Database:
         # Create entry point for sys_read
         await conn.execute(
             """
-            INSERT INTO entry_point (name, type, symbol_id, syscall_number)
+            INSERT INTO entrypoint (name, type, symbol_id, syscall_number)
             VALUES ('read', 'syscall', $1, 0)
         """,
             sys_read_id,
@@ -188,7 +188,7 @@ async def test_db(postgres_container: PostgresContainer) -> Database:
 
         await conn.execute(
             """
-            INSERT INTO entry_point (name, type, symbol_id)
+            INSERT INTO entrypoint (name, type, symbol_id)
             VALUES ('device_ioctl', 'ioctl', $1)
         """,
             ioctl_symbol_id,
@@ -402,7 +402,7 @@ class TestEntrypointFlowContract:
     @skip_without_mcp
     @skip_in_ci
     @pytest.mark.asyncio
-    async def test_ioctl_entry_point(
+    async def test_ioctl_entrypoint(
         self, auth_headers: dict[str, str], test_db: Database
     ) -> None:
         """Test that ioctl entry points are handled correctly."""

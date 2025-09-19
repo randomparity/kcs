@@ -1,0 +1,268 @@
+openapi: 3.0.0
+info:
+  title: KCS Chunk Processing API
+  version: 1.0.0
+  description: API endpoints for managing and processing kernel index chunks
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /mcp/chunks/manifest:
+    get:
+      summary: Retrieve chunk manifest
+      description: Get the current manifest listing all available chunks
+      operationId: getChunkManifest
+      responses:
+        '200':
+          description: Manifest retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkManifest'
+        '404':
+          description: No manifest found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mcp/chunks/{chunkId}/status:
+    get:
+      summary: Get chunk processing status
+      description: Check the current processing state of a specific chunk
+      operationId: getChunkStatus
+      parameters:
+        - name: chunkId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique chunk identifier (e.g., kernel_001)
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingStatus'
+        '404':
+          description: Chunk not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mcp/chunks/{chunkId}/process:
+    post:
+      summary: Process a chunk
+      description: Trigger processing of a specific chunk into the database
+      operationId: processChunk
+      parameters:
+        - name: chunkId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique chunk identifier
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  description: Force reprocessing even if already completed
+                  default: false
+      responses:
+        '202':
+          description: Processing started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  chunk_id:
+                    type: string
+                  status:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Chunk already processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mcp/chunks/process/batch:
+    post:
+      summary: Process multiple chunks
+      description: Trigger parallel processing of multiple chunks
+      operationId: processBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - chunk_ids
+              properties:
+                chunk_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: List of chunk IDs to process
+                  minItems: 1
+                  maxItems: 100
+                parallelism:
+                  type: integer
+                  description: Number of chunks to process in parallel
+                  minimum: 1
+                  maximum: 10
+                  default: 4
+      responses:
+        '202':
+          description: Batch processing started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  total_chunks:
+                    type: integer
+                  processing:
+                    type: array
+                    items:
+                      type: string
+
+components:
+  schemas:
+    ChunkManifest:
+      type: object
+      required:
+        - version
+        - created
+        - total_chunks
+        - chunks
+      properties:
+        version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+          example: "1.0.0"
+        created:
+          type: string
+          format: date-time
+        kernel_version:
+          type: string
+          example: "6.7.0"
+        kernel_path:
+          type: string
+          example: "/home/user/src/linux"
+        config:
+          type: string
+          example: "x86_64:defconfig"
+        total_chunks:
+          type: integer
+          minimum: 1
+        total_size_bytes:
+          type: integer
+          format: int64
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChunkMetadata'
+
+    ChunkMetadata:
+      type: object
+      required:
+        - id
+        - sequence
+        - file
+        - subsystem
+        - size_bytes
+        - checksum_sha256
+      properties:
+        id:
+          type: string
+          example: "kernel_001"
+        sequence:
+          type: integer
+          minimum: 1
+        file:
+          type: string
+          example: "chunks/kernel_001.json"
+        subsystem:
+          type: string
+          example: "kernel"
+        size_bytes:
+          type: integer
+          format: int64
+        checksum_sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        symbol_count:
+          type: integer
+          minimum: 0
+        entrypoint_count:
+          type: integer
+          minimum: 0
+        file_count:
+          type: integer
+          minimum: 0
+
+    ProcessingStatus:
+      type: object
+      required:
+        - chunk_id
+        - status
+        - manifest_version
+      properties:
+        chunk_id:
+          type: string
+        manifest_version:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        error_message:
+          type: string
+        retry_count:
+          type: integer
+          minimum: 0
+          maximum: 3
+        symbols_processed:
+          type: integer
+          minimum: 0
+        checksum_verified:
+          type: boolean
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object

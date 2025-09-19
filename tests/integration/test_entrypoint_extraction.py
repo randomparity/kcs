@@ -93,15 +93,15 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Should find syscalls in test fixtures
-            syscalls = [ep for ep in entry_points if ep["entry_type"] == "syscall"]
+            syscalls = [ep for ep in entrypoints if ep["entry_type"] == "syscall"]
             assert len(syscalls) > 0, "Should detect syscalls in kernel fixtures"
 
             # Verify syscall metadata
@@ -125,16 +125,16 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Should find ioctls in test fixtures
             # NOTE: This MUST fail initially as ioctl extraction isn't fully implemented
-            ioctls = [ep for ep in entry_points if ep["entry_type"] == "ioctl"]
+            ioctls = [ep for ep in entrypoints if ep["entry_type"] == "ioctl"]
             assert len(ioctls) > 0, "Should detect ioctl handlers in kernel fixtures"
 
             # Check for ioctl command metadata
@@ -160,15 +160,15 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Should find file_ops in test fixtures
-            file_ops = [ep for ep in entry_points if ep["entry_type"] == "file_ops"]
+            file_ops = [ep for ep in entrypoints if ep["entry_type"] == "file_ops"]
             assert len(file_ops) > 0, "Should detect file_operations in kernel fixtures"
 
             # Verify file_ops have associated operation names
@@ -189,15 +189,15 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Should find sysfs attributes in test fixtures
-            sysfs = [ep for ep in entry_points if ep["entry_type"] == "sysfs"]
+            sysfs = [ep for ep in entrypoints if ep["entry_type"] == "sysfs"]
             assert len(sysfs) > 0, "Should detect sysfs attributes in kernel fixtures"
 
             # Verify sysfs handlers (show/store)
@@ -221,16 +221,16 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Should find procfs entries in test fixtures
             # NOTE: This MUST fail initially as procfs extraction isn't implemented
-            procfs = [ep for ep in entry_points if ep["entry_type"] == "procfs"]
+            procfs = [ep for ep in entrypoints if ep["entry_type"] == "procfs"]
             assert len(procfs) > 0, "Should detect procfs entries in kernel fixtures"
 
             # Verify proc_ops structures
@@ -251,16 +251,16 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Should find debugfs entries in test fixtures
             # NOTE: This MUST fail initially as debugfs extraction isn't implemented
-            debugfs = [ep for ep in entry_points if ep["entry_type"] == "debugfs"]
+            debugfs = [ep for ep in entrypoints if ep["entry_type"] == "debugfs"]
             assert len(debugfs) > 0, "Should detect debugfs entries in kernel fixtures"
 
     @pytest.mark.asyncio
@@ -276,16 +276,16 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Should find netlink handlers in test fixtures
             # NOTE: This MUST fail initially as netlink extraction isn't implemented
-            netlink = [ep for ep in entry_points if ep["entry_type"] == "netlink"]
+            netlink = [ep for ep in entrypoints if ep["entry_type"] == "netlink"]
             assert len(netlink) > 0, "Should detect netlink handlers in kernel fixtures"
 
             # Verify netlink family metadata
@@ -320,23 +320,23 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
             stats = data.get("statistics", {})
 
             # Should find multiple entry point types
-            entry_types_found = {ep["entry_type"] for ep in entry_points}
+            entry_types_found = {ep["entry_type"] for ep in entrypoints}
             assert len(entry_types_found) > 1, (
                 f"Should detect multiple entry point types, found: {entry_types_found}"
             )
 
             # Verify statistics are provided
             assert "total" in stats, "Should provide total count in statistics"
-            assert stats["total"] == len(entry_points), (
+            assert stats["total"] == len(entrypoints), (
                 "Total count should match entry points returned"
             )
 
@@ -344,7 +344,7 @@ class TestEntryPointExtraction:
                 # Statistics should match actual counts
                 for entry_type, count in stats["by_type"].items():
                     actual_count = len(
-                        [ep for ep in entry_points if ep["entry_type"] == entry_type]
+                        [ep for ep in entrypoints if ep["entry_type"] == entry_type]
                     )
                     assert count == actual_count, (
                         f"Statistics mismatch for {entry_type}: "
@@ -365,21 +365,19 @@ class TestEntryPointExtraction:
         }
 
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
 
         if response.status_code == 200:
             data = response.json()
-            entry_points = data.get("entry_points", [])
+            entrypoints = data.get("entrypoints", [])
 
             # Count entries with metadata
-            with_metadata = [ep for ep in entry_points if ep.get("metadata")]
+            with_metadata = [ep for ep in entrypoints if ep.get("metadata")]
 
             # At least some entries should have metadata
             # NOTE: This percentage will increase as more metadata extraction is implemented
-            metadata_ratio = (
-                len(with_metadata) / len(entry_points) if entry_points else 0
-            )
+            metadata_ratio = len(with_metadata) / len(entrypoints) if entrypoints else 0
             assert metadata_ratio > 0.3, (
                 f"At least 30% of entry points should have metadata, got {metadata_ratio:.1%}"
             )
@@ -400,7 +398,7 @@ class TestEntryPointExtraction:
 
         start_time = time.time()
         response = await http_client.post(
-            "/extract/entry_points", json=payload, headers=auth_headers
+            "/extract/entrypoints", json=payload, headers=auth_headers
         )
         elapsed_time = time.time() - start_time
 

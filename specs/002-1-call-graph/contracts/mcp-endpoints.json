@@ -113,7 +113,7 @@
       "request": {
         "type": "object",
         "properties": {
-          "entry_point": {
+          "entrypoint": {
             "type": "string",
             "description": "Entry point identifier (syscall, ioctl, etc.)",
             "example": "sys_open"
@@ -130,7 +130,7 @@
             "nullable": true
           }
         },
-        "required": ["entry_point"]
+        "required": ["entrypoint"]
       },
       "response": {
         "type": "object",
@@ -203,11 +203,11 @@
             "items": {
               "type": "object",
               "properties": {
-                "entry_point": {"type": "string"},
+                "entrypoint": {"type": "string"},
                 "path_length": {"type": "integer"},
                 "subsystem": {"type": "string"}
               },
-              "required": ["entry_point", "path_length", "subsystem"]
+              "required": ["entrypoint", "path_length", "subsystem"]
             }
           },
           "risk_level": {

@@ -367,11 +367,11 @@ class TestSymbolExtraction:
 
         system_env.test_results["syscalls"] = found_syscalls[:20]  # Store subset
 
-    def test_entry_point_detection(self, system_env):
+    def test_entrypoint_detection(self, system_env):
         """Test detection of kernel entry points."""
         kernel_path = system_env.kernel_path
 
-        entry_points = []
+        entrypoints = []
 
         # Look for various types of entry points
         patterns = {
@@ -398,7 +398,7 @@ class TestSymbolExtraction:
                     for pattern_name, pattern in patterns.items():
                         matches = re.findall(pattern, content)
                         for match in matches:
-                            entry_points.append(
+                            entrypoints.append(
                                 {
                                     "name": match,
                                     "type": pattern_name,
@@ -410,21 +410,21 @@ class TestSymbolExtraction:
                     continue
 
         # Should find some entry points
-        assert len(entry_points) > 5, (
-            f"Expected >5 entry points, found {len(entry_points)}"
+        assert len(entrypoints) > 5, (
+            f"Expected >5 entry points, found {len(entrypoints)}"
         )
 
         # Group by type
         by_type = {}
-        for ep in entry_points:
+        for ep in entrypoints:
             ep_type = ep["type"]
             by_type.setdefault(ep_type, 0)
             by_type[ep_type] += 1
 
-        print(f"Entry point detection: {len(entry_points)} total")
+        print(f"Entry point detection: {len(entrypoints)} total")
         print(f"By type: {by_type}")
 
-        system_env.test_results["entry_points"] = entry_points[:20]
+        system_env.test_results["entrypoints"] = entrypoints[:20]
 
 
 @skip_integration_in_ci
@@ -695,7 +695,7 @@ class TestSystemIntegration:
             "parser_performance",
             "function_detection",
             "syscalls",
-            "entry_points",
+            "entrypoints",
             "call_graph",
             "citations",
         ]
@@ -811,12 +811,12 @@ class TestRealWorldScenarios:
         """Test security researcher workflow."""
         # Scenario: Researcher analyzing entry points for vulnerabilities
 
-        if "entry_points" not in system_env.test_results:
+        if "entrypoints" not in system_env.test_results:
             pytest.skip("Entry point data not available")
 
-        entry_points = system_env.test_results["entry_points"]
+        entrypoints = system_env.test_results["entrypoints"]
 
-        if not entry_points:
+        if not entrypoints:
             pytest.skip("No entry points found for security test")
 
         # Security analysis workflow:
@@ -826,9 +826,9 @@ class TestRealWorldScenarios:
         # 4. Check input validation (simulated)
 
         security_checks = {
-            "entry_points_found": len(entry_points) > 0,
-            "multiple_types": len({ep["type"] for ep in entry_points}) > 1,
-            "file_coverage": len({ep["file"] for ep in entry_points}) > 1,
+            "entrypoints_found": len(entrypoints) > 0,
+            "multiple_types": len({ep["type"] for ep in entrypoints}) > 1,
+            "file_coverage": len({ep["file"] for ep in entrypoints}) > 1,
             "pattern_diversity": True,  # Mock check
         }
 

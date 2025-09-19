@@ -345,7 +345,7 @@ information and documentation extraction.
 1. **Via CLI tool:**
 
    ```bash
-   tools/extract_entry_points_streaming.py \
+   tools/extract_entrypoints_streaming.py \
        input.json output.json \
        --enable-clang
    ```
@@ -397,23 +397,23 @@ The primary CLI tool for entry point extraction:
 
 ```bash
 # Extract all entry points
-tools/extract_entry_points_streaming.py \
+tools/extract_entrypoints_streaming.py \
     parsed_symbols.json \
-    entry_points.json \
+    entrypoints.json \
     --entry-types all
 
 # Extract specific types with pattern detection
-tools/extract_entry_points_streaming.py \
+tools/extract_entrypoints_streaming.py \
     parsed_symbols.json \
-    entry_points.json \
+    entrypoints.json \
     --entry-types syscalls,ioctls,procfs \
     --pattern-detection \
     --patterns-output patterns.json
 
 # With parallel processing
-tools/extract_entry_points_streaming.py \
+tools/extract_entrypoints_streaming.py \
     parsed_symbols.json \
-    entry_points.json \
+    entrypoints.json \
     --entry-types all \
     --workers 8
 ```
@@ -424,7 +424,7 @@ tools/extract_entry_points_streaming.py \
 import kcs_python_bridge as kpb
 
 # Extract entry points
-entry_points = kpb.extract_entry_points(
+entrypoints = kpb.extract_entrypoints(
     kernel_dir="/path/to/kernel",
     include_syscalls=True,
     include_ioctls=True,
@@ -460,7 +460,7 @@ WHERE metadata->>'export_type' = 'EXPORT_SYMBOL_GPL';
 
 -- Find all procfs entries
 SELECT name, file_path, metadata->>'proc_ops' as ops
-FROM entry_point
+FROM entrypoint
 WHERE entry_type = 'ProcFs';
 
 -- Get module parameters with descriptions
@@ -533,8 +533,8 @@ CREATE INDEX idx_symbol_export_type
 ON symbol ((metadata->>'export_type'))
 WHERE metadata IS NOT NULL;
 
-CREATE INDEX idx_entry_point_type
-ON entry_point (entry_type);
+CREATE INDEX idx_entrypoint_type
+ON entrypoint (entry_type);
 
 -- Use connection pooling (2-10 connections)
 -- Configure in MCP server
@@ -599,7 +599,7 @@ Expected results:
 
 The pattern detection features are exposed through MCP endpoints:
 
-- `POST /mcp/tools/extract_entry_points` - Extract entry points
+- `POST /mcp/tools/extract_entrypoints` - Extract entry points
 - `POST /mcp/tools/detect_patterns` - Detect kernel patterns
 - `POST /mcp/tools/enhance_symbols` - Enhance with Clang
 

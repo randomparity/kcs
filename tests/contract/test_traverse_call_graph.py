@@ -195,9 +195,9 @@ class TestTraverseCallGraphContract:
                     assert isinstance(node["metadata"], dict), (
                         "metadata should be object"
                     )
-                if "is_entry_point" in node:
-                    assert isinstance(node["is_entry_point"], bool), (
-                        "is_entry_point should be boolean"
+                if "is_entrypoint" in node:
+                    assert isinstance(node["is_entrypoint"], bool), (
+                        "is_entrypoint should be boolean"
                     )
 
             # Verify edges structure

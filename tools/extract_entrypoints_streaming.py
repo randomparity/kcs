@@ -18,12 +18,12 @@ from typing import Any
 
 # Global progress tracking
 progress_lock = Lock()
-total_entry_points = 0
+total_entrypoints = 0
 processed_files = 0
 
 def extract_syscalls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract syscall entry points from a single file's data."""
-    entry_points = []
+    entrypoints = []
 
     file_path = file_data.get("path", "")
     symbols = file_data.get("symbols", [])
@@ -46,7 +46,7 @@ def extract_syscalls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any
         sys_match = sys_pattern.match(name)
         if sys_match:
             syscall_name = sys_match.group(1)
-            entry_points.append({
+            entrypoints.append({
                 "name": f"sys_{syscall_name}",
                 "entry_type": "Syscall",
                 "file_path": file_path,
@@ -61,7 +61,7 @@ def extract_syscalls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any
         ksys_match = ksys_pattern.match(name)
         if ksys_match:
             syscall_name = ksys_match.group(1)
-            entry_points.append({
+            entrypoints.append({
                 "name": f"ksys_{syscall_name}",
                 "entry_type": "Syscall",
                 "file_path": file_path,
@@ -75,7 +75,7 @@ def extract_syscalls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any
         # Check for direct sys_ function names (but avoid double-counting)
         if name.startswith("sys_") and not name.startswith(("__se_sys_", "__do_sys_")):
             syscall_name = name[4:]  # Remove 'sys_' prefix
-            entry_points.append({
+            entrypoints.append({
                 "name": name,
                 "entry_type": "Syscall",
                 "file_path": file_path,
@@ -85,18 +85,18 @@ def extract_syscalls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any
                 "metadata": metadata
             })
 
-    return entry_points
+    return entrypoints
 
 
 def extract_ioctls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract ioctl entry points from a single file's data."""
-    entry_points = []
+    entrypoints = []
 
     file_path = file_data.get("path", "")
 
     # Skip non-source files
     if not file_path.endswith(('.c', '.h')):
-        return entry_points
+        return entrypoints
 
     # Look for ioctl handlers in file operations structures
     # This is a simplified version - the Rust implementation is more comprehensive
@@ -109,7 +109,7 @@ def extract_ioctls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]
                 match = re.search(r'\.unlocked_ioctl\s*=\s*(\w+)', line)
                 if match:
                     handler_name = match.group(1)
-                    entry_points.append({
+                    entrypoints.append({
                         "name": handler_name,
                         "entry_type": "Ioctl",
                         "file_path": file_path,
@@ -119,18 +119,18 @@ def extract_ioctls_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]
                         "metadata": {"handler_type": "unlocked_ioctl"}
                     })
 
-    return entry_points
+    return entrypoints
 
 
 def extract_procfs_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract procfs entry points from a single file's data."""
-    entry_points = []
+    entrypoints = []
 
     file_path = file_data.get("path", "")
     content = file_data.get("content", "")
 
     if not content:
-        return entry_points
+        return entrypoints
 
     # Pattern for proc_create and related functions
     proc_create_pattern = re.compile(
@@ -142,7 +142,7 @@ def extract_procfs_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]
         if match:
             proc_name = match.group(1)
             ops_name = match.group(2)
-            entry_points.append({
+            entrypoints.append({
                 "name": f"/proc/{proc_name}",
                 "entry_type": "ProcFs",
                 "file_path": file_path,
@@ -152,18 +152,18 @@ def extract_procfs_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]
                 "metadata": {"proc_ops": ops_name}
             })
 
-    return entry_points
+    return entrypoints
 
 
 def extract_debugfs_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract debugfs entry points from a single file's data."""
-    entry_points = []
+    entrypoints = []
 
     file_path = file_data.get("path", "")
     content = file_data.get("content", "")
 
     if not content:
-        return entry_points
+        return entrypoints
 
     # Pattern for debugfs_create functions
     debugfs_pattern = re.compile(
@@ -174,7 +174,7 @@ def extract_debugfs_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]
         match = debugfs_pattern.search(line)
         if match:
             debug_name = match.group(1)
-            entry_points.append({
+            entrypoints.append({
                 "name": f"/sys/kernel/debug/{debug_name}",
                 "entry_type": "DebugFs",
                 "file_path": file_path,
@@ -184,18 +184,18 @@ def extract_debugfs_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]
                 "metadata": {}
             })
 
-    return entry_points
+    return entrypoints
 
 
 def extract_netlink_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract netlink handler entry points from a single file's data."""
-    entry_points = []
+    entrypoints = []
 
     file_path = file_data.get("path", "")
     content = file_data.get("content", "")
 
     if not content:
-        return entry_points
+        return entrypoints
 
     # Pattern for netlink_kernel_create
     netlink_pattern = re.compile(
@@ -206,7 +206,7 @@ def extract_netlink_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]
         match = netlink_pattern.search(line)
         if match:
             protocol = match.group(1)
-            entry_points.append({
+            entrypoints.append({
                 "name": f"netlink_{protocol}",
                 "entry_type": "Netlink",
                 "file_path": file_path,
@@ -216,18 +216,18 @@ def extract_netlink_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]
                 "metadata": {"protocol": protocol}
             })
 
-    return entry_points
+    return entrypoints
 
 
 def extract_interrupts_from_chunk(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract interrupt handler entry points from a single file's data."""
-    entry_points = []
+    entrypoints = []
 
     file_path = file_data.get("path", "")
     content = file_data.get("content", "")
 
     if not content:
-        return entry_points
+        return entrypoints
 
     # Patterns for request_irq and related functions
     irq_patterns = [
@@ -240,7 +240,7 @@ def extract_interrupts_from_chunk(file_data: dict[str, Any]) -> list[dict[str, A
             match = pattern.search(line)
             if match:
                 handler_name = match.group(1)
-                entry_points.append({
+                entrypoints.append({
                     "name": handler_name,
                     "entry_type": "Interrupt",
                     "file_path": file_path,
@@ -251,7 +251,7 @@ def extract_interrupts_from_chunk(file_data: dict[str, Any]) -> list[dict[str, A
                 })
                 break
 
-    return entry_points
+    return entrypoints
 
 
 def detect_kernel_patterns(file_data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -344,39 +344,39 @@ def detect_kernel_patterns(file_data: dict[str, Any]) -> list[dict[str, Any]]:
     return patterns
 
 
-def extract_entry_points_from_chunk(
+def extract_entrypoints_from_chunk(
     file_data: dict[str, Any],
     entry_types: set[str],
     enable_patterns: bool = False
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Extract multiple types of entry points from a single file's data."""
-    entry_points = []
+    entrypoints = []
     patterns = []
 
     # Extract requested entry point types
     if "syscalls" in entry_types:
-        entry_points.extend(extract_syscalls_from_chunk(file_data))
+        entrypoints.extend(extract_syscalls_from_chunk(file_data))
 
     if "ioctls" in entry_types:
-        entry_points.extend(extract_ioctls_from_chunk(file_data))
+        entrypoints.extend(extract_ioctls_from_chunk(file_data))
 
     if "procfs" in entry_types:
-        entry_points.extend(extract_procfs_from_chunk(file_data))
+        entrypoints.extend(extract_procfs_from_chunk(file_data))
 
     if "debugfs" in entry_types:
-        entry_points.extend(extract_debugfs_from_chunk(file_data))
+        entrypoints.extend(extract_debugfs_from_chunk(file_data))
 
     if "netlink" in entry_types:
-        entry_points.extend(extract_netlink_from_chunk(file_data))
+        entrypoints.extend(extract_netlink_from_chunk(file_data))
 
     if "interrupts" in entry_types:
-        entry_points.extend(extract_interrupts_from_chunk(file_data))
+        entrypoints.extend(extract_interrupts_from_chunk(file_data))
 
     # Detect kernel patterns if requested
     if enable_patterns:
         patterns = detect_kernel_patterns(file_data)
 
-    return entry_points, patterns
+    return entrypoints, patterns
 
 
 def process_files_batch(
@@ -385,22 +385,22 @@ def process_files_batch(
     enable_patterns: bool = False
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Process a batch of files in a single thread."""
-    global total_entry_points, processed_files
+    global total_entrypoints, processed_files
 
-    all_entry_points = []
+    all_entrypoints = []
     all_patterns = []
 
     for file_data in files_batch:
-        entry_points, patterns = extract_entry_points_from_chunk(file_data, entry_types, enable_patterns)
-        all_entry_points.extend(entry_points)
+        entrypoints, patterns = extract_entrypoints_from_chunk(file_data, entry_types, enable_patterns)
+        all_entrypoints.extend(entrypoints)
         all_patterns.extend(patterns)
 
     # Update global counters safely
     with progress_lock:
-        total_entry_points += len(all_entry_points)
+        total_entrypoints += len(all_entrypoints)
         processed_files += len(files_batch)
 
-    return all_entry_points, all_patterns
+    return all_entrypoints, all_patterns
 
 
 def process_large_json_streaming(
@@ -421,7 +421,7 @@ def process_large_json_streaming(
         max_workers: Number of worker threads
         patterns_output: Path to output JSON file for patterns (optional)
     """
-    global total_entry_points, processed_files
+    global total_entrypoints, processed_files
 
     # Default to number of CPU cores
     if max_workers is None:
@@ -433,7 +433,7 @@ def process_large_json_streaming(
         print("Pattern detection: ENABLED")
     print(f"Using {max_workers} worker threads for parallel processing...")
 
-    all_entry_points = []
+    all_entrypoints = []
     all_patterns = []
 
     # Get file size for progress calculation
@@ -487,8 +487,8 @@ def process_large_json_streaming(
                             # Collect some completed futures
                             completed_futures = []
                             for future in as_completed(futures[:len(futures)//2], timeout=1):
-                                entry_points, patterns = future.result()
-                                all_entry_points.extend(entry_points)
+                                entrypoints, patterns = future.result()
+                                all_entrypoints.extend(entrypoints)
                                 all_patterns.extend(patterns)
                                 completed_futures.append(future)
 
@@ -510,7 +510,7 @@ def process_large_json_streaming(
 
                     print(f"Progress: {progress_percent:.1f}% ({bytes_read/(1024*1024):.1f}/{file_size_mb:.1f}MB) "
                           f"| Speed: {mb_per_sec:.1f}MB/s | ETA: {eta_seconds/60:.1f}min "
-                          f"| Found: {total_entry_points} entry points | Files: {processed_files}")
+                          f"| Found: {total_entrypoints} entry points | Files: {processed_files}")
                     last_progress_time = current_time
 
             # Process remaining batch
@@ -520,20 +520,20 @@ def process_large_json_streaming(
 
             # Collect all remaining futures
             for future in as_completed(futures):
-                entry_points, patterns = future.result()
-                all_entry_points.extend(entry_points)
+                entrypoints, patterns = future.result()
+                all_entrypoints.extend(entrypoints)
                 all_patterns.extend(patterns)
 
     # Final progress
     elapsed = time.time() - start_time
-    print(f"Processing complete! Found {len(all_entry_points)} entry points in {elapsed:.1f}s")
+    print(f"Processing complete! Found {len(all_entrypoints)} entry points in {elapsed:.1f}s")
     if enable_patterns:
         print(f"Detected {len(all_patterns)} kernel patterns")
     print(f"Average speed: {file_size_mb/elapsed:.1f}MB/s")
 
     # Write entry points
     with open(output_file, 'w') as f:
-        json.dump(all_entry_points, f, indent=2)
+        json.dump(all_entrypoints, f, indent=2)
     print(f"Entry points written to: {output_file}")
 
     # Write patterns if requested
@@ -542,7 +542,7 @@ def process_large_json_streaming(
             json.dump(all_patterns, f, indent=2)
         print(f"Patterns written to: {patterns_output}")
 
-    return len(all_entry_points)
+    return len(all_entrypoints)
 
 
 def main():

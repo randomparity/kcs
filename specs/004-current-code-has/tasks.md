@@ -45,7 +45,7 @@
 ## Phase 3.1: Setup
 
 - [x] T001 Create database migration for metadata columns in `src/sql/migrations/005_metadata_columns.sql`
-  - Add metadata JSONB to entry_point and symbol tables
+  - Add metadata JSONB to entrypoint and symbol tables
   - Create kernel_pattern table
   - Add performance indexes
 
@@ -57,8 +57,8 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Contract Tests
 
-- [x] T002 [P] Contract test for extract_entry_points endpoint in `tests/contract/test_extract_entry_points.py`
-  - Validate request/response schemas match `contracts/extract_entry_points.yaml`
+- [x] T002 [P] Contract test for extract_entrypoints endpoint in `tests/contract/test_extract_entrypoints.py`
+  - Validate request/response schemas match `contracts/extract_entrypoints.yaml`
   - Test with kernel fixture data
   - Verify new entry types returned (procfs, debugfs, netlink, etc.)
   - MUST FAIL initially (new types not implemented)
@@ -77,7 +77,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Integration Tests
 
-- [x] T005 [P] Integration test for complete entry point extraction in `tests/integration/test_entry_point_extraction.py`
+- [x] T005 [P] Integration test for complete entry point extraction in `tests/integration/test_entrypoint_extraction.py`
   - Test all entry point types on kernel fixtures
   - Verify counts match expected ranges
   - Check metadata population
@@ -127,22 +127,22 @@ These tests MUST be written and MUST FAIL before ANY implementation
   - Detect _IO/_IOR/_IOW/_IOWR macros
   - Extract magic numbers and command codes
 
-- [x] T014 Implement procfs entry point detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T014 Implement procfs entry point detection in `src/rust/kcs-extractor/src/entrypoints.rs`
   - Add patterns for proc_create variants
   - Extract proc_ops structures
   - Identify show/write handlers
 
-- [x] T015 Implement debugfs entry point detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T015 Implement debugfs entry point detection in `src/rust/kcs-extractor/src/entrypoints.rs`
   - Add patterns for debugfs_create functions
   - Extract file operations
   - Identify debugfs attributes
 
-- [x] T016 Implement netlink handler detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T016 Implement netlink handler detection in `src/rust/kcs-extractor/src/entrypoints.rs`
   - Add patterns for netlink_kernel_create
   - Extract message handlers
   - Identify protocol families
 
-- [x] T017 Implement interrupt handler detection in `src/rust/kcs-extractor/src/entry_points.rs`
+- [x] T017 Implement interrupt handler detection in `src/rust/kcs-extractor/src/entrypoints.rs`
   - Add patterns for request_irq variants
   - Extract IRQ numbers and handlers
   - Identify interrupt types
@@ -181,13 +181,13 @@ These tests MUST be written and MUST FAIL before ANY implementation
 ### Database Integration
 
 - [x] T023 Update database insertion for metadata in `src/python/kcs_mcp/database.py`
-  - Modify insert_entry_points() to handle metadata JSONB
+  - Modify insert_entrypoints() to handle metadata JSONB
   - Modify insert_symbols() to handle metadata JSONB
   - Add insert_kernel_patterns() method
 
 ### CLI Updates
 
-- [x] T024 Update extract CLI for new options in `tools/extract_entry_points_streaming.py`
+- [x] T024 Update extract CLI for new options in `tools/extract_entrypoints_streaming.py`
   - Add --pattern-detection flag
   - Add --enable-clang flag
   - Add --entry-types filter
@@ -225,7 +225,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ```bash
 # Using Task agents or pytest
-Task: "Contract test for extract_entry_points in tests/contract/test_extract_entry_points.py"
+Task: "Contract test for extract_entrypoints in tests/contract/test_extract_entrypoints.py"
 Task: "Contract test for detect_patterns in tests/contract/test_detect_patterns.py"
 Task: "Contract test for enhance_symbols in tests/contract/test_enhance_symbols.py"
 ```
@@ -234,7 +234,7 @@ Task: "Contract test for enhance_symbols in tests/contract/test_enhance_symbols.
 
 ```bash
 # These test different aspects independently
-Task: "Integration test for entry point extraction in tests/integration/test_entry_point_extraction.py"
+Task: "Integration test for entry point extraction in tests/integration/test_entrypoint_extraction.py"
 Task: "Integration test for pattern detection in tests/integration/test_pattern_detection.py"
 Task: "Integration test for Clang enhancement in tests/integration/test_clang_enhancement.py"
 Task: "Integration test for ioctl detection in tests/integration/test_ioctl_detection.py"
