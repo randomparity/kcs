@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from .database import Database, get_database
 from .database.call_graph import CallGraphQueries
+from .database.queries import CallGraphQueries as CallGraphQueryOps
 from .models import (
     AsyncJobInfo,
     CallerInfo,
@@ -208,6 +209,46 @@ class ExtractCallGraphResponse(BaseModel):
         default_factory=list, description="Macro call expansions"
     )
     extraction_stats: ExtractionStats = Field(..., description="Extraction statistics")
+
+
+# Get Call Relationships Models
+class GetCallRelationshipsRequest(BaseModel):
+    """Request schema for call relationship queries."""
+
+    function_name: str = Field(..., description="Name of function to analyze")
+    relationship_type: str = Field(
+        default="both",
+        description="Type of relationships to retrieve",
+        pattern="^(callers|callees|both)$",
+    )
+    config_context: str | None = Field(
+        None,
+        description="Kernel configuration context",
+        examples=["x86_64:defconfig"],
+    )
+    max_depth: int = Field(
+        default=1,
+        description="Maximum traversal depth",
+        ge=1,
+        le=5,
+    )
+
+
+class CallRelationship(BaseModel):
+    """Call relationship information."""
+
+    function: FunctionReference = Field(..., description="Related function")
+    call_edge: CallEdge = Field(..., description="Call edge information")
+    depth: int = Field(..., description="Depth from original function", ge=1)
+
+
+class GetCallRelationshipsResponse(BaseModel):
+    """Response schema for call relationship queries."""
+
+    function_name: str = Field(..., description="Queried function name")
+    relationships: dict[str, list[CallRelationship]] = Field(
+        ..., description="Call relationships (callers/callees)"
+    )
 
 
 class CallGraphExtractor:
@@ -3619,3 +3660,167 @@ async def extract_call_graph(
                 message=f"Call graph extraction failed: {e!s}",
             ).dict(),
         ) from e
+
+
+@router.post("/get_call_relationships")
+async def get_call_relationships(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Get call relationships for a specific function.
+
+    This endpoint queries the database for functions that call the specified
+    function (callers), functions called by the specified function (callees),
+    or both, up to a specified depth.
+    """
+    try:
+        # Validate and parse request
+        validated_request = GetCallRelationshipsRequest(**request)
+
+        logger.info(
+            "get_call_relationships_request",
+            function_name=validated_request.function_name,
+            relationship_type=validated_request.relationship_type,
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Query call relationships from database
+        call_graph_queries = CallGraphQueryOps(db)
+        result = await call_graph_queries.get_call_relationships(
+            function_name=validated_request.function_name,
+            relationship_type=validated_request.relationship_type,  # type: ignore[arg-type]
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Check if function was found
+        if "error" in result:
+            if result["error"] == "Function not found":
+                logger.warning(
+                    "get_call_relationships_function_not_found",
+                    function_name=validated_request.function_name,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=ErrorResponse(
+                        error="function_not_found",
+                        message=f"Function '{validated_request.function_name}' not found",
+                    ).dict(),
+                )
+
+        # Transform database result to API response format
+        relationships: dict[str, list[CallRelationship]] = {}
+        if validated_request.relationship_type in ["callers", "both"]:
+            relationships["callers"] = [
+                CallRelationship(**_transform_relationship_to_api_format(rel))
+                for rel in result["relationships"]["callers"]
+            ]
+        if validated_request.relationship_type in ["callees", "both"]:
+            relationships["callees"] = [
+                CallRelationship(**_transform_relationship_to_api_format(rel))
+                for rel in result["relationships"]["callees"]
+            ]
+
+        response = GetCallRelationshipsResponse(
+            function_name=validated_request.function_name,
+            relationships=relationships,
+        )
+
+        logger.info(
+            "get_call_relationships_success",
+            function_name=validated_request.function_name,
+            callers_count=len(relationships.get("callers", [])),
+            callees_count=len(relationships.get("callees", [])),
+        )
+
+        return response.dict()
+
+    except ValueError as e:
+        logger.warning("get_call_relationships_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404)
+        raise
+    except Exception as e:
+        logger.error("get_call_relationships_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="query_failed",
+                message=f"Call relationship query failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+def _transform_relationship_to_api_format(
+    db_relationship: dict[str, Any],
+) -> dict[str, Any]:
+    """Transform database relationship result to API format."""
+    # The database returns relationship data that needs to be formatted
+    # according to the API contract
+    function_ref = FunctionReference(
+        name=db_relationship["function"]["name"],
+        file_path=db_relationship["function"]["file_path"],
+        line_number=db_relationship["function"]["line_number"],
+        signature=db_relationship["function"].get("signature"),
+        symbol_type=db_relationship["function"].get("symbol_type", "function"),
+        config_dependencies=db_relationship["function"].get("config_dependencies", []),
+    )
+
+    call_site = CallSite(
+        file_path=db_relationship["call_edge"]["call_site"]["file_path"],
+        line_number=db_relationship["call_edge"]["call_site"]["line_number"],
+        column_number=db_relationship["call_edge"]["call_site"].get("column_number"),
+        context_before=db_relationship["call_edge"]["call_site"].get("context_before"),
+        context_after=db_relationship["call_edge"]["call_site"].get("context_after"),
+        function_context=db_relationship["call_edge"]["call_site"].get(
+            "function_context"
+        ),
+    )
+
+    caller_ref = FunctionReference(
+        name=db_relationship["call_edge"]["caller"]["name"],
+        file_path=db_relationship["call_edge"]["caller"]["file_path"],
+        line_number=db_relationship["call_edge"]["caller"]["line_number"],
+        signature=db_relationship["call_edge"]["caller"].get("signature"),
+        symbol_type=db_relationship["call_edge"]["caller"].get(
+            "symbol_type", "function"
+        ),
+        config_dependencies=db_relationship["call_edge"]["caller"].get(
+            "config_dependencies", []
+        ),
+    )
+
+    callee_ref = FunctionReference(
+        name=db_relationship["call_edge"]["callee"]["name"],
+        file_path=db_relationship["call_edge"]["callee"]["file_path"],
+        line_number=db_relationship["call_edge"]["callee"]["line_number"],
+        signature=db_relationship["call_edge"]["callee"].get("signature"),
+        symbol_type=db_relationship["call_edge"]["callee"].get(
+            "symbol_type", "function"
+        ),
+        config_dependencies=db_relationship["call_edge"]["callee"].get(
+            "config_dependencies", []
+        ),
+    )
+
+    call_edge = CallEdge(
+        caller=caller_ref,
+        callee=callee_ref,
+        call_site=call_site,
+        call_type=db_relationship["call_edge"]["call_type"],
+        confidence=db_relationship["call_edge"]["confidence"],
+        conditional=db_relationship["call_edge"].get("conditional", False),
+        config_guard=db_relationship["call_edge"].get("config_guard"),
+        metadata=db_relationship["call_edge"].get("metadata", {}),
+    )
+
+    return {
+        "function": function_ref,
+        "call_edge": call_edge,
+        "depth": db_relationship["depth"],
+    }
