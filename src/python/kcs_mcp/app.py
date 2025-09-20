@@ -52,9 +52,48 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
 
+def _print_development_banner() -> None:
+    """Print a large ASCII banner warning about development build."""
+    banner = """
+╔═══════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                                   ║
+║  ██████╗ ███████╗██╗   ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗███╗   ██╗████████╗ ║
+║  ██╔══██╗██╔════╝██║   ██║██╔════╝██║     ██╔═══██╗██╔══██╗████╗ ████║██╔════╝████╗  ██║╚══██╔══╝ ║
+║  ██║  ██║█████╗  ██║   ██║█████╗  ██║     ██║   ██║██████╔╝██╔████╔██║█████╗  ██╔██╗ ██║   ██║    ║
+║  ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║     ██║   ██║██╔═══╝ ██║╚██╔╝██║██╔══╝  ██║╚██╗██║   ██║    ║
+║  ██████╔╝███████╗ ╚████╔╝ ███████╗███████╗╚██████╔╝██║     ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║    ║
+║  ╚═════╝ ╚══════╝  ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝    ║
+║                                                                                                   ║
+║                                 ██████╗ ██╗   ██╗██╗██╗     ██████╗                               ║
+║                                 ██╔══██╗██║   ██║██║██║     ██╔══██╗                              ║
+║                                 ██████╔╝██║   ██║██║██║     ██║  ██║                              ║
+║                                 ██╔══██╗██║   ██║██║██║     ██║  ██║                              ║
+║                                 ██████╔╝╚██████╔╝██║███████╗██████╔╝                              ║
+║                                 ╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝                               ║
+║                                                                                                   ║
+║                                           ⚠️  WARNING  ⚠️                                           ║
+║                                                                                                   ║
+║                            This is a DEVELOPMENT BUILD of the MCP server                          ║
+║                                                                                                   ║
+║                             • NOT FOR PRODUCTION USE                                              ║
+║                             • May contain debugging code                                          ║
+║                             • Security features may be disabled                                   ║
+║                             • Performance optimizations may be disabled                           ║
+║                                                                                                   ║
+║                           Set ENVIRONMENT=production for production deployment                    ║
+║                                                                                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════════════════════════╝
+"""
+    print(banner)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
+    # Show development warning banner if not in production
+    if ENVIRONMENT != "production":
+        _print_development_banner()
+
     logger.info("Starting KCS MCP server")
 
     # Initialize database connection
