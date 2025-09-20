@@ -46,13 +46,15 @@
 ## Phase 3.1: Setup
 
 - [x] T001 Add Tree-sitter call extraction dependencies to src/rust/kcs-parser/Cargo.toml
-- [ ] T002 Create database migration 013_call_graph_tables.sql with call_edges, function_pointers, macro_calls tables
-- [ ] T003 [P] Create Tree-sitter query file src/rust/kcs-parser/queries/call_patterns.scm for C call detection
+- [x] T002 Create database migration 013_call_graph_tables.sql with call_edges,
+  function_pointers, macro_calls tables
+- [ ] T003 [P] Create Tree-sitter query file src/rust/kcs-parser/queries/call_patterns.scm
+  for C call detection
 - [ ] T004 [P] Configure Rust clippy and formatting for call graph modules
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
+### CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Contract Tests (API Endpoints)
 
@@ -165,7 +167,7 @@ Task: "FunctionPointer struct in src/rust/kcs-graph/src/function_pointer.rs"
 
 ## Task Generation Rules
 
-*Applied during main() execution*
+### Applied during main() execution
 
 1. **From Contracts**:
    - call-graph-api.yaml → 4 contract test tasks [P] (T005-T008)
@@ -185,7 +187,7 @@ Task: "FunctionPointer struct in src/rust/kcs-graph/src/function_pointer.rs"
 
 ## Validation Checklist
 
-*GATE: Checked by main() before returning*
+### GATE: Checked by main() before returning
 
 - [x] All 4 contracts have corresponding tests (T005-T008)
 - [x] All 6 entities have model tasks (T013-T018)
@@ -203,4 +205,4 @@ Task: "FunctionPointer struct in src/rust/kcs-graph/src/function_pointer.rs"
 - T031-T034 (MCP integration): 3-4 days
 - T038-T040 (polish): 2-3 days
 
-**All 40 tasks ready for execution - system prepared for comprehensive call graph extraction capability**
+### All 40 tasks ready for execution - system prepared for comprehensive call graph extraction capability
