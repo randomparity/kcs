@@ -15,7 +15,9 @@ from fastapi import HTTPException, status
 
 from kcs_mcp.models import ErrorResponse
 
-# Import ChunkQueries from the submodule
+from .call_graph import CallGraphQueries
+
+# Import query classes from submodules
 from .chunk_queries import ChunkQueries
 
 logger = structlog.get_logger(__name__)
