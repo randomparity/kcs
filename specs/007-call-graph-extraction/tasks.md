@@ -93,7 +93,7 @@
 
 - [x] T024 CallExtractor main engine in src/rust/kcs-parser/src/call_extraction/mod.rs
 - [x] T025 AST traversal coordinator in src/rust/kcs-parser/src/ast_traversal.rs
-- [ ] T026 Call classification logic in src/rust/kcs-parser/src/call_classifier.rs
+- [x] T026 Call classification logic in src/rust/kcs-parser/src/call_classifier.rs
 - [ ] T027 Performance optimization with rayon parallelization in src/rust/kcs-parser/src/parallel_processing.rs
 
 ## Phase 3.4: Integration
