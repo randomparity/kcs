@@ -83,7 +83,7 @@
 
 ### Tree-sitter AST Extraction
 
-- [ ] T019 Direct function call detection in src/rust/kcs-parser/src/call_extraction/direct_calls.rs
+- [x] T019 Direct function call detection in src/rust/kcs-parser/src/call_extraction/direct_calls.rs
 - [ ] T020 Function pointer call detection in src/rust/kcs-parser/src/call_extraction/pointer_calls.rs
 - [ ] T021 Macro call expansion in src/rust/kcs-parser/src/call_extraction/macro_calls.rs
 - [ ] T022 Callback pattern recognition in src/rust/kcs-parser/src/call_extraction/callbacks.rs
