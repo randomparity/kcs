@@ -119,9 +119,9 @@
 
 ## Phase 3.5: Polish
 
-- [ ] T038 [P] Unit tests for Tree-sitter queries in tests/unit/test_call_patterns.py
-- [ ] T039 [P] Performance benchmarks for large kernel extraction in tests/performance/test_call_graph_performance.py
-- [ ] T040 [P] Update CLAUDE.md with call graph extraction capabilities
+- [x] T038 [P] Unit tests for Tree-sitter queries in tests/unit/test_call_patterns.py
+- [x] T039 [P] Performance benchmarks for large kernel extraction in tests/performance/test_call_graph_performance.py
+- [x] T040 [P] Update CLAUDE.md with call graph extraction capabilities
 
 ## Dependencies
 

@@ -56,6 +56,8 @@ dev = [
     "types-PyYAML>=6.0",
     "types-psutil>=5.9.0",
     "types-aiofiles>=23.2.0",
+    "tree-sitter>=0.20.0",
+    "tree-sitter-c>=0.20.0",
 ]
 
 performance = [
