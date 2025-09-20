@@ -76,16 +76,21 @@ def get_mcp_jwt_token() -> str:
     """
     Get JWT token for MCP authentication from environment.
 
-    This reads the JWT_SECRET from environment variables, using the same
-    fallback as the main application. Tests should use this function
-    instead of hard-coding JWT tokens.
+    In development mode, this returns the development token.
+    For production, proper JWT tokens should be implemented.
 
     Returns:
         JWT token string for authentication
     """
-    return os.getenv(
-        "JWT_SECRET", "dev_jwt_secret_change_in_production_use_64_char_random_string"
-    )
+    environment = os.getenv("ENVIRONMENT", "production")
+    if environment == "development":
+        return "dev-token"
+    else:
+        # In production, proper JWT verification would be implemented
+        return os.getenv(
+            "JWT_SECRET",
+            "dev_jwt_secret_change_in_production_use_64_char_random_string",
+        )
 
 
 def get_mcp_auth_headers() -> dict[str, str]:
