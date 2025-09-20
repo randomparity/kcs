@@ -4,5 +4,10 @@
 //! found in C/kernel code, each optimized for specific call types and patterns.
 
 pub mod direct_calls;
+pub mod pointer_calls;
 
 pub use direct_calls::{DirectCall, DirectCallConfig, DirectCallDetector, ExtractionStats};
+pub use pointer_calls::{
+    ExtractionStats as PointerExtractionStats, PointerCall, PointerCallConfig, PointerCallDetector,
+    PointerCallType,
+};
