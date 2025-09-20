@@ -135,7 +135,7 @@ impl PointerCall {
 }
 
 /// Extraction statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ExtractionStats {
     pub total_calls: usize,
     pub explicit_dereference_calls: usize,

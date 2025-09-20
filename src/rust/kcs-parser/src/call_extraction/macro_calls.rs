@@ -194,7 +194,7 @@ impl MacroCall {
 }
 
 /// Extraction statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ExtractionStats {
     pub total_calls: usize,
     pub function_like_calls: usize,

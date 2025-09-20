@@ -108,7 +108,7 @@ impl CallbackCall {
 }
 
 /// Statistics for callback extraction process
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ExtractionStats {
     /// Total number of callbacks detected
     pub total_callbacks: usize,

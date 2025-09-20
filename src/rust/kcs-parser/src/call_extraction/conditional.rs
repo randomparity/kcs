@@ -76,7 +76,7 @@ pub enum ConditionalType {
 }
 
 /// Statistics for conditional call extraction
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ExtractionStats {
     /// Total calls found within conditionals
     pub total_calls: usize,
