@@ -7,13 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod builder;
+pub mod call_edge;
 pub mod config;
 pub mod cycles;
 pub mod queries;
 pub mod traversal;
+pub mod types;
 
+pub use call_edge::{CallEdge as CallEdgeModel, CallEdgeBuilder};
 pub use cycles::{Cycle, CycleAnalysis, CycleDetector};
 pub use traversal::{GraphTraversal, TraversalOptions, TraversalResult};
+pub use types::{AnalysisScope, CallType as CallTypeEnum, ConfidenceLevel, PointerType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Symbol {
