@@ -185,10 +185,8 @@ impl Parser {
         let sha = calculate_sha(&content);
 
         // Parse with tree-sitter first (fast structural parsing)
-        let tree_sitter_result = self
-            .tree_sitter_parser
-            .parse(&content)
-            .context("Tree-sitter parsing failed")?;
+        let tree_sitter_result =
+            self.tree_sitter_parser.parse(&content).context("Tree-sitter parsing failed")?;
 
         // Enhance with clang if available (semantic accuracy)
         let symbols = if let Some(ref mut clang_bridge) = self.clang_bridge {
@@ -205,11 +203,7 @@ impl Parser {
                 call_extractor::CallExtractor::new().context("Failed to create call extractor")?;
 
             let call_result = call_extractor
-                .extract_calls(
-                    &tree_sitter_result.tree,
-                    &content,
-                    &file_path.to_string_lossy(),
-                )
+                .extract_calls(&tree_sitter_result.tree, &content, &file_path.to_string_lossy())
                 .context("Failed to extract call edges")?;
 
             call_result.call_edges
@@ -265,7 +259,7 @@ impl Parser {
                 Err(e) => {
                     tracing::warn!("Failed to parse {}: {}", path_ref.display(), e);
                     // Continue processing other files instead of failing completely
-                }
+                },
             }
         }
 
@@ -278,10 +272,8 @@ impl Parser {
         tracing::debug!("Parsing file content: {}", file_path);
 
         // Parse with tree-sitter
-        let tree_sitter_result = self
-            .tree_sitter_parser
-            .parse(content)
-            .context("Tree-sitter parsing failed")?;
+        let tree_sitter_result =
+            self.tree_sitter_parser.parse(content).context("Tree-sitter parsing failed")?;
 
         // Convert to bridge format
         let symbols = tree_sitter_result
@@ -330,10 +322,10 @@ impl Parser {
                     all_symbols.extend(result.symbols);
                     all_call_edges.extend(result.call_edges);
                     all_errors.extend(result.errors);
-                }
+                },
                 Err(e) => {
                     all_errors.push(format!("Failed to parse {}: {}", file_path, e));
-                }
+                },
             }
         }
 
@@ -350,11 +342,7 @@ impl Parser {
         kernel_path: &str,
         config_name: &str,
     ) -> Result<ParseResult> {
-        tracing::info!(
-            "Parsing kernel tree: {} with config: {}",
-            kernel_path,
-            config_name
-        );
+        tracing::info!("Parsing kernel tree: {} with config: {}", kernel_path, config_name);
 
         // Update parser config
         self.config.config_name = config_name.to_string();
@@ -433,11 +421,7 @@ fn find_c_files<P: AsRef<Path>>(dir_path: P) -> Result<Vec<PathBuf>> {
 
     let mut c_files = Vec::new();
 
-    for entry in WalkDir::new(dir_path)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
+    for entry in WalkDir::new(dir_path).follow_links(false).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
         if let Some(extension) = path.extension() {
             // Only parse C source and header files, skip assembly files (.S, .s)

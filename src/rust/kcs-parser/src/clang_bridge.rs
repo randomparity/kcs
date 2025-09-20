@@ -108,9 +108,7 @@ impl ClangBridge {
                 let arguments = if let Some(args) = cmd.get("arguments") {
                     args.as_array()
                         .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_str().map(String::from))
-                                .collect()
+                            arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
                         })
                         .unwrap_or_else(Vec::new)
                 } else if let Some(command) = command {
@@ -148,9 +146,7 @@ impl ClangBridge {
             return Ok(*tu);
         }
 
-        let index = self
-            .index
-            .ok_or_else(|| anyhow::anyhow!("Clang index not initialized"))?;
+        let index = self.index.ok_or_else(|| anyhow::anyhow!("Clang index not initialized"))?;
 
         // Prepare compilation arguments
         let mut clang_args = Vec::new();
@@ -183,9 +179,8 @@ impl ClangBridge {
                 if !clang_args.is_empty() {
                     clang_args.remove(0); // Remove compiler
                 }
-                if let Some(pos) = clang_args
-                    .iter()
-                    .position(|arg| arg == file_path.to_str().unwrap_or(""))
+                if let Some(pos) =
+                    clang_args.iter().position(|arg| arg == file_path.to_str().unwrap_or(""))
                 {
                     clang_args.remove(pos); // Remove source file
                 }
@@ -193,10 +188,8 @@ impl ClangBridge {
         }
 
         // Convert arguments to C strings
-        let c_args: Vec<CString> = clang_args
-            .iter()
-            .filter_map(|arg| CString::new(arg.as_str()).ok())
-            .collect();
+        let c_args: Vec<CString> =
+            clang_args.iter().filter_map(|arg| CString::new(arg.as_str()).ok()).collect();
         let c_arg_ptrs: Vec<*const std::os::raw::c_char> =
             c_args.iter().map(|arg| arg.as_ptr()).collect();
 
@@ -272,10 +265,8 @@ impl ClangBridge {
                     };
 
                     let mut param_info = serde_json::Map::new();
-                    param_info.insert(
-                        "type".to_string(),
-                        serde_json::Value::String(arg_type_spelling),
-                    );
+                    param_info
+                        .insert("type".to_string(), serde_json::Value::String(arg_type_spelling));
                     if !arg_name.is_empty() {
                         param_info.insert("name".to_string(), serde_json::Value::String(arg_name));
                     }
@@ -485,13 +476,10 @@ impl ClangBridge {
             let tu = match self.get_translation_unit(file_path) {
                 Ok(tu) => tu,
                 Err(e) => {
-                    eprintln!(
-                        "Warning: Failed to get translation unit for {:?}: {}",
-                        file_path, e
-                    );
+                    eprintln!("Warning: Failed to get translation unit for {:?}: {}", file_path, e);
                     // Fall back to original symbols
                     return Ok(symbols.to_vec());
-                }
+                },
             };
 
             // Enhance each symbol
@@ -889,18 +877,9 @@ void simple_doc(void) {{
         if let Some(ref metadata) = calc_sum.metadata {
             if let Some(doc) = metadata.get("documentation") {
                 let doc_str = doc.as_str().unwrap_or("");
-                assert!(
-                    doc_str.contains("Add two integers"),
-                    "Should contain function brief"
-                );
-                assert!(
-                    doc_str.contains("Parameter: a"),
-                    "Should contain parameter documentation"
-                );
-                assert!(
-                    doc_str.contains("Returns:"),
-                    "Should contain return documentation"
-                );
+                assert!(doc_str.contains("Add two integers"), "Should contain function brief");
+                assert!(doc_str.contains("Parameter: a"), "Should contain parameter documentation");
+                assert!(doc_str.contains("Returns:"), "Should contain return documentation");
             }
         }
 

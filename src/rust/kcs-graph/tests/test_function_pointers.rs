@@ -37,9 +37,7 @@ int main() {
 /// Helper function to create temporary C files
 fn create_temp_c_file(content: &str) -> NamedTempFile {
     let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-    temp_file
-        .write_all(content.as_bytes())
-        .expect("Failed to write to temp file");
+    temp_file.write_all(content.as_bytes()).expect("Failed to write to temp file");
     temp_file
 }
 
@@ -114,12 +112,7 @@ fn test_basic_function_pointer_integration() {
         };
 
         let result = graph.add_call(caller, callee, edge);
-        assert!(
-            result.is_ok(),
-            "Failed to add call edge: {} -> {}",
-            caller,
-            callee
-        );
+        assert!(result.is_ok(), "Failed to add call edge: {} -> {}", caller, callee);
     }
 
     // Verify graph construction
@@ -201,9 +194,7 @@ fn test_callback_pattern_integration() {
         config_guard: None,
     };
 
-    graph
-        .add_call("do_file_operation", "generic_read", callback_edge)
-        .unwrap();
+    graph.add_call("do_file_operation", "generic_read", callback_edge).unwrap();
 
     // Verify callback pattern
     assert_eq!(graph.symbol_count(), 3, "Should have 3 symbols");
@@ -211,17 +202,11 @@ fn test_callback_pattern_integration() {
 
     let callees = graph.find_callees("do_file_operation");
     assert_eq!(callees.len(), 1, "Should have 1 callee");
-    assert_eq!(
-        callees[0].name, "generic_read",
-        "Should call generic_read indirectly"
-    );
+    assert_eq!(callees[0].name, "generic_read", "Should call generic_read indirectly");
 
     let callers = graph.find_callers("generic_read");
     assert_eq!(callers.len(), 1, "generic_read should have 1 caller");
-    assert_eq!(
-        callers[0].name, "do_file_operation",
-        "Should be called by do_file_operation"
-    );
+    assert_eq!(callers[0].name, "do_file_operation", "Should be called by do_file_operation");
 }
 
 /// Test complex function pointer scenarios with conditional calls
@@ -293,25 +278,15 @@ fn test_conditional_function_pointer_calls() {
 
     // Verify conditional call patterns
     assert_eq!(graph.symbol_count(), 3, "Should have 3 symbols");
-    assert_eq!(
-        graph.call_count(),
-        2,
-        "Should have 2 conditional call edges"
-    );
+    assert_eq!(graph.call_count(), 2, "Should have 2 conditional call edges");
 
     let dispatch_callees = graph.find_callees("dispatch");
     assert_eq!(dispatch_callees.len(), 2, "dispatch should have 2 callees");
 
     // Both handlers should be reachable from dispatch
     let callee_names: Vec<_> = dispatch_callees.iter().map(|s| &s.name).collect();
-    assert!(
-        callee_names.contains(&&"handler_a".to_string()),
-        "Should call handler_a"
-    );
-    assert!(
-        callee_names.contains(&&"handler_b".to_string()),
-        "Should call handler_b"
-    );
+    assert!(callee_names.contains(&&"handler_a".to_string()), "Should call handler_a");
+    assert!(callee_names.contains(&&"handler_b".to_string()), "Should call handler_b");
 }
 
 /// Test function pointer arrays and tables
@@ -438,10 +413,7 @@ fn test_function_pointer_performance() {
     for i in 0..num_dispatchers {
         for j in 0..handlers_per_dispatcher {
             let dispatcher = format!("dispatcher_{}", i);
-            let handler = format!(
-                "handler_{}",
-                (i * handlers_per_dispatcher + j) % num_handlers
-            );
+            let handler = format!("handler_{}", (i * handlers_per_dispatcher + j) % num_handlers);
 
             let edge = CallEdge {
                 call_type: CallType::Indirect, // Function pointer call
@@ -458,16 +430,8 @@ fn test_function_pointer_performance() {
     let expected_symbols = num_handlers + num_dispatchers;
     let expected_calls = num_dispatchers * handlers_per_dispatcher;
 
-    assert_eq!(
-        graph.symbol_count(),
-        expected_symbols,
-        "Should have correct symbol count"
-    );
-    assert_eq!(
-        graph.call_count(),
-        expected_calls,
-        "Should have correct call count"
-    );
+    assert_eq!(graph.symbol_count(), expected_symbols, "Should have correct symbol count");
+    assert_eq!(graph.call_count(), expected_calls, "Should have correct call count");
 
     // Test query performance
     let start = std::time::Instant::now();
@@ -578,17 +542,11 @@ fn test_function_pointer_error_handling() {
 
     // Should fail when trying to add indirect call to nonexistent function
     let result = graph.add_call("test_func", "nonexistent_target", edge.clone());
-    assert!(
-        result.is_err(),
-        "Should fail when function pointer target doesn't exist"
-    );
+    assert!(result.is_err(), "Should fail when function pointer target doesn't exist");
 
     // Should fail when caller doesn't exist
     let result = graph.add_call("nonexistent_caller", "test_func", edge);
-    assert!(
-        result.is_err(),
-        "Should fail when function pointer caller doesn't exist"
-    );
+    assert!(result.is_err(), "Should fail when function pointer caller doesn't exist");
 }
 
 /// Test mixed direct and indirect call patterns

@@ -119,11 +119,9 @@ async fn main() -> Result<()> {
     };
 
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                tracing_subscriber::EnvFilter::new(format!("kcs_parser={}", log_level))
-            }),
-        )
+        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            tracing_subscriber::EnvFilter::new(format!("kcs_parser={}", log_level))
+        }))
         .with(tracing_subscriber::fmt::layer())
         .init();
 
@@ -152,7 +150,7 @@ async fn main() -> Result<()> {
                 cli.format,
             )
             .await
-        }
+        },
         Commands::File {
             file,
             config,
@@ -182,12 +180,8 @@ async fn parse_repository(
     tracing::info!("Chunk size: {}", chunk_size);
 
     // Create output directory if it doesn't exist
-    std::fs::create_dir_all(&output_dir).with_context(|| {
-        format!(
-            "Failed to create output directory: {}",
-            output_dir.display()
-        )
-    })?;
+    std::fs::create_dir_all(&output_dir)
+        .with_context(|| format!("Failed to create output directory: {}", output_dir.display()))?;
 
     // Validate chunk size doesn't exceed constitutional limit
     // Increased to 100MB to handle edge cases with very large generated files
@@ -222,9 +216,7 @@ async fn parse_repository(
     let mut parser = Parser::new(parser_config)?;
 
     // Parse the repository
-    let parsed_files = parser
-        .parse_directory(&repo)
-        .context("Failed to parse repository")?;
+    let parsed_files = parser.parse_directory(&repo).context("Failed to parse repository")?;
 
     tracing::info!("Parsed {} files", parsed_files.len());
 
@@ -304,10 +296,10 @@ fn parse_defines(defines: &[String]) -> Result<HashMap<String, String>> {
         match parts.len() {
             1 => {
                 defines_map.insert(parts[0].to_string(), "1".to_string());
-            }
+            },
             2 => {
                 defines_map.insert(parts[0].to_string(), parts[1].to_string());
-            }
+            },
             _ => anyhow::bail!("Invalid define format: {}", define),
         }
     }
@@ -385,11 +377,7 @@ async fn output_chunked_results(
         let chunk_input = ChunkInput {
             file_path: output_dir.join(format!("kernel_data_{:03}.json", i + 1)),
             subsystem: "kernel".to_string(),
-            symbol_count: chunk_info
-                .metadata
-                .as_ref()
-                .map(|m| m.total_symbols)
-                .unwrap_or(0),
+            symbol_count: chunk_info.metadata.as_ref().map(|m| m.total_symbols).unwrap_or(0),
             entrypoint_count: chunk_info
                 .metadata
                 .as_ref()
@@ -405,10 +393,7 @@ async fn output_chunked_results(
 
     // Build and write manifest
     let manifest_path = output_dir.join("manifest.json");
-    tracing::info!(
-        "Building and writing manifest to {}",
-        manifest_path.display()
-    );
+    tracing::info!("Building and writing manifest to {}", manifest_path.display());
     let manifest = manifest_builder.build_and_write(&manifest_path)?;
 
     tracing::info!(
@@ -445,10 +430,7 @@ fn parse_chunk_size(size_str: &str) -> Result<usize> {
         "KB" | "K" => 1024,
         "MB" | "M" => 1024 * 1024,
         "GB" | "G" => 1024 * 1024 * 1024,
-        _ => anyhow::bail!(
-            "Unsupported chunk size unit: {} (supported: B, KB, MB, GB)",
-            unit_part
-        ),
+        _ => anyhow::bail!("Unsupported chunk size unit: {} (supported: B, KB, MB, GB)", unit_part),
     };
 
     let bytes = (number * multiplier as f64) as usize;
@@ -458,19 +440,11 @@ fn parse_chunk_size(size_str: &str) -> Result<usize> {
     const MAX_CHUNK_SIZE: usize = 1024 * 1024 * 1024; // 1GB maximum
 
     if bytes < MIN_CHUNK_SIZE {
-        anyhow::bail!(
-            "Chunk size too small: {} (minimum: {})",
-            bytes,
-            MIN_CHUNK_SIZE
-        );
+        anyhow::bail!("Chunk size too small: {} (minimum: {})", bytes, MIN_CHUNK_SIZE);
     }
 
     if bytes > MAX_CHUNK_SIZE {
-        anyhow::bail!(
-            "Chunk size too large: {} (maximum: {})",
-            bytes,
-            MAX_CHUNK_SIZE
-        );
+        anyhow::bail!("Chunk size too large: {} (maximum: {})", bytes, MAX_CHUNK_SIZE);
     }
 
     Ok(bytes)

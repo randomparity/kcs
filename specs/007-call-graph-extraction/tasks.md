@@ -50,7 +50,7 @@
   function_pointers, macro_calls tables
 - [x] T003 [P] Create Tree-sitter query file src/rust/kcs-parser/queries/call_patterns.scm
   for C call detection
-- [ ] T004 [P] Configure Rust clippy and formatting for call graph modules
+- [x] T004 [P] Configure Rust clippy and formatting for call graph modules
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 

@@ -284,11 +284,11 @@ impl<'a> GraphTraversal<'a> {
                     }
                 }
                 Ok(result)
-            }
+            },
             Err(_) => {
                 // Graph has cycles, cannot perform topological sort
                 anyhow::bail!("Cannot perform topological sort on graph with cycles")
-            }
+            },
         }
     }
 
@@ -310,11 +310,7 @@ impl<'a> GraphTraversal<'a> {
             }
 
             // Look at incoming edges (who calls this node)
-            for edge_ref in self
-                .graph
-                .graph()
-                .edges_directed(node_idx, Direction::Incoming)
-            {
+            for edge_ref in self.graph.graph().edges_directed(node_idx, Direction::Incoming) {
                 let source_idx = edge_ref.source();
 
                 if !ancestors.contains(&source_idx) {
@@ -349,11 +345,7 @@ impl<'a> GraphTraversal<'a> {
             }
 
             // Look at outgoing edges (what this node calls)
-            for edge_ref in self
-                .graph
-                .graph()
-                .edges_directed(node_idx, Direction::Outgoing)
-            {
+            for edge_ref in self.graph.graph().edges_directed(node_idx, Direction::Outgoing) {
                 let target_idx = edge_ref.target();
 
                 if !descendants.contains(&target_idx) {
@@ -649,9 +641,7 @@ mod tests {
         let graph = create_test_graph();
         let traversal = GraphTraversal::new(&graph);
 
-        let result = traversal
-            .bfs("func_a", TraversalOptions::default())
-            .unwrap();
+        let result = traversal.bfs("func_a", TraversalOptions::default()).unwrap();
 
         assert_eq!(result.count, 5); // Should visit all 5 nodes
         assert_eq!(result.visited.len(), 5);
@@ -664,9 +654,7 @@ mod tests {
         let graph = create_test_graph();
         let traversal = GraphTraversal::new(&graph);
 
-        let result = traversal
-            .dfs("func_a", TraversalOptions::default())
-            .unwrap();
+        let result = traversal.dfs("func_a", TraversalOptions::default()).unwrap();
 
         assert_eq!(result.count, 5); // Should visit all 5 nodes
         assert_eq!(result.visited.len(), 5);
@@ -744,11 +732,8 @@ mod tests {
         assert_eq!(sorted.len(), 5);
 
         // func_a should come before its dependencies
-        let positions: std::collections::HashMap<String, usize> = sorted
-            .iter()
-            .enumerate()
-            .map(|(i, s)| (s.name.clone(), i))
-            .collect();
+        let positions: std::collections::HashMap<String, usize> =
+            sorted.iter().enumerate().map(|(i, s)| (s.name.clone(), i)).collect();
 
         assert!(positions["func_a"] < positions["func_b"]);
         assert!(positions["func_a"] < positions["func_d"]);
@@ -912,10 +897,7 @@ mod tests {
 
         // Check that only the direct edge was traversed
         assert_eq!(result.edges.len(), 1);
-        assert_eq!(
-            result.edges[0],
-            ("func_a".to_string(), "func_b".to_string())
-        );
+        assert_eq!(result.edges[0], ("func_a".to_string(), "func_b".to_string()));
     }
 
     #[test]

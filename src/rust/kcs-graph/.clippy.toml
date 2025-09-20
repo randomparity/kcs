@@ -1,0 +1,45 @@
+# Clippy configuration for kcs-graph call graph data structures
+# Optimized for graph algorithms and database entity management
+
+# Cognitive complexity limits for graph algorithms
+cognitive-complexity-threshold = 35
+
+# Type complexity for complex graph structures
+type-complexity-threshold = 300
+
+# Large enum variant limits for call types and confidence levels
+enum-variant-size-threshold = 400
+
+# Function length for graph traversal algorithms
+too-many-lines-threshold = 200
+
+# Argument limits for graph operation functions
+too-many-arguments-threshold = 10
+
+# Single character variable names for graph algorithm variables (i, j, k)
+single-char-binding-names-threshold = 6
+
+# Vector initialization for large graphs
+vec-box-size-threshold = 16384
+
+# Struct field limits for call graph entities
+max-struct-bools = 6
+
+# Disallowed methods for graph modules (future enforcement)
+# Note: Some methods commented out due to existing usage in codebase
+disallowed-methods = [
+    # Memory safety in graph algorithms
+    "std::mem::forget",
+    # "std::mem::replace_with_uninit", # Not a real function
+
+    # Note: Other methods commented out due to existing usage or invalid function paths
+    # Future enforcement can be enabled by uncommenting and fixing existing code
+]
+
+# Disallowed types for performance and safety (commented out existing uses)
+# disallowed-types = [
+#     "std::collections::HashMap", # Use IndexMap for deterministic iteration
+# ]
+
+# MSRV for Rust 1.75+ requirement
+msrv = "1.75.0"

@@ -233,11 +233,8 @@ fn bench_content_parsing(c: &mut Criterion) {
     let mut group = c.benchmark_group("content_parsing");
 
     let large_content = generate_large_c_file();
-    let test_cases = vec![
-        ("small", SMALL_C_FILE),
-        ("medium", MEDIUM_C_FILE),
-        ("large", &large_content),
-    ];
+    let test_cases =
+        vec![("small", SMALL_C_FILE), ("medium", MEDIUM_C_FILE), ("large", &large_content)];
 
     for (size_name, content) in test_cases {
         group.throughput(Throughput::Bytes(content.len() as u64));
@@ -254,9 +251,7 @@ fn bench_content_parsing(c: &mut Criterion) {
 
                 b.iter(|| {
                     black_box(
-                        parser
-                            .parse_file_content(black_box("test.c"), black_box(content))
-                            .unwrap(),
+                        parser.parse_file_content(black_box("test.c"), black_box(content)).unwrap(),
                     )
                 });
             },
@@ -298,13 +293,7 @@ fn bench_batch_parsing(c: &mut Criterion) {
                 };
                 let mut parser = Parser::new(config).expect("Failed to create parser");
 
-                b.iter(|| {
-                    black_box(
-                        parser
-                            .parse_files_content(black_box(files.clone()))
-                            .unwrap(),
-                    )
-                });
+                b.iter(|| black_box(parser.parse_files_content(black_box(files.clone())).unwrap()));
             },
         );
     }
@@ -330,24 +319,13 @@ fn bench_symbol_extraction(c: &mut Criterion) {
 
         b.iter(|| {
             let result = parser.parse_file_content("test.c", &content).unwrap();
-            black_box(
-                result
-                    .symbols
-                    .iter()
-                    .filter(|s| s.kind == "function")
-                    .count(),
-            )
+            black_box(result.symbols.iter().filter(|s| s.kind == "function").count())
         });
     });
 
     group.bench_function("struct_extraction", |b| {
         let content = (0..50)
-            .map(|i| {
-                format!(
-                    "struct data_{} {{ int field_{}; char name_{}[64]; }};",
-                    i, i, i
-                )
-            })
+            .map(|i| format!("struct data_{} {{ int field_{}; char name_{}[64]; }};", i, i, i))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -462,9 +440,7 @@ fn bench_constitutional_requirements(c: &mut Criterion) {
 
         b.iter(|| {
             let start = std::time::Instant::now();
-            let result = parser
-                .parse_file_content("large.c", &large_content)
-                .unwrap();
+            let result = parser.parse_file_content("large.c", &large_content).unwrap();
             let duration = start.elapsed();
 
             // Constitutional requirement: Fast parsing for IDE integration
@@ -486,11 +462,7 @@ fn bench_constitutional_requirements(c: &mut Criterion) {
             let result = parser.parse_file_content("test.c", MEDIUM_C_FILE).unwrap();
 
             // Verify we extract expected symbols
-            let function_count = result
-                .symbols
-                .iter()
-                .filter(|s| s.kind == "function")
-                .count();
+            let function_count = result.symbols.iter().filter(|s| s.kind == "function").count();
             let struct_count = result.symbols.iter().filter(|s| s.kind == "struct").count();
 
             // Basic sanity checks

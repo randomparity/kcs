@@ -78,10 +78,7 @@ impl KernelGraph {
 
         // Index by config dependencies
         for config in &symbol.config_dependencies {
-            self.config_symbols
-                .entry(config.clone())
-                .or_default()
-                .push(node_idx);
+            self.config_symbols.entry(config.clone()).or_default().push(node_idx);
         }
 
         node_idx
@@ -101,9 +98,7 @@ impl KernelGraph {
     }
 
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.symbol_index
-            .get(name)
-            .and_then(|&idx| self.graph.node_weight(idx))
+        self.symbol_index.get(name).and_then(|&idx| self.graph.node_weight(idx))
     }
 
     pub fn find_callers(&self, symbol_name: &str) -> Vec<&Symbol> {
@@ -192,10 +187,8 @@ impl KernelGraph {
                     full_path.push(next);
 
                     // Convert to symbols
-                    let symbol_path: Vec<&Symbol> = full_path
-                        .iter()
-                        .filter_map(|&idx| self.graph.node_weight(idx))
-                        .collect();
+                    let symbol_path: Vec<&Symbol> =
+                        full_path.iter().filter_map(|&idx| self.graph.node_weight(idx)).collect();
 
                     if symbol_path.len() == full_path.len() {
                         all_paths.push(symbol_path);
@@ -362,11 +355,7 @@ mod tests {
         }
 
         // Create the chain
-        let edges = [
-            ("func_a", "func_b"),
-            ("func_b", "func_c"),
-            ("func_c", "func_d"),
-        ];
+        let edges = [("func_a", "func_b"), ("func_b", "func_c"), ("func_c", "func_d")];
 
         for (caller, callee) in edges.iter() {
             let edge = CallEdge {
