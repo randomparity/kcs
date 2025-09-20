@@ -1,0 +1,533 @@
+openapi: 3.0.3
+info:
+  title: KCS Call Graph Extraction API
+  description: API contract for call graph extraction functionality in Kernel Context Server
+  version: 1.0.0
+  contact:
+    name: KCS Team
+    url: https://github.com/randomparity/kcs
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+paths:
+  /mcp/tools/extract_call_graph:
+    post:
+      summary: Extract call graph from kernel source files
+      operationId: extractCallGraph
+      tags:
+        - Call Graph Extraction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractCallGraphRequest'
+      responses:
+        '200':
+          description: Call graph extraction successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractCallGraphResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mcp/tools/get_call_relationships:
+    post:
+      summary: Get call relationships for a specific function
+      operationId: getCallRelationships
+      tags:
+        - Call Graph Query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetCallRelationshipsRequest'
+      responses:
+        '200':
+          description: Call relationships retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCallRelationshipsResponse'
+        '404':
+          description: Function not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mcp/tools/trace_call_path:
+    post:
+      summary: Trace call path between two functions
+      operationId: traceCallPath
+      tags:
+        - Call Graph Traversal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TraceCallPathRequest'
+      responses:
+        '200':
+          description: Call path traced successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceCallPathResponse'
+        '404':
+          description: No path found between functions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /mcp/tools/analyze_function_pointers:
+    post:
+      summary: Analyze function pointer assignments and usage
+      operationId: analyzeFunctionPointers
+      tags:
+        - Function Pointer Analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeFunctionPointersRequest'
+      responses:
+        '200':
+          description: Function pointer analysis complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeFunctionPointersResponse'
+
+components:
+  schemas:
+    ExtractCallGraphRequest:
+      type: object
+      required:
+        - file_paths
+      properties:
+        file_paths:
+          type: array
+          items:
+            type: string
+          description: List of source file paths to analyze
+          example: ["/kernel/fs/ext4/inode.c", "/kernel/fs/ext4/super.c"]
+        include_indirect:
+          type: boolean
+          default: true
+          description: Whether to include function pointer calls
+        include_macros:
+          type: boolean
+          default: true
+          description: Whether to expand and analyze macro calls
+        config_context:
+          type: string
+          description: Kernel configuration context for conditional compilation
+          example: "x86_64:defconfig"
+        max_depth:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+          description: Maximum call depth to analyze
+
+    ExtractCallGraphResponse:
+      type: object
+      required:
+        - call_edges
+        - extraction_stats
+      properties:
+        call_edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallEdge'
+        function_pointers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionPointer'
+        macro_calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/MacroCall'
+        extraction_stats:
+          $ref: '#/components/schemas/ExtractionStats'
+
+    GetCallRelationshipsRequest:
+      type: object
+      required:
+        - function_name
+      properties:
+        function_name:
+          type: string
+          description: Name of function to analyze
+          example: "vfs_read"
+        relationship_type:
+          type: string
+          enum: ["callers", "callees", "both"]
+          default: "both"
+          description: Type of relationships to retrieve
+        config_context:
+          type: string
+          description: Kernel configuration context
+          example: "x86_64:defconfig"
+        max_depth:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 1
+          description: Maximum traversal depth
+
+    GetCallRelationshipsResponse:
+      type: object
+      required:
+        - function_name
+        - relationships
+      properties:
+        function_name:
+          type: string
+        relationships:
+          type: object
+          properties:
+            callers:
+              type: array
+              items:
+                $ref: '#/components/schemas/CallRelationship'
+            callees:
+              type: array
+              items:
+                $ref: '#/components/schemas/CallRelationship'
+
+    TraceCallPathRequest:
+      type: object
+      required:
+        - from_function
+        - to_function
+      properties:
+        from_function:
+          type: string
+          description: Starting function name
+          example: "sys_read"
+        to_function:
+          type: string
+          description: Target function name
+          example: "vfs_read"
+        config_context:
+          type: string
+          description: Kernel configuration context
+          example: "x86_64:defconfig"
+        max_paths:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+          description: Maximum number of paths to return
+        max_depth:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+          description: Maximum path length to consider
+
+    TraceCallPathResponse:
+      type: object
+      required:
+        - from_function
+        - to_function
+        - paths
+      properties:
+        from_function:
+          type: string
+        to_function:
+          type: string
+        paths:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallPath'
+
+    AnalyzeFunctionPointersRequest:
+      type: object
+      properties:
+        file_paths:
+          type: array
+          items:
+            type: string
+          description: Specific files to analyze (optional)
+        pointer_patterns:
+          type: array
+          items:
+            type: string
+          description: Specific pointer patterns to search for
+          example: ["file_operations", "device_operations"]
+        config_context:
+          type: string
+          description: Kernel configuration context
+
+    AnalyzeFunctionPointersResponse:
+      type: object
+      required:
+        - function_pointers
+        - analysis_stats
+      properties:
+        function_pointers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionPointer'
+        callback_registrations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallbackRegistration'
+        analysis_stats:
+          $ref: '#/components/schemas/AnalysisStats'
+
+    CallEdge:
+      type: object
+      required:
+        - caller
+        - callee
+        - call_site
+        - call_type
+        - confidence
+      properties:
+        caller:
+          $ref: '#/components/schemas/FunctionReference'
+        callee:
+          $ref: '#/components/schemas/FunctionReference'
+        call_site:
+          $ref: '#/components/schemas/CallSite'
+        call_type:
+          type: string
+          enum: ["direct", "indirect", "macro", "callback", "conditional", "assembly", "syscall"]
+        confidence:
+          type: string
+          enum: ["high", "medium", "low"]
+        conditional:
+          type: boolean
+          default: false
+        config_guard:
+          type: string
+          description: Configuration dependency if conditional
+        metadata:
+          type: object
+          description: Additional call context
+
+    FunctionPointer:
+      type: object
+      required:
+        - pointer_name
+        - assignment_site
+        - assigned_function
+      properties:
+        pointer_name:
+          type: string
+        assignment_site:
+          $ref: '#/components/schemas/CallSite'
+        assigned_function:
+          $ref: '#/components/schemas/FunctionReference'
+        usage_sites:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallSite'
+        struct_context:
+          type: string
+          description: Struct name if pointer is member
+
+    MacroCall:
+      type: object
+      required:
+        - macro_name
+        - expansion_site
+        - expanded_calls
+      properties:
+        macro_name:
+          type: string
+        macro_definition:
+          type: string
+        expansion_site:
+          $ref: '#/components/schemas/CallSite'
+        expanded_calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallEdge'
+        preprocessor_context:
+          type: string
+
+    CallPath:
+      type: object
+      required:
+        - path_edges
+        - path_length
+        - total_confidence
+      properties:
+        path_edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallEdge'
+        path_length:
+          type: integer
+        total_confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+        config_context:
+          type: string
+
+    CallRelationship:
+      type: object
+      required:
+        - function
+        - call_edge
+      properties:
+        function:
+          $ref: '#/components/schemas/FunctionReference'
+        call_edge:
+          $ref: '#/components/schemas/CallEdge'
+        depth:
+          type: integer
+          description: Depth from original function
+
+    CallbackRegistration:
+      type: object
+      required:
+        - registration_site
+        - callback_function
+        - registration_pattern
+      properties:
+        registration_site:
+          $ref: '#/components/schemas/CallSite'
+        callback_function:
+          $ref: '#/components/schemas/FunctionReference'
+        registration_pattern:
+          type: string
+          description: Pattern used for registration detection
+
+    FunctionReference:
+      type: object
+      required:
+        - name
+        - file_path
+        - line_number
+      properties:
+        name:
+          type: string
+        signature:
+          type: string
+        file_path:
+          type: string
+        line_number:
+          type: integer
+        symbol_type:
+          type: string
+          enum: ["function", "macro", "variable", "type"]
+        config_dependencies:
+          type: array
+          items:
+            type: string
+
+    CallSite:
+      type: object
+      required:
+        - file_path
+        - line_number
+      properties:
+        file_path:
+          type: string
+        line_number:
+          type: integer
+        column_number:
+          type: integer
+        context_before:
+          type: string
+        context_after:
+          type: string
+        function_context:
+          type: string
+
+    ExtractionStats:
+      type: object
+      required:
+        - files_processed
+        - functions_analyzed
+        - call_edges_found
+        - processing_time_ms
+      properties:
+        files_processed:
+          type: integer
+        functions_analyzed:
+          type: integer
+        call_edges_found:
+          type: integer
+        function_pointers_found:
+          type: integer
+        macro_calls_found:
+          type: integer
+        processing_time_ms:
+          type: integer
+        accuracy_estimate:
+          type: number
+          format: float
+
+    AnalysisStats:
+      type: object
+      required:
+        - pointers_analyzed
+        - assignments_found
+        - usage_sites_found
+      properties:
+        pointers_analyzed:
+          type: integer
+        assignments_found:
+          type: integer
+        usage_sites_found:
+          type: integer
+        callback_patterns_matched:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Call Graph Extraction
+    description: Core call graph extraction functionality
+  - name: Call Graph Query
+    description: Query existing call graph data
+  - name: Call Graph Traversal
+    description: Navigate call graph relationships
+  - name: Function Pointer Analysis
+    description: Analyze function pointer patterns
