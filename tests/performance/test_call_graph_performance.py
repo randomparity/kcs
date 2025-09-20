@@ -24,6 +24,33 @@ from kcs_mcp.tools import CallGraphExtractor, ExtractCallGraphRequest
 # Global test utilities and fixtures
 
 
+def create_mock_call_edge(
+    caller_name: str, callee_name: str, file_path: str, line_num: int
+) -> dict[str, Any]:
+    """Create a properly structured mock call edge for testing."""
+    return {
+        "caller": {
+            "name": caller_name,
+            "file_path": file_path,
+            "line_number": line_num - 5,
+            "symbol_type": "function",
+        },
+        "callee": {
+            "name": callee_name,
+            "file_path": "/usr/include/linux/kernel.h",
+            "line_number": 100,
+            "symbol_type": "function",
+        },
+        "call_site": {
+            "file_path": file_path,
+            "line_number": line_num,
+            "column_number": 12,
+        },
+        "call_type": "direct",
+        "confidence": "high",
+    }
+
+
 @pytest.fixture
 async def mock_database():
     """Create a mock database for testing."""
@@ -237,26 +264,14 @@ async def test_single_file_extraction_performance(extractor):
     async def mock_rust_extraction(req):
         return {
             "call_edges": [
-                {
-                    "caller": "driver_init",
-                    "callee": "kmalloc",
-                    "file_path": file_path,
-                    "line_number": 45,
-                    "call_type": "direct",
-                    "confidence": 0.95,
-                },
-                {
-                    "caller": "interrupt_handler",
-                    "callee": "readl",
-                    "file_path": file_path,
-                    "line_number": 78,
-                    "call_type": "direct",
-                    "confidence": 0.90,
-                },
+                create_mock_call_edge("driver_init", "kmalloc", file_path, 45),
+                create_mock_call_edge("interrupt_handler", "readl", file_path, 78),
             ]
             * 50,  # Simulate finding many calls
             "function_pointers": [],
             "macro_calls": [],
+            "functions_analyzed": 25,
+            "accuracy_estimate": 0.95,
         }
 
     extractor._run_rust_extraction = mock_rust_extraction
@@ -270,10 +285,10 @@ async def test_single_file_extraction_performance(extractor):
     assert extraction_time < 5.0, (
         f"Single file extraction took too long: {extraction_time:.2f}s"
     )
-    assert result.stats["total_call_edges"] > 0
+    assert result.extraction_stats.call_edges_found > 0
 
     print(f"Single file extraction: {extraction_time:.3f}s")
-    print(f"Call edges found: {result.stats['total_call_edges']}")
+    print(f"Call edges found: {result.extraction_stats.call_edges_found}")
 
     # Cleanup
     os.unlink(file_path)
@@ -298,19 +313,14 @@ async def test_multiple_files_extraction_performance(extractor):
     async def mock_rust_extraction(req):
         return {
             "call_edges": [
-                {
-                    "caller": f"func_{i}",
-                    "callee": f"target_{i}",
-                    "file_path": fp,
-                    "line_number": 10 + i,
-                    "call_type": "direct",
-                    "confidence": 0.9,
-                }
+                create_mock_call_edge(f"func_{i}", f"target_{i}", fp, 10 + i)
                 for i, fp in enumerate(req.file_paths)
             ]
             * 20,  # Multiple calls per file
             "function_pointers": [],
             "macro_calls": [],
+            "functions_analyzed": 50,
+            "accuracy_estimate": 0.92,
         }
 
     extractor._run_rust_extraction = mock_rust_extraction
@@ -328,7 +338,7 @@ async def test_multiple_files_extraction_performance(extractor):
 
     print(f"Multiple files ({file_count}) extraction: {extraction_time:.3f}s")
     print(f"Average per file: {extraction_time / file_count:.3f}s")
-    print(f"Call edges found: {result.stats['total_call_edges']}")
+    print(f"Call edges found: {result.extraction_stats.call_edges_found}")
 
     # Cleanup
     for file_path in file_paths:
@@ -358,19 +368,16 @@ async def test_large_file_extraction_performance(extractor):
         num_functions = 100  # Estimated for "large" complexity
         return {
             "call_edges": [
-                {
-                    "caller": f"function_{i}",
-                    "callee": f"target_{j}",
-                    "file_path": file_path,
-                    "line_number": 10 + i * 10,
-                    "call_type": "direct",
-                    "confidence": 0.85,
-                }
+                create_mock_call_edge(
+                    f"function_{i}", f"target_{j}", file_path, 10 + i * 10
+                )
                 for i in range(num_functions)
                 for j in range(3)  # 3 calls per function
             ],
             "function_pointers": [],
             "macro_calls": [],
+            "functions_analyzed": num_functions,
+            "accuracy_estimate": 0.88,
         }
 
     extractor._run_rust_extraction = mock_rust_extraction
@@ -387,7 +394,7 @@ async def test_large_file_extraction_performance(extractor):
 
     print(f"Large file extraction: {extraction_time:.3f}s")
     print(f"Processing rate: {file_size / extraction_time / 1024:.1f} KB/s")
-    print(f"Call edges found: {result.stats['total_call_edges']}")
+    print(f"Call edges found: {result.extraction_stats.call_edges_found}")
 
     # Cleanup
     os.unlink(file_path)
@@ -441,9 +448,15 @@ async def test_memory_usage_during_extraction(extractor):
                 )  # Simulate finding many calls
 
             return {
-                "call_edges": large_data,
+                "call_edges": [
+                    create_mock_call_edge(f"func_{j}", f"target_{j}", fp, j)
+                    for fp in req.file_paths
+                    for j in range(100)
+                ],
                 "function_pointers": [],
                 "macro_calls": [],
+                "functions_analyzed": len(req.file_paths) * 100,
+                "accuracy_estimate": 0.90,
             }
         finally:
             # Cleanup simulation data
@@ -480,7 +493,7 @@ async def test_memory_usage_during_extraction(extractor):
 
     print(f"Memory increase during extraction: {memory_increase:.1f} MB")
     print(f"Extraction time: {extraction_time:.3f}s")
-    print(f"Call edges found: {result.stats['total_call_edges']}")
+    print(f"Call edges found: {result.extraction_stats.call_edges_found}")
 
     # Memory usage should be reasonable (less than 200MB increase)
     assert memory_increase < 200, f"Memory usage too high: {memory_increase:.1f} MB"
@@ -551,18 +564,13 @@ async def test_depth_limit_performance(extractor):
 
             return {
                 "call_edges": [
-                    {
-                        "caller": f"func_{i}",
-                        "callee": f"target_{i}",
-                        "file_path": file_path,
-                        "line_number": 10 + i,
-                        "call_type": "direct",
-                        "confidence": 0.9,
-                    }
+                    create_mock_call_edge(f"func_{i}", f"target_{i}", file_path, 10 + i)
                     for i in range(int(num_calls))
                 ],
                 "function_pointers": [],
                 "macro_calls": [],
+                "functions_analyzed": max(int(num_calls) // 3, 1),
+                "accuracy_estimate": 0.91,
             }
 
         extractor._run_rust_extraction = mock_rust_extraction
@@ -573,11 +581,11 @@ async def test_depth_limit_performance(extractor):
 
         results[depth] = {
             "time": extraction_time,
-            "call_edges": result.stats["total_call_edges"],
+            "call_edges": result.extraction_stats.call_edges_found,
         }
 
         print(
-            f"Depth {depth}: {extraction_time:.3f}s, {result.stats['total_call_edges']} edges"
+            f"Depth {depth}: {extraction_time:.3f}s, {result.extraction_stats.call_edges_found} edges"
         )
 
     # Verify that deeper extraction takes more time but growth is controlled

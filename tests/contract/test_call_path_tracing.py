@@ -12,7 +12,7 @@ import json
 import pytest
 import requests
 
-from tests.conftest import get_mcp_auth_headers
+from tests.conftest import get_mcp_auth_headers, skip_without_mcp_server
 
 # Test configuration
 MCP_BASE_URL = "http://localhost:8080"
@@ -22,6 +22,7 @@ TRACE_CALL_PATH_ENDPOINT = f"{MCP_BASE_URL}/mcp/tools/trace_call_path"
 COMMON_HEADERS = get_mcp_auth_headers()
 
 
+@skip_without_mcp_server
 class TestTraceCallPathContract:
     """Contract tests for trace_call_path MCP endpoint."""
 
@@ -441,7 +442,6 @@ class TestTraceCallPathContract:
         assert response.status_code == 400, f"Expected 400, got {response.status_code}"
 
 
-@pytest.mark.skip(reason="Implementation not yet available - TDD requirement")
 class TestTraceCallPathImplementation:
     """
     Implementation-specific tests that will be enabled once the endpoint is implemented.

@@ -12,7 +12,7 @@ import json
 import pytest
 import requests
 
-from tests.conftest import get_mcp_auth_headers
+from tests.conftest import get_mcp_auth_headers, skip_without_mcp_server
 
 # Test configuration
 MCP_BASE_URL = "http://localhost:8080"
@@ -22,6 +22,7 @@ EXTRACT_CALL_GRAPH_ENDPOINT = f"{MCP_BASE_URL}/mcp/tools/extract_call_graph"
 COMMON_HEADERS = get_mcp_auth_headers()
 
 
+@skip_without_mcp_server
 class TestExtractCallGraphContract:
     """Contract tests for extract_call_graph MCP endpoint."""
 
@@ -306,7 +307,6 @@ class TestExtractCallGraphContract:
             assert data["extraction_stats"]["files_processed"] >= 1
 
 
-@pytest.mark.skip(reason="Implementation not yet available - TDD requirement")
 class TestExtractCallGraphImplementation:
     """
     Implementation-specific tests that will be enabled once the endpoint is implemented.

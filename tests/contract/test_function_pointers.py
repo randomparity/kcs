@@ -12,7 +12,7 @@ import json
 import pytest
 import requests
 
-from tests.conftest import get_mcp_auth_headers
+from tests.conftest import get_mcp_auth_headers, skip_without_mcp_server
 
 # Test configuration
 MCP_BASE_URL = "http://localhost:8080"
@@ -24,6 +24,7 @@ ANALYZE_FUNCTION_POINTERS_ENDPOINT = (
 COMMON_HEADERS = get_mcp_auth_headers()
 
 
+@skip_without_mcp_server
 class TestAnalyzeFunctionPointersContract:
     """Contract tests for analyze_function_pointers MCP endpoint."""
 
@@ -487,7 +488,6 @@ class TestAnalyzeFunctionPointersContract:
             assert "analysis_stats" in data
 
 
-@pytest.mark.skip(reason="Implementation not yet available - TDD requirement")
 class TestAnalyzeFunctionPointersImplementation:
     """
     Implementation-specific tests that will be enabled once the endpoint is implemented.

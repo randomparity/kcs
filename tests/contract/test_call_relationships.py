@@ -12,7 +12,7 @@ import json
 import pytest
 import requests
 
-from tests.conftest import get_mcp_auth_headers
+from tests.conftest import get_mcp_auth_headers, skip_without_mcp_server
 
 # Test configuration
 MCP_BASE_URL = "http://localhost:8080"
@@ -22,6 +22,7 @@ GET_CALL_RELATIONSHIPS_ENDPOINT = f"{MCP_BASE_URL}/mcp/tools/get_call_relationsh
 COMMON_HEADERS = get_mcp_auth_headers()
 
 
+@skip_without_mcp_server
 class TestGetCallRelationshipsContract:
     """Contract tests for get_call_relationships MCP endpoint."""
 
@@ -414,7 +415,6 @@ class TestGetCallRelationshipsContract:
             assert "relationships" in data
 
 
-@pytest.mark.skip(reason="Implementation not yet available - TDD requirement")
 class TestGetCallRelationshipsImplementation:
     """
     Implementation-specific tests that will be enabled once the endpoint is implemented.
