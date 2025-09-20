@@ -4,13 +4,15 @@
 //! structured logging for the call graph extraction pipeline. It defines
 //! standardized error types, logging utilities, and recovery mechanisms.
 
+use anyhow;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
 /// Configuration for error handling and logging behavior.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ErrorHandlingConfig {
     /// Continue processing other files if one file fails
     pub continue_on_file_error: bool,
@@ -37,7 +39,7 @@ impl Default for ErrorHandlingConfig {
 }
 
 /// Log levels for configurable logging.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LogLevel {
     Error,
     Warn,
@@ -141,6 +143,14 @@ impl CallGraphError {
             CallGraphError::ValidationError { .. } => "validation",
             CallGraphError::TransientError { .. } => "transient",
             CallGraphError::CriticalError { .. } => "critical",
+        }
+    }
+}
+
+impl From<anyhow::Error> for CallGraphError {
+    fn from(err: anyhow::Error) -> Self {
+        CallGraphError::CriticalError {
+            message: err.to_string(),
         }
     }
 }

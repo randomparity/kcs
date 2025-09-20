@@ -12,6 +12,7 @@ from pathlib import Path
 
 import structlog
 
+from .config import CallExtractionConfig
 from .error_handling import (
     CallGraphError,
     ErrorCategory,
@@ -30,18 +31,7 @@ except ImportError as e:
     ) from e
 
 
-@dataclass
-class CallGraphExtractionConfig:
-    """Configuration for call graph extraction."""
-
-    max_file_size: int = 10 * 1024 * 1024  # 10MB
-    enable_parallel: bool = True
-    min_confidence: str = "low"  # "low", "medium", "high"
-    include_indirect: bool = True
-    include_macros: bool = True
-    include_callbacks: bool = True
-    include_conditional: bool = True
-    max_depth: int | None = None
+# Configuration is now imported from .config module
 
 
 @dataclass
@@ -96,13 +86,13 @@ class TraversalResult:
 class CallGraphExtractor:
     """High-level interface to Rust call graph extraction capabilities."""
 
-    def __init__(self, config: CallGraphExtractionConfig | None = None):
+    def __init__(self, config: CallExtractionConfig | None = None):
         """Initialize the call graph extractor.
 
         Args:
             config: Configuration for extraction. Uses default if None.
         """
-        self.config = config or CallGraphExtractionConfig()
+        self.config = config or CallExtractionConfig()
         self._parser: kcs_python_bridge.PyParser | None = None
         self._error_handler = ErrorHandler(enable_detailed_logging=True)
         self._init_parser()
@@ -614,7 +604,7 @@ class CallGraphTraversal:
 
 
 def extract_call_graph_from_files(
-    file_paths: list[str | Path], config: CallGraphExtractionConfig | None = None
+    file_paths: list[str | Path], config: CallExtractionConfig | None = None
 ) -> tuple[list[CallEdge], ExtractionStats]:
     """Convenience function to extract call graph from multiple files.
 
@@ -632,7 +622,7 @@ def extract_call_graph_from_files(
 def extract_call_graph_from_kernel(
     kernel_path: str | Path,
     config_name: str = "defconfig",
-    config: CallGraphExtractionConfig | None = None,
+    config: CallExtractionConfig | None = None,
 ) -> tuple[list[CallEdge], ExtractionStats]:
     """Convenience function to extract call graph from kernel source tree.
 
@@ -675,7 +665,7 @@ def traverse_call_graph(
 
 __all__ = [
     "CallEdge",
-    "CallGraphExtractionConfig",
+    "CallExtractionConfig",
     "CallGraphExtractor",
     "CallGraphTraversal",
     "ExtractionStats",

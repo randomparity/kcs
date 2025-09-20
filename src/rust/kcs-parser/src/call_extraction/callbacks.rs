@@ -6,11 +6,12 @@
 
 use anyhow::{Context, Result};
 use kcs_graph::{CallEdgeBuilder, CallEdgeModel, CallTypeEnum, ConfidenceLevel};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tree_sitter::{Language, Query, QueryCursor, QueryMatch, Tree};
 
 /// Configuration for callback pattern detection
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CallbackConfig {
     /// Include calls within conditional compilation blocks
     pub include_conditional: bool,

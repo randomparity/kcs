@@ -6,11 +6,12 @@
 
 use anyhow::{Context, Result};
 use kcs_graph::{CallEdgeBuilder, CallEdgeModel, CallTypeEnum, ConfidenceLevel};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tree_sitter::{Language, Node, Query, QueryCursor, QueryMatch, Tree};
 
 /// Configuration for conditional call detection
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ConditionalCallConfig {
     /// Include nested conditional blocks
     pub include_nested: bool,

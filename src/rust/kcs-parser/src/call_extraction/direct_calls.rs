@@ -6,11 +6,12 @@
 
 use anyhow::{Context, Result};
 use kcs_graph::{CallEdgeModel, CallTypeEnum, ConfidenceLevel};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tree_sitter::{Language, Node, Query, QueryCursor, QueryMatch, Tree};
 
 /// Configuration for direct call detection
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DirectCallConfig {
     /// Include calls within conditional compilation blocks
     pub include_conditional: bool,

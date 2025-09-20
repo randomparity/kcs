@@ -1,0 +1,78 @@
+parser:
+  tree_sitter_enabled: true
+  clang_enabled: true
+  target_arch: x86_64
+  kernel_version: "6.1"
+  include_paths: []
+  defines: {}
+  compile_commands_path: null
+  config_name: defconfig
+
+call_extraction:
+  max_file_size: 104857600  # 100MB
+  enable_parallel: true
+  min_confidence: medium
+  include_indirect: true
+  include_macros: true
+  include_callbacks: true
+  include_conditional: true
+
+  direct_calls:
+    include_conditional: true
+    include_control_flow: true
+    validate_identifiers: true
+    max_depth: 50
+
+  pointer_calls:
+    include_callback_arrays: true
+    include_member_pointers: true
+    validate_identifiers: true
+    max_depth: 30
+
+  macro_calls:
+    include_function_macros: true
+    include_complex_expansions: true
+    validate_identifiers: true
+    max_expansion_depth: 10
+
+  callbacks:
+    include_member_calls: true
+    include_pointer_assignments: true
+    include_array_callbacks: true
+    include_callback_registration: true
+    max_depth: 20
+
+  conditional:
+    track_config_dependencies: true
+    include_ifdef_blocks: true
+    include_switch_cases: true
+    max_nesting_depth: 15
+
+error_handling:
+  enable_recovery: true
+  max_retry_attempts: 5
+  retry_delay_seconds: 0.2
+  enable_detailed_logging: false
+  collect_metrics: true
+  fail_fast: false
+
+logging:
+  level: info
+  structured: true
+  file_path: /var/log/kcs/kcs.log
+  enable_metrics: true
+  format: json
+
+performance:
+  worker_threads: 0  # Auto-detect
+  enable_parallel: true
+  max_memory_usage: 8589934592  # 8GB
+  batch_size: 5000
+  cache_size: 100000
+
+database:
+  url: postgresql://user:pass@localhost:5432/kcs
+  pool_size: 20
+  max_overflow: 30
+  echo: false
+  timeout: 60.0

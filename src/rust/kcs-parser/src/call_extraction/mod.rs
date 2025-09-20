@@ -14,6 +14,7 @@ pub mod pointer_calls;
 
 use anyhow::Result;
 use kcs_graph::{CallEdgeModel, CallTypeEnum, ConfidenceLevel};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Instant;
 use tree_sitter::{Language, Tree};
@@ -42,7 +43,7 @@ pub use pointer_calls::{
 };
 
 /// Configuration for the main call extraction engine.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CallExtractionConfig {
     /// Configuration for direct call detection
     pub direct_calls: DirectCallConfig,

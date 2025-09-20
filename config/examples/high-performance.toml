@@ -1,0 +1,81 @@
+[parser]
+tree_sitter_enabled = true
+clang_enabled = true
+target_arch = "x86_64"
+kernel_version = "6.5"
+include_paths = ["/usr/include", "/usr/local/include"]
+config_name = "allmodconfig"
+
+[parser.defines]
+CONFIG_64BIT = "1"
+CONFIG_SMP = "1"
+CONFIG_X86_64 = "1"
+
+[call_extraction]
+max_file_size = 134217728  # 128MB
+enable_parallel = true
+min_confidence = "medium"
+include_indirect = true
+include_macros = true
+include_callbacks = true
+include_conditional = true
+
+[call_extraction.direct_calls]
+include_conditional = true
+include_control_flow = true
+validate_identifiers = true
+max_depth = 100
+
+[call_extraction.pointer_calls]
+include_callback_arrays = true
+include_member_pointers = true
+validate_identifiers = true
+max_depth = 50
+
+[call_extraction.macro_calls]
+include_function_macros = true
+include_complex_expansions = true
+validate_identifiers = true
+max_expansion_depth = 20
+
+[call_extraction.callbacks]
+include_member_calls = true
+include_pointer_assignments = true
+include_array_callbacks = true
+include_callback_registration = true
+max_depth = 40
+
+[call_extraction.conditional]
+track_config_dependencies = true
+include_ifdef_blocks = true
+include_switch_cases = true
+max_nesting_depth = 25
+
+[error_handling]
+enable_recovery = true
+max_retry_attempts = 2
+retry_delay_seconds = 0.05
+enable_detailed_logging = false
+collect_metrics = true
+fail_fast = true
+
+[logging]
+level = "warn"
+structured = true
+file_path = "/tmp/kcs-performance.log"
+enable_metrics = false
+format = "compact"
+
+[performance]
+worker_threads = 0  # Auto-detect
+enable_parallel = true
+max_memory_usage = 17179869184  # 16GB
+batch_size = 10000
+cache_size = 1000000
+
+[database]
+url = "postgresql://kcs:kcs@db-cluster:5432/kcs_performance"
+pool_size = 50
+max_overflow = 100
+echo = false
+timeout = 120.0

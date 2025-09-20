@@ -61,6 +61,10 @@ pub mod tree_sitter_parser;
 pub mod types;
 
 // Re-export key types for public API
+pub use config::{
+    presets, ConfigBuilder, ConfigManager, ConfigSource, KcsConfig, LoggingConfig,
+    PerformanceConfig,
+};
 pub use types::{CallEdge, CallType};
 
 /// Represents a parsed source file
