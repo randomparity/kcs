@@ -113,8 +113,8 @@
 
 ### System Integration
 
-- [ ] T035 Python-Rust bridge integration in src/python/kcs_mcp/rust_bridge.py
-- [ ] T036 Error handling and logging across call graph pipeline
+- [x] T035 Python-Rust bridge integration in src/python/kcs_mcp/rust_bridge.py
+- [x] T036 Error handling and logging across call graph pipeline
 - [ ] T037 Configuration management for call extraction settings
 
 ## Phase 3.5: Polish

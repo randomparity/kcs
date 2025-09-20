@@ -54,6 +54,7 @@ pub mod call_extraction;
 pub mod call_extractor;
 pub mod clang_bridge;
 pub mod config;
+pub mod error_handling;
 pub mod kernel_patterns;
 pub mod parallel_processing;
 pub mod tree_sitter_parser;

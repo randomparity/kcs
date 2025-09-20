@@ -12,10 +12,16 @@ pub mod direct_calls;
 pub mod macro_calls;
 pub mod pointer_calls;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use kcs_graph::{CallEdgeModel, CallTypeEnum, ConfidenceLevel};
 use std::path::Path;
+use std::time::Instant;
 use tree_sitter::{Language, Tree};
+
+use crate::error_context;
+use crate::error_handling::{
+    CallGraphError, CallGraphResult, ErrorContext, ErrorHandler, ErrorHandlingConfig,
+};
 
 pub use callbacks::{
     CallbackCall, CallbackConfig, CallbackDetector, CallbackType,
@@ -135,12 +141,15 @@ pub struct CallExtractor {
     /// C language parser
     #[allow(dead_code)]
     language: Language,
+    /// Error handler for comprehensive error management
+    error_handler: ErrorHandler,
 }
 
 impl CallExtractor {
     /// Create a new CallExtractor with the given configuration.
     pub fn new(config: CallExtractionConfig) -> Result<Self> {
         let language = tree_sitter_c::language();
+        let error_handler = ErrorHandler::new_default();
 
         Ok(Self {
             direct_detector: DirectCallDetector::new(language, config.direct_calls.clone())?,
@@ -150,6 +159,27 @@ impl CallExtractor {
             conditional_detector: ConditionalCallDetector::new(config.conditional.clone())?,
             config,
             language,
+            error_handler,
+        })
+    }
+
+    /// Create a new CallExtractor with custom error handling configuration.
+    pub fn new_with_error_config(
+        config: CallExtractionConfig,
+        error_config: ErrorHandlingConfig,
+    ) -> Result<Self> {
+        let language = tree_sitter_c::language();
+        let error_handler = ErrorHandler::new(error_config);
+
+        Ok(Self {
+            direct_detector: DirectCallDetector::new(language, config.direct_calls.clone())?,
+            pointer_detector: PointerCallDetector::new(language, config.pointer_calls.clone())?,
+            macro_detector: MacroCallDetector::new(language, config.macro_calls.clone())?,
+            callback_detector: CallbackDetector::new(language, config.callbacks.clone())?,
+            conditional_detector: ConditionalCallDetector::new(config.conditional.clone())?,
+            config,
+            language,
+            error_handler,
         })
     }
 
@@ -167,89 +197,265 @@ impl CallExtractor {
         file_path: &Path,
         source_code: &str,
         tree: &Tree,
-    ) -> Result<Vec<CallEdgeModel>> {
+    ) -> CallGraphResult<Vec<CallEdgeModel>> {
         let file_path_str = file_path.to_string_lossy().to_string();
+        let start_time = Instant::now();
+
+        // Log extraction start
+        self.error_handler.log_progress(
+            "Starting call graph extraction",
+            &[("file", &file_path_str), ("size_bytes", &source_code.len())],
+        );
 
         // Check file size limit
         if source_code.len() > self.config.max_file_size {
-            return Err(anyhow::anyhow!(
-                "File {} exceeds size limit: {} bytes",
-                file_path_str,
-                source_code.len()
-            ));
+            let error = CallGraphError::ResourceError {
+                message: format!(
+                    "File {} exceeds size limit: {} bytes (max: {} bytes)",
+                    file_path_str,
+                    source_code.len(),
+                    self.config.max_file_size
+                ),
+            };
+            let context = error_context!(file_path);
+            return Err(self.error_handler.handle_error(error, context).unwrap_err());
         }
 
         let mut all_edges = Vec::new();
+        let mut extractor_stats = ExtractorStats {
+            files_processed: 1,
+            ..Default::default()
+        };
 
-        // Extract direct calls
-        let direct_calls = self
-            .direct_detector
-            .extract_calls(tree, source_code, &file_path_str)
-            .with_context(|| format!("Failed to extract direct calls from {}", file_path_str))?;
+        // Extract direct calls with error handling
+        match self.extract_direct_calls(tree, source_code, &file_path_str) {
+            Ok(edges) => {
+                let count = edges.len();
+                all_edges.extend(edges);
+                self.error_handler.log_progress(
+                    "Direct calls extracted",
+                    &[("count", &count), ("file", &file_path_str)],
+                );
+            },
+            Err(error) => {
+                let context = error_context!(file_path, "direct_calls");
+                self.error_handler.handle_error(error, context)?;
+                extractor_stats.errors += 1;
+            },
+        }
 
-        all_edges.extend(
-            direct_calls
-                .into_iter()
-                .filter_map(|call| self.direct_call_to_edge(call, &file_path_str)),
-        );
+        // Extract pointer calls with error handling
+        match self.extract_pointer_calls(tree, source_code, &file_path_str) {
+            Ok(edges) => {
+                let count = edges.len();
+                all_edges.extend(edges);
+                self.error_handler.log_progress(
+                    "Pointer calls extracted",
+                    &[("count", &count), ("file", &file_path_str)],
+                );
+            },
+            Err(error) => {
+                let context = error_context!(file_path, "pointer_calls");
+                self.error_handler.handle_error(error, context)?;
+                extractor_stats.errors += 1;
+            },
+        }
 
-        // Extract pointer calls
-        let pointer_calls = self
-            .pointer_detector
-            .extract_calls(tree, source_code, &file_path_str)
-            .with_context(|| format!("Failed to extract pointer calls from {}", file_path_str))?;
+        // Extract macro calls with error handling
+        match self.extract_macro_calls(tree, source_code, &file_path_str) {
+            Ok(edges) => {
+                let count = edges.len();
+                all_edges.extend(edges);
+                self.error_handler.log_progress(
+                    "Macro calls extracted",
+                    &[("count", &count), ("file", &file_path_str)],
+                );
+            },
+            Err(error) => {
+                let context = error_context!(file_path, "macro_calls");
+                self.error_handler.handle_error(error, context)?;
+                extractor_stats.errors += 1;
+            },
+        }
 
-        all_edges.extend(
-            pointer_calls
-                .into_iter()
-                .filter_map(|call| self.pointer_call_to_edge(call, &file_path_str)),
-        );
+        // Extract callback calls with error handling
+        match self.extract_callback_calls(tree, source_code, &file_path_str) {
+            Ok(edges) => {
+                let count = edges.len();
+                all_edges.extend(edges);
+                self.error_handler.log_progress(
+                    "Callback calls extracted",
+                    &[("count", &count), ("file", &file_path_str)],
+                );
+            },
+            Err(error) => {
+                let context = error_context!(file_path, "callback_calls");
+                self.error_handler.handle_error(error, context)?;
+                extractor_stats.errors += 1;
+            },
+        }
 
-        // Extract macro calls
-        let macro_calls = self
-            .macro_detector
-            .extract_calls(tree, source_code, &file_path_str)
-            .with_context(|| format!("Failed to extract macro calls from {}", file_path_str))?;
-
-        all_edges.extend(
-            macro_calls
-                .into_iter()
-                .filter_map(|call| self.macro_call_to_edge(call, &file_path_str)),
-        );
-
-        // Extract callback calls
-        let callback_calls = self
-            .callback_detector
-            .extract_callbacks(tree, source_code, &file_path_str)
-            .with_context(|| format!("Failed to extract callback calls from {}", file_path_str))?;
-
-        all_edges.extend(
-            callback_calls
-                .into_iter()
-                .filter_map(|call| self.callback_call_to_edge(call, &file_path_str)),
-        );
-
-        // Extract conditional calls
-        let conditional_calls = self
-            .conditional_detector
-            .extract_calls(tree, source_code, &file_path_str)
-            .with_context(|| {
-                format!("Failed to extract conditional calls from {}", file_path_str)
-            })?;
-
-        all_edges.extend(
-            conditional_calls
-                .into_iter()
-                .filter_map(|call| self.conditional_call_to_edge(call, &file_path_str)),
-        );
+        // Extract conditional calls with error handling
+        match self.extract_conditional_calls(tree, source_code, &file_path_str) {
+            Ok(edges) => {
+                let count = edges.len();
+                all_edges.extend(edges);
+                self.error_handler.log_progress(
+                    "Conditional calls extracted",
+                    &[("count", &count), ("file", &file_path_str)],
+                );
+            },
+            Err(error) => {
+                let context = error_context!(file_path, "conditional_calls");
+                self.error_handler.handle_error(error, context)?;
+                extractor_stats.errors += 1;
+            },
+        }
 
         // Filter by minimum confidence level
+        let initial_count = all_edges.len();
         let filtered_edges: Vec<CallEdgeModel> = all_edges
             .into_iter()
             .filter(|edge| edge.confidence() >= self.config.min_confidence)
             .collect();
 
+        let filtered_count = filtered_edges.len();
+        if filtered_count < initial_count {
+            self.error_handler.log_progress(
+                "Filtered calls by confidence",
+                &[
+                    ("initial", &initial_count),
+                    ("filtered", &filtered_count),
+                    ("min_confidence", &format!("{:?}", self.config.min_confidence)),
+                ],
+            );
+        }
+
+        // Log performance metrics
+        let duration = start_time.elapsed();
+        extractor_stats.total_time_ms = duration.as_millis() as u64;
+
+        self.error_handler.log_performance(
+            "call_extraction",
+            duration.as_millis() as u64,
+            &[
+                ("file", &file_path_str),
+                ("total_edges", &filtered_count),
+                ("errors", &extractor_stats.errors),
+            ],
+        );
+
         Ok(filtered_edges)
+    }
+
+    /// Extract direct calls with error recovery.
+    fn extract_direct_calls(
+        &mut self,
+        tree: &Tree,
+        source_code: &str,
+        file_path: &str,
+    ) -> CallGraphResult<Vec<CallEdgeModel>> {
+        let direct_calls = self
+            .direct_detector
+            .extract_calls(tree, source_code, file_path)
+            .map_err(|e| CallGraphError::DetectionError {
+                file: file_path.to_string(),
+                line: 0,
+                message: format!("Direct call detection failed: {}", e),
+            })?;
+
+        Ok(direct_calls
+            .into_iter()
+            .filter_map(|call| self.direct_call_to_edge(call, file_path))
+            .collect())
+    }
+
+    /// Extract pointer calls with error recovery.
+    fn extract_pointer_calls(
+        &mut self,
+        tree: &Tree,
+        source_code: &str,
+        file_path: &str,
+    ) -> CallGraphResult<Vec<CallEdgeModel>> {
+        let pointer_calls = self
+            .pointer_detector
+            .extract_calls(tree, source_code, file_path)
+            .map_err(|e| CallGraphError::DetectionError {
+                file: file_path.to_string(),
+                line: 0,
+                message: format!("Pointer call detection failed: {}", e),
+            })?;
+
+        Ok(pointer_calls
+            .into_iter()
+            .filter_map(|call| self.pointer_call_to_edge(call, file_path))
+            .collect())
+    }
+
+    /// Extract macro calls with error recovery.
+    fn extract_macro_calls(
+        &mut self,
+        tree: &Tree,
+        source_code: &str,
+        file_path: &str,
+    ) -> CallGraphResult<Vec<CallEdgeModel>> {
+        let macro_calls =
+            self.macro_detector.extract_calls(tree, source_code, file_path).map_err(|e| {
+                CallGraphError::DetectionError {
+                    file: file_path.to_string(),
+                    line: 0,
+                    message: format!("Macro call detection failed: {}", e),
+                }
+            })?;
+
+        Ok(macro_calls
+            .into_iter()
+            .filter_map(|call| self.macro_call_to_edge(call, file_path))
+            .collect())
+    }
+
+    /// Extract callback calls with error recovery.
+    fn extract_callback_calls(
+        &mut self,
+        tree: &Tree,
+        source_code: &str,
+        file_path: &str,
+    ) -> CallGraphResult<Vec<CallEdgeModel>> {
+        let callback_calls = self
+            .callback_detector
+            .extract_callbacks(tree, source_code, file_path)
+            .map_err(|e| CallGraphError::DetectionError {
+                file: file_path.to_string(),
+                line: 0,
+                message: format!("Callback detection failed: {}", e),
+            })?;
+
+        Ok(callback_calls
+            .into_iter()
+            .filter_map(|call| self.callback_call_to_edge(call, file_path))
+            .collect())
+    }
+
+    /// Extract conditional calls with error recovery.
+    fn extract_conditional_calls(
+        &mut self,
+        tree: &Tree,
+        source_code: &str,
+        file_path: &str,
+    ) -> CallGraphResult<Vec<CallEdgeModel>> {
+        let conditional_calls = self
+            .conditional_detector
+            .extract_calls(tree, source_code, file_path)
+            .map_err(|e| CallGraphError::DetectionError {
+                file: file_path.to_string(),
+                line: 0,
+                message: format!("Conditional call detection failed: {}", e),
+            })?;
+
+        Ok(conditional_calls
+            .into_iter()
+            .filter_map(|call| self.conditional_call_to_edge(call, file_path))
+            .collect())
     }
 
     /// Get aggregated statistics from all detectors.
@@ -263,8 +469,18 @@ impl CallExtractor {
             files_processed: 0,
             total_time_ms: 0,
             files_skipped: 0,
-            errors: 0,
+            errors: self.error_handler.get_stats().total_errors,
         }
+    }
+
+    /// Get error handling statistics.
+    pub fn get_error_stats(&self) -> &crate::error_handling::ErrorStats {
+        self.error_handler.get_stats()
+    }
+
+    /// Reset error statistics.
+    pub fn reset_error_stats(&mut self) {
+        self.error_handler.reset_stats();
     }
 
     /// Reset all detector statistics.

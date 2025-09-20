@@ -38,6 +38,7 @@ regex = "1.10"
 rayon = "1.8"
 memmap2 = "0.9"
 sha2 = "0.10"
+thiserror = "1.0"
 
 [dev-dependencies]
 tempfile = "3.8"
