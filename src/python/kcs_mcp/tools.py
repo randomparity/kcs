@@ -18,8 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from .database import Database, get_database
-from .database.call_graph import CallGraphQueries
-from .database.queries import CallGraphQueries as CallGraphQueryOps
+from .database.call_graph import CallGraphWriter
+from .database.queries import CallGraphAnalyzer
 from .models import (
     AsyncJobInfo,
     CallerInfo,
@@ -256,7 +256,7 @@ class CallGraphExtractor:
 
     def __init__(self, database: Database):
         self.database = database
-        self.call_graph_queries = CallGraphQueries(database)
+        self.call_graph_queries = CallGraphWriter(database)
 
     async def extract_call_graph(
         self, request: ExtractCallGraphRequest
@@ -3686,7 +3686,7 @@ async def get_call_relationships(
         )
 
         # Query call relationships from database
-        call_graph_queries = CallGraphQueryOps(db)
+        call_graph_queries = CallGraphAnalyzer(db)
         result = await call_graph_queries.get_call_relationships(
             function_name=validated_request.function_name,
             relationship_type=validated_request.relationship_type,  # type: ignore[arg-type]

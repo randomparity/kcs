@@ -20,8 +20,8 @@ CallType = Literal[
 ConfidenceLevel = Literal["high", "medium", "low"]
 
 
-class CallGraphQueries:
-    """Database queries for call graph operations."""
+class CallGraphWriter:
+    """Database operations for writing call graph data."""
 
     def __init__(self, database: Any) -> None:
         """Initialize with a Database instance."""

@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 
 from kcs_mcp.models import ErrorResponse
 
-from .call_graph import CallGraphQueries
+from .call_graph import CallGraphWriter
 
 # Import query classes from submodules
 from .chunk_queries import ChunkQueries

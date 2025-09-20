@@ -21,7 +21,7 @@ ConfidenceLevel = Literal["high", "medium", "low"]
 RelationshipType = Literal["callers", "callees", "both"]
 
 
-class CallGraphQueries:
+class CallGraphAnalyzer:
     """High-level database queries for call graph analysis."""
 
     def __init__(self, database: Any) -> None:
