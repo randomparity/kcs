@@ -225,7 +225,7 @@ app.include_router(
 
 
 if __name__ == "__main__":
-    import uvicorn  # type: ignore[import-not-found]
+    import uvicorn
 
     # For development
     uvicorn.run(

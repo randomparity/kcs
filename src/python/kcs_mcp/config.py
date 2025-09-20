@@ -292,17 +292,19 @@ class ConfigManager:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(path, "w", encoding="utf-8") as f:
-                if path.suffix.lower() == ".json":
-                    json.dump(data, f, indent=2)
-                elif path.suffix.lower() in (".yaml", ".yml"):
-                    yaml.dump(data, f, default_flow_style=False, indent=2)
-                elif path.suffix.lower() == ".toml":
-                    import tomli_w  # type: ignore[import-not-found]
+            if path.suffix.lower() == ".toml":
+                import tomli_w
 
+                with open(path, "wb") as f:
                     tomli_w.dump(data, f)
-                else:
-                    raise ValueError(f"Unsupported output format: {path.suffix}")
+            else:
+                with open(path, "w", encoding="utf-8") as f:
+                    if path.suffix.lower() == ".json":
+                        json.dump(data, f, indent=2)
+                    elif path.suffix.lower() in (".yaml", ".yml"):
+                        yaml.dump(data, f, default_flow_style=False, indent=2)
+                    else:
+                        raise ValueError(f"Unsupported output format: {path.suffix}")
 
         except Exception as e:
             logger.error("Failed to save configuration", path=str(path), error=str(e))

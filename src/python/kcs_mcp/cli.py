@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import structlog
-import uvicorn  # type: ignore[import-not-found]
+import uvicorn
 
 from .config import (
     ConfigManager,

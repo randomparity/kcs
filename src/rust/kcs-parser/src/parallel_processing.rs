@@ -597,7 +597,17 @@ mod tests {
         let temp_dir = tempfile::tempdir()?;
         let file_paths = create_test_files(&temp_dir)?;
 
-        let mut processor = ParallelProcessor::new_default()?;
+        // Use custom config with small file size threshold for test files
+        let config = ParallelConfig {
+            min_file_size_for_parallel: 1, // Allow processing of small test files
+            ..Default::default()
+        };
+
+        let mut processor = ParallelProcessor::new(
+            config,
+            CallExtractionConfig::default(),
+            TraversalConfig::default(),
+        )?;
         let results = processor.process_files_parallel(&file_paths)?;
 
         assert_eq!(results.len(), 3);
