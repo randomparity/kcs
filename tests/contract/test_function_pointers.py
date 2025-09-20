@@ -12,20 +12,16 @@ import json
 import pytest
 import requests
 
+from tests.conftest import get_mcp_auth_headers
+
 # Test configuration
 MCP_BASE_URL = "http://localhost:8080"
 ANALYZE_FUNCTION_POINTERS_ENDPOINT = (
     f"{MCP_BASE_URL}/mcp/tools/analyze_function_pointers"
 )
 
-# Test JWT token for development
-DEV_JWT_TOKEN = "dev_jwt_secret_change_in_production"
-
-# Common headers for all requests
-COMMON_HEADERS = {
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {DEV_JWT_TOKEN}",
-}
+# Common headers for all requests (uses centralized JWT configuration)
+COMMON_HEADERS = get_mcp_auth_headers()
 
 
 class TestAnalyzeFunctionPointersContract:

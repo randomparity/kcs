@@ -5,10 +5,20 @@ These endpoints implement the contract defined in the OpenAPI spec
 and tested by our contract tests.
 """
 
+import asyncio
+import json
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from .database import Database, get_database
+from .database.call_graph import CallGraphQueries
 from .models import (
     AsyncJobInfo,
     CallerInfo,
@@ -75,6 +85,644 @@ from .models.chunk_models import (
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+
+# Call Graph Extraction Models
+class ExtractCallGraphRequest(BaseModel):
+    """Request schema for call graph extraction."""
+
+    file_paths: list[str] = Field(
+        ..., description="List of source file paths to analyze", min_length=1
+    )
+    include_indirect: bool = Field(
+        True, description="Whether to include function pointer calls"
+    )
+    include_macros: bool = Field(
+        True, description="Whether to expand and analyze macro calls"
+    )
+    config_context: str | None = Field(
+        None,
+        description="Kernel configuration context for conditional compilation",
+        examples=["x86_64:defconfig"],
+    )
+    max_depth: int = Field(5, description="Maximum call depth to analyze", ge=1, le=10)
+
+
+class CallSite(BaseModel):
+    """Location information for a function call."""
+
+    file_path: str = Field(..., description="Path to the source file")
+    line_number: int = Field(..., description="Line number of the call", gt=0)
+    column_number: int | None = Field(None, description="Column position")
+    context_before: str | None = Field(None, description="Code context before call")
+    context_after: str | None = Field(None, description="Code context after call")
+    function_context: str | None = Field(None, description="Containing function name")
+
+
+class FunctionReference(BaseModel):
+    """Reference to a function in the codebase."""
+
+    name: str = Field(..., description="Function name")
+    signature: str | None = Field(None, description="Function signature")
+    file_path: str = Field(..., description="Source file path")
+    line_number: int = Field(..., description="Line number", gt=0)
+    symbol_type: str = Field(
+        ..., description="Symbol type", pattern="^(function|macro|variable|type)$"
+    )
+    config_dependencies: list[str] = Field(
+        default_factory=list, description="Configuration dependencies"
+    )
+
+
+class CallEdge(BaseModel):
+    """Represents a function call relationship."""
+
+    caller: FunctionReference = Field(..., description="Calling function")
+    callee: FunctionReference = Field(..., description="Called function")
+    call_site: CallSite = Field(..., description="Location of the call")
+    call_type: str = Field(
+        ...,
+        description="Type of call mechanism",
+        pattern="^(direct|indirect|macro|callback|conditional|assembly|syscall)$",
+    )
+    confidence: str = Field(
+        ..., description="Confidence level", pattern="^(high|medium|low)$"
+    )
+    conditional: bool = Field(False, description="Whether call is conditional")
+    config_guard: str | None = Field(None, description="Configuration dependency")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional call context"
+    )
+
+
+class FunctionPointer(BaseModel):
+    """Function pointer assignment and usage information."""
+
+    pointer_name: str = Field(..., description="Function pointer variable name")
+    assignment_site: CallSite = Field(..., description="Where pointer is assigned")
+    assigned_function: FunctionReference = Field(..., description="Assigned function")
+    usage_sites: list[CallSite] = Field(
+        default_factory=list, description="Where pointer is called"
+    )
+    struct_context: str | None = Field(
+        None, description="Struct name if pointer is member"
+    )
+
+
+class MacroCall(BaseModel):
+    """Macro call expansion information."""
+
+    macro_name: str = Field(..., description="Name of the macro")
+    macro_definition: str | None = Field(None, description="Macro definition")
+    expansion_site: CallSite = Field(..., description="Where macro is expanded")
+    expanded_calls: list[CallEdge] = Field(
+        ..., description="Function calls from expansion"
+    )
+    preprocessor_context: str | None = Field(None, description="Preprocessor context")
+
+
+class ExtractionStats(BaseModel):
+    """Statistics from call graph extraction."""
+
+    files_processed: int = Field(..., description="Number of files processed", ge=0)
+    functions_analyzed: int = Field(..., description="Functions analyzed", ge=0)
+    call_edges_found: int = Field(..., description="Call edges found", ge=0)
+    function_pointers_found: int = Field(
+        default=0, description="Function pointers found", ge=0
+    )
+    macro_calls_found: int = Field(default=0, description="Macro calls found", ge=0)
+    processing_time_ms: int = Field(..., description="Processing time", ge=0)
+    accuracy_estimate: float = Field(
+        default=0.95, description="Estimated accuracy", ge=0.0, le=1.0
+    )
+
+
+class ExtractCallGraphResponse(BaseModel):
+    """Response schema for call graph extraction."""
+
+    call_edges: list[CallEdge] = Field(..., description="Extracted call edges")
+    function_pointers: list[FunctionPointer] = Field(
+        default_factory=list, description="Function pointer assignments"
+    )
+    macro_calls: list[MacroCall] = Field(
+        default_factory=list, description="Macro call expansions"
+    )
+    extraction_stats: ExtractionStats = Field(..., description="Extraction statistics")
+
+
+class CallGraphExtractor:
+    """Handles call graph extraction using the Rust parser."""
+
+    def __init__(self, database: Database):
+        self.database = database
+        self.call_graph_queries = CallGraphQueries(database)
+
+    async def extract_call_graph(
+        self, request: ExtractCallGraphRequest
+    ) -> ExtractCallGraphResponse:
+        """
+        Extract call graph from the specified source files.
+
+        Args:
+            request: Extraction request parameters
+
+        Returns:
+            Extracted call graph data
+
+        Raises:
+            ValueError: If file paths are invalid
+            RuntimeError: If extraction fails
+        """
+        start_time = time.time()
+
+        # Validate file paths
+        invalid_files = []
+        for file_path in request.file_paths:
+            if not Path(file_path).exists():
+                invalid_files.append(file_path)
+
+        if invalid_files:
+            raise ValueError(f"Files not found: {invalid_files}")
+
+        logger.info(
+            "Starting call graph extraction",
+            file_count=len(request.file_paths),
+            include_indirect=request.include_indirect,
+            include_macros=request.include_macros,
+            max_depth=request.max_depth,
+        )
+
+        try:
+            # Run the Rust-based call graph extraction
+            extraction_result = await self._run_rust_extraction(request)
+
+            # Process and store results in database
+            call_edges = await self._process_call_edges(
+                extraction_result.get("call_edges", [])
+            )
+            function_pointers = await self._process_function_pointers(
+                extraction_result.get("function_pointers", [])
+            )
+            macro_calls = await self._process_macro_calls(
+                extraction_result.get("macro_calls", [])
+            )
+
+            processing_time = int((time.time() - start_time) * 1000)
+
+            # Generate statistics
+            stats = ExtractionStats(
+                files_processed=len(request.file_paths),
+                functions_analyzed=extraction_result.get("functions_analyzed", 0),
+                call_edges_found=len(call_edges),
+                function_pointers_found=len(function_pointers),
+                macro_calls_found=len(macro_calls),
+                processing_time_ms=processing_time,
+                accuracy_estimate=extraction_result.get("accuracy_estimate", 0.95),
+            )
+
+            logger.info(
+                "Call graph extraction completed",
+                call_edges=len(call_edges),
+                function_pointers=len(function_pointers),
+                macro_calls=len(macro_calls),
+                processing_time_ms=processing_time,
+            )
+
+            return ExtractCallGraphResponse(
+                call_edges=call_edges,
+                function_pointers=function_pointers,
+                macro_calls=macro_calls,
+                extraction_stats=stats,
+            )
+
+        except Exception as e:
+            logger.error("Call graph extraction failed", error=str(e))
+            raise RuntimeError(f"Call graph extraction failed: {e}") from e
+
+    async def _run_rust_extraction(
+        self, request: ExtractCallGraphRequest
+    ) -> dict[str, Any]:
+        """
+        Run the Rust-based call graph extraction tool.
+
+        Args:
+            request: Extraction request parameters
+
+        Returns:
+            Raw extraction results from Rust tool
+        """
+        # Create temporary config file for the extraction
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as config_file:
+            config = {
+                "file_paths": request.file_paths,
+                "include_indirect": request.include_indirect,
+                "include_macros": request.include_macros,
+                "config_context": request.config_context,
+                "max_depth": request.max_depth,
+            }
+            json.dump(config, config_file)
+            config_path = config_file.name
+
+        try:
+            # Run the kcs-graph extraction tool
+            cmd = [
+                "cargo",
+                "run",
+                "--bin",
+                "kcs-graph",
+                "--",
+                "extract",
+                "--config",
+                config_path,
+                "--output-format",
+                "json",
+            ]
+
+            # Execute the command
+            result = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=Path(__file__).parents[4],  # Go to project root
+            )
+
+            stdout, stderr = await result.communicate()
+
+            if result.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                raise RuntimeError(f"Rust extraction failed: {error_msg}")
+
+            # Parse the JSON output
+            try:
+                extraction_data: dict[str, Any] = json.loads(stdout.decode())
+                return extraction_data
+            except json.JSONDecodeError as e:
+                raise RuntimeError(f"Failed to parse extraction output: {e}") from e
+
+        finally:
+            # Clean up temporary config file
+            Path(config_path).unlink(missing_ok=True)
+
+    async def _process_call_edges(
+        self, raw_edges: list[dict[str, Any]]
+    ) -> list[CallEdge]:
+        """
+        Process raw call edge data into CallEdge models.
+
+        Args:
+            raw_edges: Raw call edge data from Rust extraction
+
+        Returns:
+            List of processed CallEdge models
+        """
+        call_edges = []
+
+        for edge_data in raw_edges:
+            try:
+                # Map the raw data to our models
+                caller = FunctionReference(
+                    name=edge_data["caller"]["name"],
+                    signature=edge_data["caller"].get("signature"),
+                    file_path=edge_data["caller"]["file_path"],
+                    line_number=edge_data["caller"]["line_number"],
+                    symbol_type=edge_data["caller"].get("symbol_type", "function"),
+                    config_dependencies=edge_data["caller"].get(
+                        "config_dependencies", []
+                    ),
+                )
+
+                callee = FunctionReference(
+                    name=edge_data["callee"]["name"],
+                    signature=edge_data["callee"].get("signature"),
+                    file_path=edge_data["callee"]["file_path"],
+                    line_number=edge_data["callee"]["line_number"],
+                    symbol_type=edge_data["callee"].get("symbol_type", "function"),
+                    config_dependencies=edge_data["callee"].get(
+                        "config_dependencies", []
+                    ),
+                )
+
+                call_site = CallSite(
+                    file_path=edge_data["call_site"]["file_path"],
+                    line_number=edge_data["call_site"]["line_number"],
+                    column_number=edge_data["call_site"].get("column_number"),
+                    context_before=edge_data["call_site"].get("context_before"),
+                    context_after=edge_data["call_site"].get("context_after"),
+                    function_context=edge_data["call_site"].get("function_context"),
+                )
+
+                call_edge = CallEdge(
+                    caller=caller,
+                    callee=callee,
+                    call_site=call_site,
+                    call_type=edge_data["call_type"],
+                    confidence=edge_data["confidence"],
+                    conditional=edge_data.get("conditional", False),
+                    config_guard=edge_data.get("config_guard"),
+                    metadata=edge_data.get("metadata", {}),
+                )
+
+                call_edges.append(call_edge)
+
+                # Store in database for future queries
+                await self._store_call_edge(call_edge)
+
+            except KeyError as e:
+                logger.warning("Skipping malformed call edge", missing_field=str(e))
+                continue
+
+        return call_edges
+
+    async def _process_function_pointers(
+        self, raw_pointers: list[dict[str, Any]]
+    ) -> list[FunctionPointer]:
+        """
+        Process raw function pointer data into FunctionPointer models.
+
+        Args:
+            raw_pointers: Raw function pointer data from Rust extraction
+
+        Returns:
+            List of processed FunctionPointer models
+        """
+        function_pointers = []
+
+        for pointer_data in raw_pointers:
+            try:
+                assignment_site = CallSite(
+                    file_path=pointer_data["assignment_site"]["file_path"],
+                    line_number=pointer_data["assignment_site"]["line_number"],
+                    column_number=pointer_data["assignment_site"].get("column_number"),
+                    context_before=pointer_data["assignment_site"].get(
+                        "context_before"
+                    ),
+                    context_after=pointer_data["assignment_site"].get("context_after"),
+                    function_context=pointer_data["assignment_site"].get(
+                        "function_context"
+                    ),
+                )
+
+                assigned_function = FunctionReference(
+                    name=pointer_data["assigned_function"]["name"],
+                    signature=pointer_data["assigned_function"].get("signature"),
+                    file_path=pointer_data["assigned_function"]["file_path"],
+                    line_number=pointer_data["assigned_function"]["line_number"],
+                    symbol_type=pointer_data["assigned_function"].get(
+                        "symbol_type", "function"
+                    ),
+                    config_dependencies=pointer_data["assigned_function"].get(
+                        "config_dependencies", []
+                    ),
+                )
+
+                usage_sites = []
+                for site_data in pointer_data.get("usage_sites", []):
+                    usage_site = CallSite(
+                        file_path=site_data["file_path"],
+                        line_number=site_data["line_number"],
+                        column_number=site_data.get("column_number"),
+                        context_before=site_data.get("context_before"),
+                        context_after=site_data.get("context_after"),
+                        function_context=site_data.get("function_context"),
+                    )
+                    usage_sites.append(usage_site)
+
+                function_pointer = FunctionPointer(
+                    pointer_name=pointer_data["pointer_name"],
+                    assignment_site=assignment_site,
+                    assigned_function=assigned_function,
+                    usage_sites=usage_sites,
+                    struct_context=pointer_data.get("struct_context"),
+                )
+
+                function_pointers.append(function_pointer)
+
+                # Store in database
+                await self._store_function_pointer(function_pointer)
+
+            except KeyError as e:
+                logger.warning(
+                    "Skipping malformed function pointer", missing_field=str(e)
+                )
+                continue
+
+        return function_pointers
+
+    async def _process_macro_calls(
+        self, raw_macros: list[dict[str, Any]]
+    ) -> list[MacroCall]:
+        """
+        Process raw macro call data into MacroCall models.
+
+        Args:
+            raw_macros: Raw macro call data from Rust extraction
+
+        Returns:
+            List of processed MacroCall models
+        """
+        macro_calls = []
+
+        for macro_data in raw_macros:
+            try:
+                expansion_site = CallSite(
+                    file_path=macro_data["expansion_site"]["file_path"],
+                    line_number=macro_data["expansion_site"]["line_number"],
+                    column_number=macro_data["expansion_site"].get("column_number"),
+                    context_before=macro_data["expansion_site"].get("context_before"),
+                    context_after=macro_data["expansion_site"].get("context_after"),
+                    function_context=macro_data["expansion_site"].get(
+                        "function_context"
+                    ),
+                )
+
+                # Process expanded calls
+                expanded_calls = []
+                for call_data in macro_data.get("expanded_calls", []):
+                    # Reuse the call edge processing logic
+                    caller = FunctionReference(
+                        name=call_data["caller"]["name"],
+                        signature=call_data["caller"].get("signature"),
+                        file_path=call_data["caller"]["file_path"],
+                        line_number=call_data["caller"]["line_number"],
+                        symbol_type=call_data["caller"].get("symbol_type", "function"),
+                    )
+
+                    callee = FunctionReference(
+                        name=call_data["callee"]["name"],
+                        signature=call_data["callee"].get("signature"),
+                        file_path=call_data["callee"]["file_path"],
+                        line_number=call_data["callee"]["line_number"],
+                        symbol_type=call_data["callee"].get("symbol_type", "function"),
+                    )
+
+                    call_site = CallSite(
+                        file_path=call_data["call_site"]["file_path"],
+                        line_number=call_data["call_site"]["line_number"],
+                        column_number=call_data["call_site"].get("column_number"),
+                        context_before=call_data["call_site"].get("context_before"),
+                        context_after=call_data["call_site"].get("context_after"),
+                        function_context=call_data["call_site"].get("function_context"),
+                    )
+
+                    expanded_call = CallEdge(
+                        caller=caller,
+                        callee=callee,
+                        call_site=call_site,
+                        call_type=call_data["call_type"],
+                        confidence=call_data["confidence"],
+                        conditional=call_data.get("conditional", False),
+                        config_guard=call_data.get("config_guard"),
+                    )
+
+                    expanded_calls.append(expanded_call)
+
+                macro_call = MacroCall(
+                    macro_name=macro_data["macro_name"],
+                    macro_definition=macro_data.get("macro_definition"),
+                    expansion_site=expansion_site,
+                    expanded_calls=expanded_calls,
+                    preprocessor_context=macro_data.get("preprocessor_context"),
+                )
+
+                macro_calls.append(macro_call)
+
+                # Store in database
+                await self._store_macro_call(macro_call)
+
+            except KeyError as e:
+                logger.warning("Skipping malformed macro call", missing_field=str(e))
+                continue
+
+        return macro_calls
+
+    async def _store_call_edge(self, call_edge: CallEdge) -> None:
+        """Store a call edge in the database."""
+        try:
+            # Get or create symbol IDs for caller and callee
+            caller_id = await self._get_or_create_symbol_id(call_edge.caller)
+            callee_id = await self._get_or_create_symbol_id(call_edge.callee)
+
+            # Store the call edge
+            await self.call_graph_queries.insert_call_edge(
+                caller_id=caller_id,
+                callee_id=callee_id,
+                file_path=call_edge.call_site.file_path,
+                line_number=call_edge.call_site.line_number,
+                call_type=call_edge.call_type,  # type: ignore[arg-type]
+                confidence=call_edge.confidence,  # type: ignore[arg-type]
+                conditional=call_edge.conditional,
+                column_number=call_edge.call_site.column_number,
+                function_context=call_edge.call_site.function_context,
+                context_before=call_edge.call_site.context_before,
+                context_after=call_edge.call_site.context_after,
+                config_guard=call_edge.config_guard,
+                metadata=call_edge.metadata,
+            )
+        except Exception as e:
+            logger.warning("Failed to store call edge", error=str(e))
+
+    async def _store_function_pointer(self, function_pointer: FunctionPointer) -> None:
+        """Store a function pointer in the database."""
+        try:
+            # Get symbol ID for assigned function
+            assigned_function_id = await self._get_or_create_symbol_id(
+                function_pointer.assigned_function
+            )
+
+            # Convert usage sites to JSON format
+            usage_sites_data = [
+                {
+                    "file_path": site.file_path,
+                    "line_number": site.line_number,
+                    "column_number": site.column_number,
+                    "function_context": site.function_context,
+                }
+                for site in function_pointer.usage_sites
+            ]
+
+            await self.call_graph_queries.insert_function_pointer(
+                pointer_name=function_pointer.pointer_name,
+                assignment_file=function_pointer.assignment_site.file_path,
+                assignment_line=function_pointer.assignment_site.line_number,
+                assigned_function_id=assigned_function_id,
+                assignment_column=function_pointer.assignment_site.column_number,
+                struct_context=function_pointer.struct_context,
+                assignment_context=function_pointer.assignment_site.function_context,
+                usage_sites=usage_sites_data,
+            )
+        except Exception as e:
+            logger.warning("Failed to store function pointer", error=str(e))
+
+    async def _store_macro_call(self, macro_call: MacroCall) -> None:
+        """Store a macro call in the database."""
+        try:
+            # Store expanded call edges first and collect their IDs
+            expanded_call_ids = []
+            for expanded_call in macro_call.expanded_calls:
+                # Get symbol IDs
+                caller_id = await self._get_or_create_symbol_id(expanded_call.caller)
+                callee_id = await self._get_or_create_symbol_id(expanded_call.callee)
+
+                # Insert call edge and get its ID
+                call_edge_id = await self.call_graph_queries.insert_call_edge(
+                    caller_id=caller_id,
+                    callee_id=callee_id,
+                    file_path=expanded_call.call_site.file_path,
+                    line_number=expanded_call.call_site.line_number,
+                    call_type=expanded_call.call_type,  # type: ignore[arg-type]
+                    confidence=expanded_call.confidence,  # type: ignore[arg-type]
+                    conditional=expanded_call.conditional,
+                    metadata={
+                        "source": "macro_expansion",
+                        "macro_name": macro_call.macro_name,
+                    },
+                )
+                expanded_call_ids.append(call_edge_id)
+
+            # Store the macro call record
+            await self.call_graph_queries.insert_macro_call(
+                macro_name=macro_call.macro_name,
+                expansion_file=macro_call.expansion_site.file_path,
+                expansion_line=macro_call.expansion_site.line_number,
+                macro_definition=macro_call.macro_definition,
+                expansion_column=macro_call.expansion_site.column_number,
+                expanded_call_ids=expanded_call_ids,
+                preprocessor_context=macro_call.preprocessor_context,
+            )
+        except Exception as e:
+            logger.warning("Failed to store macro call", error=str(e))
+
+    async def _get_or_create_symbol_id(self, function_ref: FunctionReference) -> int:
+        """Get or create a symbol ID for a function reference."""
+        # This would integrate with the existing symbol table in the database
+        # For now, we'll use a simplified approach
+        async with self.database.acquire() as conn:
+            # Try to find existing symbol
+            symbol_id = await conn.fetchval(
+                "SELECT id FROM symbols WHERE name = $1 AND file_path = $2",
+                function_ref.name,
+                function_ref.file_path,
+            )
+
+            if symbol_id is not None:
+                return int(symbol_id)
+
+            # Create new symbol
+            symbol_id = await conn.fetchval(
+                """
+                INSERT INTO symbols (name, file_path, line_number, symbol_type)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id
+                """,
+                function_ref.name,
+                function_ref.file_path,
+                function_ref.line_number,
+                function_ref.symbol_type,
+            )
+
+            return int(symbol_id)
 
 
 @router.post("/search_code", response_model=SearchCodeResponse)
@@ -780,7 +1428,6 @@ async def parse_kernel_config(
     This endpoint integrates with the kcs-config crate to parse .config files
     and provide structured configuration data with dependency resolution.
     """
-    import subprocess
     import uuid
     from datetime import datetime
     from pathlib import Path
@@ -1003,7 +1650,6 @@ async def validate_spec(
     This endpoint integrates with the kcs-drift crate to compare specifications
     against actual kernel implementation and identify deviations.
     """
-    import subprocess
     import uuid
     from datetime import datetime
 
@@ -1316,7 +1962,6 @@ async def semantic_search(
     This endpoint integrates with the kcs-search crate to provide semantic
     similarity search across the kernel codebase using vector embeddings.
     """
-    import subprocess
     import time
     import uuid
 
@@ -1630,7 +2275,6 @@ async def traverse_call_graph(
     """
     import json
     import os
-    import subprocess
     import tempfile
     import time
     import uuid
@@ -1973,7 +2617,6 @@ async def export_graph(
     import json
     import math
     import os
-    import subprocess
     import tempfile
     import uuid
     from datetime import datetime
@@ -2920,5 +3563,59 @@ async def process_batch(
             detail=ErrorResponse(
                 error="batch_request_failed",
                 message=f"Failed to process batch: {e!s}",
+            ).dict(),
+        ) from e
+
+
+# Call Graph Extraction Endpoints
+@router.post("/extract_call_graph")
+async def extract_call_graph(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Extract call graph from kernel source files.
+
+    This endpoint processes the specified source files to extract function call
+    relationships, function pointer assignments, and macro expansions. The results
+    are stored in the database and returned in the response.
+    """
+    try:
+        # Validate and parse request
+        validated_request = ExtractCallGraphRequest(**request)
+
+        logger.info(
+            "extract_call_graph_request",
+            file_count=len(validated_request.file_paths),
+            include_indirect=validated_request.include_indirect,
+            include_macros=validated_request.include_macros,
+            max_depth=validated_request.max_depth,
+        )
+
+        extractor = CallGraphExtractor(db)
+        result = await extractor.extract_call_graph(validated_request)
+
+        logger.info(
+            "extract_call_graph_success",
+            call_edges=len(result.call_edges),
+            function_pointers=len(result.function_pointers),
+            macro_calls=len(result.macro_calls),
+            processing_time_ms=result.extraction_stats.processing_time_ms,
+        )
+
+        return result.dict()
+
+    except ValueError as e:
+        logger.warning("extract_call_graph_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except Exception as e:
+        logger.error("extract_call_graph_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="extraction_failed",
+                message=f"Call graph extraction failed: {e!s}",
             ).dict(),
         ) from e
