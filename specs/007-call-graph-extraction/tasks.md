@@ -102,7 +102,7 @@
 
 - [x] T028 [P] Database insertion functions for call_edges table in src/python/kcs_mcp/database/call_graph.py
 - [x] T029 [P] Query functions for call relationships in src/python/kcs_mcp/database/queries.py
-- [ ] T030 Graph traversal algorithms integration with petgraph in src/rust/kcs-graph/src/traversal.rs
+- [x] T030 Graph traversal algorithms integration with petgraph in src/rust/kcs-graph/src/traversal.rs
 
 ### MCP Protocol Endpoints
 
