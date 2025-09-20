@@ -295,6 +295,57 @@ class TraceCallPathResponse(BaseModel):
     paths: list[CallPath] = Field(..., description="Found call paths")
 
 
+class AnalyzeFunctionPointersRequest(BaseModel):
+    """Request schema for function pointer analysis."""
+
+    file_paths: list[str] | None = Field(
+        None, description="Specific files to analyze (optional)"
+    )
+    pointer_patterns: list[str] | None = Field(
+        None,
+        description="Specific pointer patterns to search for",
+        examples=[["file_operations", "device_operations"]],
+    )
+    config_context: str | None = Field(None, description="Kernel configuration context")
+
+
+class AnalysisStats(BaseModel):
+    """Analysis statistics for function pointer analysis."""
+
+    pointers_analyzed: int = Field(..., description="Number of pointers analyzed")
+    assignments_found: int = Field(..., description="Number of assignments found")
+    usage_sites_found: int = Field(..., description="Number of usage sites found")
+    callback_patterns_matched: int = Field(
+        ..., description="Number of callback patterns matched"
+    )
+
+
+class CallbackRegistration(BaseModel):
+    """Callback registration information."""
+
+    registration_site: CallSite = Field(
+        ..., description="Where callback was registered"
+    )
+    callback_function: FunctionReference | None = Field(
+        None, description="Function being registered as callback"
+    )
+    registration_pattern: str = Field(
+        ..., description="Pattern used for registration detection"
+    )
+
+
+class AnalyzeFunctionPointersResponse(BaseModel):
+    """Response schema for function pointer analysis."""
+
+    function_pointers: list[FunctionPointer] = Field(
+        ..., description="Analyzed function pointers"
+    )
+    callback_registrations: list[CallbackRegistration] | None = Field(
+        None, description="Detected callback registrations"
+    )
+    analysis_stats: AnalysisStats = Field(..., description="Analysis statistics")
+
+
 class CallGraphExtractor:
     """Handles call graph extraction using the Rust parser."""
 
@@ -4027,4 +4078,167 @@ def _transform_call_path_to_api_format(db_path: dict[str, Any]) -> dict[str, Any
         "path_length": db_path["path_length"],
         "total_confidence": db_path["total_confidence"],
         "config_context": db_path.get("config_context"),
+    }
+
+
+@router.post("/analyze_function_pointers")
+async def analyze_function_pointers(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Analyze function pointer assignments and usage patterns.
+
+    This endpoint analyzes function pointer patterns in the codebase,
+    identifying assignments, usage sites, and callback registration patterns.
+    """
+    try:
+        # Validate and parse request
+        validated_request = AnalyzeFunctionPointersRequest(**request)
+
+        logger.info(
+            "analyze_function_pointers_request",
+            file_paths=validated_request.file_paths,
+            pointer_patterns=validated_request.pointer_patterns,
+            config_context=validated_request.config_context,
+        )
+
+        # Query function pointer analysis from database
+        call_graph_analyzer = CallGraphAnalyzer(db)
+        result = await call_graph_analyzer.analyze_function_pointers(
+            file_paths=validated_request.file_paths,
+            pointer_patterns=validated_request.pointer_patterns,
+            config_context=validated_request.config_context,
+        )
+
+        # Transform database result to API response format
+        function_pointers = [
+            FunctionPointer(**_transform_function_pointer_to_api_format(fp))
+            for fp in result["function_pointers"]
+        ]
+
+        callback_registrations = None
+        if result.get("callback_registrations"):
+            callback_registrations = [
+                CallbackRegistration(
+                    **_transform_callback_registration_to_api_format(cb)
+                )
+                for cb in result["callback_registrations"]
+            ]
+
+        analysis_stats = AnalysisStats(**result["analysis_stats"])
+
+        response = AnalyzeFunctionPointersResponse(
+            function_pointers=function_pointers,
+            callback_registrations=callback_registrations,
+            analysis_stats=analysis_stats,
+        )
+
+        logger.info(
+            "analyze_function_pointers_success",
+            pointers_analyzed=len(function_pointers),
+            callback_registrations=len(callback_registrations)
+            if callback_registrations
+            else 0,
+            assignments_found=analysis_stats.assignments_found,
+        )
+
+        return response.dict()
+
+    except ValueError as e:
+        logger.warning("analyze_function_pointers_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except Exception as e:
+        logger.error("analyze_function_pointers_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="analysis_failed",
+                message=f"Function pointer analysis failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+def _transform_function_pointer_to_api_format(
+    db_pointer: dict[str, Any],
+) -> dict[str, Any]:
+    """Transform database function pointer result to API format."""
+    assignment_site = CallSite(
+        file_path=db_pointer["assignment_site"]["file_path"],
+        line_number=db_pointer["assignment_site"]["line_number"],
+        column_number=db_pointer["assignment_site"].get("column_number"),
+        context_before=db_pointer["assignment_site"].get("context_before"),
+        context_after=db_pointer["assignment_site"].get("context_after"),
+        function_context=db_pointer["assignment_site"].get("function_context"),
+    )
+
+    # Transform usage sites
+    usage_sites = []
+    for usage in db_pointer.get("usage_sites", []):
+        usage_site = CallSite(
+            file_path=usage["file_path"],
+            line_number=usage["line_number"],
+            column_number=usage.get("column_number"),
+            context_before=usage.get("context_before"),
+            context_after=usage.get("context_after"),
+            function_context=usage.get("function_context"),
+        )
+        usage_sites.append(usage_site)
+
+    # Transform assigned function if present
+    assigned_function = None
+    if db_pointer.get("assigned_function"):
+        assigned_function = FunctionReference(
+            name=db_pointer["assigned_function"]["name"],
+            file_path=db_pointer["assigned_function"]["file_path"],
+            line_number=db_pointer["assigned_function"]["line_number"],
+            signature=db_pointer["assigned_function"].get("signature"),
+            symbol_type=db_pointer["assigned_function"].get("symbol_type", "function"),
+            config_dependencies=db_pointer["assigned_function"].get(
+                "config_dependencies", []
+            ),
+        )
+
+    return {
+        "pointer_name": db_pointer["pointer_name"],
+        "assignment_site": assignment_site,
+        "assigned_function": assigned_function,
+        "usage_sites": usage_sites,
+        "struct_context": db_pointer.get("struct_context"),
+        "metadata": db_pointer.get("metadata", {}),
+    }
+
+
+def _transform_callback_registration_to_api_format(
+    db_callback: dict[str, Any],
+) -> dict[str, Any]:
+    """Transform database callback registration result to API format."""
+    registration_site = CallSite(
+        file_path=db_callback["registration_site"]["file_path"],
+        line_number=db_callback["registration_site"]["line_number"],
+        column_number=db_callback["registration_site"].get("column_number"),
+        context_before=db_callback["registration_site"].get("context_before"),
+        context_after=db_callback["registration_site"].get("context_after"),
+        function_context=db_callback["registration_site"].get("function_context"),
+    )
+
+    callback_function = None
+    if db_callback.get("callback_function"):
+        callback_function = FunctionReference(
+            name=db_callback["callback_function"]["name"],
+            file_path=db_callback["callback_function"]["file_path"],
+            line_number=db_callback["callback_function"]["line_number"],
+            signature=db_callback["callback_function"].get("signature"),
+            symbol_type=db_callback["callback_function"].get("symbol_type", "function"),
+            config_dependencies=db_callback["callback_function"].get(
+                "config_dependencies", []
+            ),
+        )
+
+    return {
+        "registration_site": registration_site,
+        "callback_function": callback_function,
+        "registration_pattern": db_callback["registration_pattern"],
     }
