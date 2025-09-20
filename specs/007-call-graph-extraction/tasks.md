@@ -65,10 +65,10 @@
 
 ### Integration Tests (Quickstart Scenarios)
 
-- [ ] T009 [P] Integration test direct function call extraction in tests/integration/test_direct_calls.py
-- [ ] T010 [P] Integration test function relationship queries in tests/integration/test_relationship_queries.py
-- [ ] T011 [P] Integration test call path tracing in tests/integration/test_path_tracing.py
-- [ ] T012 [P] Integration test function pointer analysis in tests/integration/test_pointer_analysis.py
+- [x] T009 [P] Integration test direct function call extraction in tests/integration/test_direct_calls.py
+- [x] T010 [P] Integration test function relationship queries in tests/integration/test_relationship_queries.py
+- [x] T011 [P] Integration test call path tracing in tests/integration/test_path_tracing.py
+- [x] T012 [P] Integration test function pointer analysis in tests/integration/test_pointer_analysis.py
 
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 
