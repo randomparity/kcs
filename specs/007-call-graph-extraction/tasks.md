@@ -48,7 +48,7 @@
 - [x] T001 Add Tree-sitter call extraction dependencies to src/rust/kcs-parser/Cargo.toml
 - [x] T002 Create database migration 013_call_graph_tables.sql with call_edges,
   function_pointers, macro_calls tables
-- [ ] T003 [P] Create Tree-sitter query file src/rust/kcs-parser/queries/call_patterns.scm
+- [x] T003 [P] Create Tree-sitter query file src/rust/kcs-parser/queries/call_patterns.scm
   for C call detection
 - [ ] T004 [P] Configure Rust clippy and formatting for call graph modules
 
