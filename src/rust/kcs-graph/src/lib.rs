@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 pub mod builder;
 pub mod call_edge;
+pub mod call_path;
 pub mod call_site;
 pub mod config;
 pub mod cycles;
@@ -18,6 +19,7 @@ pub mod traversal;
 pub mod types;
 
 pub use call_edge::{CallEdge as CallEdgeModel, CallEdgeBuilder};
+pub use call_path::{CallPath, CallPathBuilder};
 pub use call_site::{CallSite, CallSiteBuilder};
 pub use cycles::{Cycle, CycleAnalysis, CycleDetector};
 pub use function_pointer::{FunctionPointer, FunctionPointerBuilder};

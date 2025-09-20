@@ -126,15 +126,15 @@ impl FromStr for CallType {
 ///
 /// Represents how confident the analysis system is about the accuracy
 /// of a detected call relationship or function pointer assignment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ConfidenceLevel {
-    /// High confidence (90-100% certainty)
+    /// Low confidence (50-69% certainty)
     ///
-    /// Used for clear, unambiguous relationships such as:
-    /// - Direct function calls by name
-    /// - Explicit function pointer assignments
-    /// - System calls with known prototypes
-    High,
+    /// Used for relationships that may be incorrect or incomplete:
+    /// - Complex macro expansions
+    /// - Assembly language calls
+    /// - Heuristic-based function pointer analysis
+    Low,
 
     /// Medium confidence (70-89% certainty)
     ///
@@ -144,13 +144,13 @@ pub enum ConfidenceLevel {
     /// - Function calls in conditional contexts
     Medium,
 
-    /// Low confidence (50-69% certainty)
+    /// High confidence (90-100% certainty)
     ///
-    /// Used for relationships that may be incorrect or incomplete:
-    /// - Complex macro expansions
-    /// - Assembly language calls
-    /// - Heuristic-based function pointer analysis
-    Low,
+    /// Used for clear, unambiguous relationships such as:
+    /// - Direct function calls by name
+    /// - Explicit function pointer assignments
+    /// - System calls with known prototypes
+    High,
 }
 
 impl ConfidenceLevel {
@@ -194,7 +194,7 @@ impl ConfidenceLevel {
 
     /// Returns all possible confidence levels.
     pub fn all() -> &'static [ConfidenceLevel] {
-        &[ConfidenceLevel::High, ConfidenceLevel::Medium, ConfidenceLevel::Low]
+        &[ConfidenceLevel::Low, ConfidenceLevel::Medium, ConfidenceLevel::High]
     }
 }
 
