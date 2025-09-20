@@ -20,14 +20,14 @@ use crate::types::{CallType, ConfidenceLevel};
 /// # Examples
 ///
 /// ```rust
-/// use kcs_graph::{CallEdge, CallType, ConfidenceLevel};
+/// use kcs_graph::{CallEdgeModel, CallTypeEnum, ConfidenceLevel};
 ///
-/// let edge = CallEdge::new(
+/// let edge = CallEdgeModel::new(
 ///     "main_function".to_string(),
 ///     "helper_function".to_string(),
 ///     "/path/to/file.c".to_string(),
 ///     42,
-///     CallType::Direct,
+///     CallTypeEnum::Direct,
 ///     ConfidenceLevel::High,
 ///     false,
 /// );
@@ -82,17 +82,17 @@ impl CallEdge {
     /// # Examples
     ///
     /// ```rust
-    /// use kcs_graph::{CallEdge, CallType, ConfidenceLevel};
+    /// use kcs_graph::{CallEdgeModel, CallTypeEnum, ConfidenceLevel};
     ///
-    /// let edge = CallEdge::new(
+    /// let edge = CallEdgeModel::new(
     ///     "sys_open".to_string(),
     ///     "generic_file_open".to_string(),
     ///     "fs/open.c".to_string(),
     ///     123,
-    ///     CallType::Direct,
+    ///     CallTypeEnum::Direct,
     ///     ConfidenceLevel::High,
     ///     false,
-    /// );
+    ///     );
     /// ```
     pub fn new(
         caller_name: String,
@@ -121,14 +121,14 @@ impl CallEdge {
     /// # Examples
     ///
     /// ```rust
-    /// use kcs_graph::{CallEdge, CallType, ConfidenceLevel};
+    /// use kcs_graph::{CallEdgeModel, CallTypeEnum, ConfidenceLevel};
     ///
-    /// let edge = CallEdge::builder()
+    /// let edge = CallEdgeModel::builder()
     ///     .caller("main")
     ///     .callee("helper")
     ///     .file_path("main.c")
     ///     .line_number(42)
-    ///     .call_type(CallType::Direct)
+    ///     .call_type(CallTypeEnum::Direct)
     ///     .confidence(ConfidenceLevel::High)
     ///     .conditional(false)
     ///     .config_guard("CONFIG_DEBUG")
