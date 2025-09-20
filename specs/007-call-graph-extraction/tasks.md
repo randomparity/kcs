@@ -58,10 +58,10 @@
 
 ### Contract Tests (API Endpoints)
 
-- [ ] T005 [P] Contract test POST /mcp/tools/extract_call_graph in tests/contract/test_call_graph_extraction.py
-- [ ] T006 [P] Contract test POST /mcp/tools/get_call_relationships in tests/contract/test_call_relationships.py
-- [ ] T007 [P] Contract test POST /mcp/tools/trace_call_path in tests/contract/test_call_path_tracing.py
-- [ ] T008 [P] Contract test POST /mcp/tools/analyze_function_pointers in tests/contract/test_function_pointers.py
+- [x] T005 [P] Contract test POST /mcp/tools/extract_call_graph in tests/contract/test_call_graph_extraction.py
+- [x] T006 [P] Contract test POST /mcp/tools/get_call_relationships in tests/contract/test_call_relationships.py
+- [x] T007 [P] Contract test POST /mcp/tools/trace_call_path in tests/contract/test_call_path_tracing.py
+- [x] T008 [P] Contract test POST /mcp/tools/analyze_function_pointers in tests/contract/test_function_pointers.py
 
 ### Integration Tests (Quickstart Scenarios)
 
