@@ -87,7 +87,7 @@
 - [x] T020 Function pointer call detection in src/rust/kcs-parser/src/call_extraction/pointer_calls.rs
 - [x] T021 Macro call expansion in src/rust/kcs-parser/src/call_extraction/macro_calls.rs
 - [x] T022 Callback pattern recognition in src/rust/kcs-parser/src/call_extraction/callbacks.rs
-- [ ] T023 Conditional compilation handling in src/rust/kcs-parser/src/call_extraction/conditional.rs
+- [x] T023 Conditional compilation handling in src/rust/kcs-parser/src/call_extraction/conditional.rs
 
 ### Core Call Graph Engine
 
