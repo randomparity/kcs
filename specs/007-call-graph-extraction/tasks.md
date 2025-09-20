@@ -77,7 +77,7 @@
 - [x] T013 [P] CallEdge struct in src/rust/kcs-graph/src/call_edge.rs
 - [x] T014 [P] CallSite struct in src/rust/kcs-graph/src/call_site.rs
 - [x] T015 [P] MacroCall struct in src/rust/kcs-graph/src/macro_call.rs
-- [ ] T016 [P] FunctionPointer struct in src/rust/kcs-graph/src/function_pointer.rs
+- [x] T016 [P] FunctionPointer struct in src/rust/kcs-graph/src/function_pointer.rs
 - [ ] T017 [P] CallPath struct in src/rust/kcs-graph/src/call_path.rs
 - [ ] T018 [P] CallType and ConfidenceLevel enums in src/rust/kcs-graph/src/types.rs
 
