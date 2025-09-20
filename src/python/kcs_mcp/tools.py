@@ -251,6 +251,50 @@ class GetCallRelationshipsResponse(BaseModel):
     )
 
 
+# Trace Call Path Models
+class TraceCallPathRequest(BaseModel):
+    """Request schema for call path tracing."""
+
+    from_function: str = Field(..., description="Starting function name")
+    to_function: str = Field(..., description="Target function name")
+    config_context: str | None = Field(
+        None,
+        description="Kernel configuration context",
+        examples=["x86_64:defconfig"],
+    )
+    max_paths: int = Field(
+        default=3,
+        description="Maximum number of paths to return",
+        ge=1,
+        le=10,
+    )
+    max_depth: int = Field(
+        default=5,
+        description="Maximum path length to consider",
+        ge=1,
+        le=10,
+    )
+
+
+class CallPath(BaseModel):
+    """Call path information."""
+
+    path_edges: list[CallEdge] = Field(..., description="Call edges in the path")
+    path_length: int = Field(..., description="Length of the path", ge=1)
+    total_confidence: float = Field(
+        ..., description="Total confidence of the path", ge=0.0, le=1.0
+    )
+    config_context: str | None = Field(None, description="Configuration context")
+
+
+class TraceCallPathResponse(BaseModel):
+    """Response schema for call path tracing."""
+
+    from_function: str = Field(..., description="Starting function name")
+    to_function: str = Field(..., description="Target function name")
+    paths: list[CallPath] = Field(..., description="Found call paths")
+
+
 class CallGraphExtractor:
     """Handles call graph extraction using the Rust parser."""
 
@@ -3823,4 +3867,164 @@ def _transform_relationship_to_api_format(
         "function": function_ref,
         "call_edge": call_edge,
         "depth": db_relationship["depth"],
+    }
+
+
+@router.post("/trace_call_path")
+async def trace_call_path(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Trace call paths between two functions.
+
+    This endpoint finds call paths from a starting function to a target function
+    using graph traversal algorithms, returning multiple paths if they exist.
+    """
+    try:
+        # Validate and parse request
+        validated_request = TraceCallPathRequest(**request)
+
+        logger.info(
+            "trace_call_path_request",
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            max_paths=validated_request.max_paths,
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Query call paths from database
+        call_graph_analyzer = CallGraphAnalyzer(db)
+        result = await call_graph_analyzer.trace_call_paths(
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            max_paths=validated_request.max_paths,
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Check for errors
+        if "error" in result:
+            error_msg = result["error"]
+            if "not found" in error_msg:
+                logger.warning(
+                    "trace_call_path_function_not_found",
+                    from_function=validated_request.from_function,
+                    to_function=validated_request.to_function,
+                    error=error_msg,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=ErrorResponse(
+                        error="function_not_found",
+                        message=error_msg,
+                    ).dict(),
+                )
+            else:
+                logger.warning(
+                    "trace_call_path_no_path",
+                    from_function=validated_request.from_function,
+                    to_function=validated_request.to_function,
+                    error=error_msg,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=ErrorResponse(
+                        error="no_path_found",
+                        message=error_msg,
+                    ).dict(),
+                )
+
+        # Transform database result to API response format
+        call_paths = [
+            CallPath(**_transform_call_path_to_api_format(path))
+            for path in result["paths"]
+        ]
+
+        response = TraceCallPathResponse(
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            paths=call_paths,
+        )
+
+        logger.info(
+            "trace_call_path_success",
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            paths_found=len(call_paths),
+        )
+
+        return response.dict()
+
+    except ValueError as e:
+        logger.warning("trace_call_path_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404)
+        raise
+    except Exception as e:
+        logger.error("trace_call_path_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="path_tracing_failed",
+                message=f"Call path tracing failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+def _transform_call_path_to_api_format(db_path: dict[str, Any]) -> dict[str, Any]:
+    """Transform database call path result to API format."""
+    # Transform each call edge in the path
+    path_edges = []
+    for edge in db_path["path_edges"]:
+        # Create the edge objects using existing models
+        caller_ref = FunctionReference(
+            name=edge["caller"]["name"],
+            file_path=edge["caller"]["file_path"],
+            line_number=edge["caller"]["line_number"],
+            signature=edge["caller"].get("signature"),
+            symbol_type=edge["caller"].get("symbol_type", "function"),
+            config_dependencies=edge["caller"].get("config_dependencies", []),
+        )
+
+        callee_ref = FunctionReference(
+            name=edge["callee"]["name"],
+            file_path=edge["callee"]["file_path"],
+            line_number=edge["callee"]["line_number"],
+            signature=edge["callee"].get("signature"),
+            symbol_type=edge["callee"].get("symbol_type", "function"),
+            config_dependencies=edge["callee"].get("config_dependencies", []),
+        )
+
+        call_site = CallSite(
+            file_path=edge["call_site"]["file_path"],
+            line_number=edge["call_site"]["line_number"],
+            column_number=edge["call_site"].get("column_number"),
+            context_before=edge["call_site"].get("context_before"),
+            context_after=edge["call_site"].get("context_after"),
+            function_context=edge["call_site"].get("function_context"),
+        )
+
+        call_edge = CallEdge(
+            caller=caller_ref,
+            callee=callee_ref,
+            call_site=call_site,
+            call_type=edge["call_type"],
+            confidence=edge["confidence"],
+            conditional=edge.get("conditional", False),
+            config_guard=edge.get("config_guard"),
+            metadata=edge.get("metadata", {}),
+        )
+
+        path_edges.append(call_edge)
+
+    return {
+        "path_edges": path_edges,
+        "path_length": db_path["path_length"],
+        "total_confidence": db_path["total_confidence"],
+        "config_context": db_path.get("config_context"),
     }

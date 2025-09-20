@@ -108,7 +108,7 @@
 
 - [x] T031 Extract call graph MCP tool in src/python/kcs_mcp/tools/extract_call_graph.py
 - [x] T032 Get call relationships MCP tool in src/python/kcs_mcp/tools.py
-- [ ] T033 Trace call path MCP tool in src/python/kcs_mcp/tools/trace_call_path.py
+- [x] T033 Trace call path MCP tool in src/python/kcs_mcp/tools.py
 - [ ] T034 Analyze function pointers MCP tool in src/python/kcs_mcp/tools/analyze_function_pointers.py
 
 ### System Integration
