@@ -45,7 +45,7 @@
 
 ## Phase 3.1: Setup
 
-- [ ] T001 Add Tree-sitter call extraction dependencies to src/rust/kcs-parser/Cargo.toml
+- [x] T001 Add Tree-sitter call extraction dependencies to src/rust/kcs-parser/Cargo.toml
 - [ ] T002 Create database migration 013_call_graph_tables.sql with call_edges, function_pointers, macro_calls tables
 - [ ] T003 [P] Create Tree-sitter query file src/rust/kcs-parser/queries/call_patterns.scm for C call detection
 - [ ] T004 [P] Configure Rust clippy and formatting for call graph modules
@@ -55,12 +55,14 @@
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
 
 ### Contract Tests (API Endpoints)
+
 - [ ] T005 [P] Contract test POST /mcp/tools/extract_call_graph in tests/contract/test_call_graph_extraction.py
 - [ ] T006 [P] Contract test POST /mcp/tools/get_call_relationships in tests/contract/test_call_relationships.py
 - [ ] T007 [P] Contract test POST /mcp/tools/trace_call_path in tests/contract/test_call_path_tracing.py
 - [ ] T008 [P] Contract test POST /mcp/tools/analyze_function_pointers in tests/contract/test_function_pointers.py
 
 ### Integration Tests (Quickstart Scenarios)
+
 - [ ] T009 [P] Integration test direct function call extraction in tests/integration/test_direct_calls.py
 - [ ] T010 [P] Integration test function relationship queries in tests/integration/test_relationship_queries.py
 - [ ] T011 [P] Integration test call path tracing in tests/integration/test_path_tracing.py
@@ -69,6 +71,7 @@
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 
 ### Data Models and Database Schema
+
 - [ ] T013 [P] CallEdge struct in src/rust/kcs-graph/src/call_edge.rs
 - [ ] T014 [P] CallSite struct in src/rust/kcs-graph/src/call_site.rs
 - [ ] T015 [P] MacroCall struct in src/rust/kcs-graph/src/macro_call.rs
@@ -77,6 +80,7 @@
 - [ ] T018 [P] CallType and ConfidenceLevel enums in src/rust/kcs-graph/src/types.rs
 
 ### Tree-sitter AST Extraction
+
 - [ ] T019 Direct function call detection in src/rust/kcs-parser/src/call_extraction/direct_calls.rs
 - [ ] T020 Function pointer call detection in src/rust/kcs-parser/src/call_extraction/pointer_calls.rs
 - [ ] T021 Macro call expansion in src/rust/kcs-parser/src/call_extraction/macro_calls.rs
@@ -84,6 +88,7 @@
 - [ ] T023 Conditional compilation handling in src/rust/kcs-parser/src/call_extraction/conditional.rs
 
 ### Core Call Graph Engine
+
 - [ ] T024 CallExtractor main engine in src/rust/kcs-parser/src/call_extraction/mod.rs
 - [ ] T025 AST traversal coordinator in src/rust/kcs-parser/src/ast_traversal.rs
 - [ ] T026 Call classification logic in src/rust/kcs-parser/src/call_classifier.rs
@@ -92,17 +97,20 @@
 ## Phase 3.4: Integration
 
 ### Database Operations
+
 - [ ] T028 [P] Database insertion functions for call_edges table in src/python/kcs_mcp/database/call_graph.py
 - [ ] T029 [P] Query functions for call relationships in src/python/kcs_mcp/database/queries.py
 - [ ] T030 Graph traversal algorithms integration with petgraph in src/rust/kcs-graph/src/traversal.rs
 
 ### MCP Protocol Endpoints
+
 - [ ] T031 Extract call graph MCP tool in src/python/kcs_mcp/tools/extract_call_graph.py
 - [ ] T032 Get call relationships MCP tool in src/python/kcs_mcp/tools/get_call_relationships.py
 - [ ] T033 Trace call path MCP tool in src/python/kcs_mcp/tools/trace_call_path.py
 - [ ] T034 Analyze function pointers MCP tool in src/python/kcs_mcp/tools/analyze_function_pointers.py
 
 ### System Integration
+
 - [ ] T035 Python-Rust bridge integration in src/python/kcs_mcp/rust_bridge.py
 - [ ] T036 Error handling and logging across call graph pipeline
 - [ ] T037 Configuration management for call extraction settings
@@ -116,12 +124,14 @@
 ## Dependencies
 
 ### Critical Path
+
 - T002 (DB schema) → T013-T018 (models) → T028-T029 (DB operations)
 - T003 (Tree-sitter queries) → T019-T023 (AST extraction) → T024-T027 (engine)
 - T024 (engine) → T031-T034 (MCP endpoints)
 - T005-T012 (tests) before T013-T037 (implementation)
 
 ### Parallel Groups
+
 - Contract tests (T005-T008) can run together
 - Integration tests (T009-T012) can run together
 - Data models (T013-T018) can run together
