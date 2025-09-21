@@ -40,19 +40,22 @@
 
 ## Path Conventions
 
-- **Single project**: `src/`, `tests/` at repository root (integrating into existing KCS)
+- **Python components**: `src/python/` following existing KCS structure
+- **Tests**: `tests/` at repository root (integrating into existing KCS)
 - Paths assume integration into existing KCS architecture
 
 ## Phase 3.1: Setup
 
-- [ ] T001 Create semantic search project structure in src/semantic_search/
-- [ ] T002 Initialize Python dependencies: sentence-transformers==2.7.0, pgvector==0.3.0, psycopg2-binary==2.9.9
-- [ ] T003 [P] Configure database schema with pgvector tables in src/semantic_search/schema.sql
-- [ ] T004 [P] Set up logging configuration following KCS patterns in src/semantic_search/logging_config.py
+- [x] T001 Create semantic search project structure in src/python/semantic_search/
+- [x] T002 Initialize Python dependencies: sentence-transformers==2.7.0, pgvector==0.3.0, psycopg2-binary==2.9.9
+- [x] T003 [P] Configure database schema with pgvector tables in src/python/semantic_search/schema.sql
+- [x] T004 [P] Set up logging configuration following KCS patterns in src/python/semantic_search/logging_config.py
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
+## Critical: TDD Requirements
+
+These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Contract Tests [P]
 
@@ -83,38 +86,38 @@
 
 ### Data Models [P]
 
-- [ ] T018 [P] SearchQuery model with validation in src/semantic_search/models/search_query.py
-- [ ] T019 [P] VectorEmbedding model with pgvector integration in src/semantic_search/models/vector_embedding.py
-- [ ] T020 [P] SearchResult model with ranking logic in src/semantic_search/models/search_result.py
-- [ ] T021 [P] IndexedContent model with status tracking in src/semantic_search/models/indexed_content.py
+- [ ] T018 [P] SearchQuery model with validation in src/python/semantic_search/models/search_query.py
+- [ ] T019 [P] VectorEmbedding model with pgvector integration in src/python/semantic_search/models/vector_embedding.py
+- [ ] T020 [P] SearchResult model with ranking logic in src/python/semantic_search/models/search_result.py
+- [ ] T021 [P] IndexedContent model with status tracking in src/python/semantic_search/models/indexed_content.py
 
 ### Core Services [P]
 
-- [ ] T022 [P] EmbeddingService with BAAI/bge-small-en-v1.5 integration in src/semantic_search/services/embedding_service.py
-- [ ] T023 [P] QueryPreprocessor for text normalization in src/semantic_search/services/query_preprocessor.py
-- [ ] T024 [P] VectorSearchService with pgvector operations in src/semantic_search/services/vector_search_service.py
-- [ ] T025 [P] RankingService with hybrid BM25+semantic scoring in src/semantic_search/services/ranking_service.py
+- [ ] T022 [P] EmbeddingService with BAAI/bge-small-en-v1.5 integration in src/python/semantic_search/services/embedding_service.py
+- [ ] T023 [P] QueryPreprocessor for text normalization in src/python/semantic_search/services/query_preprocessor.py
+- [ ] T024 [P] VectorSearchService with pgvector operations in src/python/semantic_search/services/vector_search_service.py
+- [ ] T025 [P] RankingService with hybrid BM25+semantic scoring in src/python/semantic_search/services/ranking_service.py
 
 ### Database Layer
 
-- [ ] T026 Database connection pool with PostgreSQL in src/semantic_search/database/connection.py
-- [ ] T027 Vector storage operations in src/semantic_search/database/vector_store.py
-- [ ] T028 Index management and optimization in src/semantic_search/database/index_manager.py
+- [ ] T026 Database connection pool with PostgreSQL in src/python/semantic_search/database/connection.py
+- [ ] T027 Vector storage operations in src/python/semantic_search/database/vector_store.py
+- [ ] T028 Index management and optimization in src/python/semantic_search/database/index_manager.py
 
 ### CLI Interface [P]
 
-- [ ] T029 [P] CLI search command in src/semantic_search/cli/search_commands.py
-- [ ] T030 [P] CLI index command in src/semantic_search/cli/index_commands.py
-- [ ] T031 [P] CLI status command in src/semantic_search/cli/status_commands.py
+- [ ] T029 [P] CLI search command in src/python/semantic_search/cli/search_commands.py
+- [ ] T030 [P] CLI index command in src/python/semantic_search/cli/index_commands.py
+- [ ] T031 [P] CLI status command in src/python/semantic_search/cli/status_commands.py
 
 ## Phase 3.4: Integration
 
 ### MCP Endpoints
 
-- [ ] T032 semantic_search MCP tool implementation in src/semantic_search/mcp/search_tool.py
-- [ ] T033 index_content MCP tool implementation in src/semantic_search/mcp/index_tool.py
-- [ ] T034 get_index_status MCP tool implementation in src/semantic_search/mcp/status_tool.py
-- [ ] T035 MCP error handling and validation in src/semantic_search/mcp/error_handlers.py
+- [ ] T032 semantic_search MCP tool implementation in src/python/semantic_search/mcp/search_tool.py
+- [ ] T033 index_content MCP tool implementation in src/python/semantic_search/mcp/index_tool.py
+- [ ] T034 get_index_status MCP tool implementation in src/python/semantic_search/mcp/status_tool.py
+- [ ] T035 MCP error handling and validation in src/python/semantic_search/mcp/error_handlers.py
 
 ### System Integration
 
@@ -125,7 +128,7 @@
 
 ### Background Processing
 
-- [ ] T040 Content indexing background worker in src/semantic_search/workers/indexing_worker.py
+- [ ] T040 Content indexing background worker in src/python/semantic_search/workers/indexing_worker.py
 - [ ] T041 Incremental index updates based on file changes
 - [ ] T042 Data retention policy enforcement per FR-012
 
@@ -140,7 +143,7 @@
 
 ### Documentation and Optimization
 
-- [ ] T047 [P] Create llms.txt documentation in docs/semantic_search/llms.txt
+- [ ] T047 [P] Create llms.txt documentation in docs/python/semantic_search/llms.txt
 - [ ] T048 Performance optimization: query result caching
 - [ ] T049 Performance optimization: vector index tuning
 - [ ] T050 Execute quickstart validation scenarios from quickstart.md
@@ -192,10 +195,10 @@ Task: "IndexedContent model test in tests/unit/test_indexed_content_model.py"
 ### Core Services (can run simultaneously after models complete)
 
 ```
-Task: "EmbeddingService with BAAI/bge-small-en-v1.5 integration in src/semantic_search/services/embedding_service.py"
-Task: "QueryPreprocessor for text normalization in src/semantic_search/services/query_preprocessor.py"
-Task: "VectorSearchService with pgvector operations in src/semantic_search/services/vector_search_service.py"
-Task: "RankingService with hybrid BM25+semantic scoring in src/semantic_search/services/ranking_service.py"
+Task: "EmbeddingService with BAAI/bge-small-en-v1.5 integration in src/python/semantic_search/services/embedding_service.py"
+Task: "QueryPreprocessor for text normalization in src/python/semantic_search/services/query_preprocessor.py"
+Task: "VectorSearchService with pgvector operations in src/python/semantic_search/services/vector_search_service.py"
+Task: "RankingService with hybrid BM25+semantic scoring in src/python/semantic_search/services/ranking_service.py"
 ```
 
 ## Notes
@@ -209,7 +212,9 @@ Task: "RankingService with hybrid BM25+semantic scoring in src/semantic_search/s
 
 ## Task Generation Rules
 
-*Applied during main() execution*
+### Application Rules
+
+Applied during main() execution
 
 1. **From Contracts**:
    - mcp-search-tools.json → 3 contract test tasks [P] (T005-T007)
@@ -235,7 +240,9 @@ Task: "RankingService with hybrid BM25+semantic scoring in src/semantic_search/s
 
 ## Validation Checklist
 
-*GATE: Checked by main() before returning*
+### Validation Gate
+
+GATE: Checked by main() before returning
 
 - [x] All contracts have corresponding tests (T005-T007)
 - [x] All entities have model tasks (T018-T021)
