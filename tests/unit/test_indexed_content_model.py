@@ -105,6 +105,9 @@ class TestIndexedContentModel:
         valid_statuses = ["PENDING", "PROCESSING", "COMPLETED", "FAILED"]
 
         for status in valid_statuses:
+            # FAILED status requires error_message
+            error_message = "Test error" if status == "FAILED" else None
+
             content = IndexedContent(
                 file_path="/test.c",
                 file_type="C_SOURCE",
@@ -112,6 +115,7 @@ class TestIndexedContentModel:
                 last_modified=datetime.now(),
                 chunk_count=5,
                 processing_status=status,
+                error_message=error_message,
             )
             assert content.processing_status == status
 
