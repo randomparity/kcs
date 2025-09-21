@@ -143,7 +143,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Documentation and Optimization
 
-- [ ] T047 [P] Create llms.txt documentation in docs/python/semantic_search/llms.txt
+- [x] T047 [P] Create llms.txt documentation in docs/python/semantic_search/llms.md
 - [ ] T048 Performance optimization: query result caching
 - [ ] T049 Performance optimization: vector index tuning
 - [ ] T050 Execute quickstart validation scenarios from quickstart.md
