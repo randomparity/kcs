@@ -1,0 +1,9 @@
+#
+# This is a generated file for testing purposes.
+# Kconfig for Rust example
+#
+config RUST_EXAMPLE
+    tristate "Rust example module"
+    default m
+    help
+      This is an example Kconfig entry for a Rust kernel module.

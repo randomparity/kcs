@@ -8,10 +8,17 @@ NAME = Mini Test Kernel
 
 # Architecture
 ARCH ?= x86_64
-SRCARCH := x86
+ifeq ($(ARCH),x86_64)
+    SRCARCH := x86
+else ifeq ($(ARCH),ppc64le)
+    SRCARCH := ppc64le
+else ifeq ($(ARCH),s390x)
+    SRCARCH := s390x
+endif
 
 # Basic kernel Makefile for testing
-obj-y := kernel/ fs/ drivers/
+obj-y := kernel/ fs/ drivers/ net/ rust/
+obj-y += arch/$(ARCH)/
 
 # Test configurations
 defconfig:

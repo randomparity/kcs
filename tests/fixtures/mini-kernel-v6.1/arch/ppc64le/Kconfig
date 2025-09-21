@@ -1,0 +1,9 @@
+#
+# This is a generated file for testing purposes.
+# Kconfig for ppc64le
+#
+config PPC64LE_EXAMPLE
+    bool "ppc64le example support"
+    default y
+    help
+      This is an example Kconfig entry for the ppc64le architecture.

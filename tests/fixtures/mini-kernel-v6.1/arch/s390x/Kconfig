@@ -1,0 +1,9 @@
+#
+# This is a generated file for testing purposes.
+# Kconfig for s390x
+#
+config S390X_EXAMPLE
+    bool "s390x example support"
+    default y
+    help
+      This is an example Kconfig entry for the s390x architecture.

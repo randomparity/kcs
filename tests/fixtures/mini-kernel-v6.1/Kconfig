@@ -32,6 +32,22 @@ config X86_64
 	help
 	  Support for x86-64 architecture.
 
+config PPC64LE
+    bool "ppc64le support"
+    depends on 64BIT
+    help
+      Support for ppc64le architecture.
+
+config S390X
+    bool "s390x support"
+    depends on 64BIT
+    help
+      Support for s390x architecture.
+
+source "arch/ppc64le/Kconfig"
+source "arch/s390x/Kconfig"
+source "rust/Kconfig"
+
 config MODULES
 	bool "Enable loadable module support"
 	help
