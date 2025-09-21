@@ -114,7 +114,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### MCP Endpoints
 
-- [ ] T032 semantic_search MCP tool implementation in src/python/semantic_search/mcp/search_tool.py
+- [x] T032 semantic_search MCP tool implementation in src/python/semantic_search/mcp/search_tool.py
 - [ ] T033 index_content MCP tool implementation in src/python/semantic_search/mcp/index_tool.py
 - [ ] T034 get_index_status MCP tool implementation in src/python/semantic_search/mcp/status_tool.py
 - [ ] T035 MCP error handling and validation in src/python/semantic_search/mcp/error_handlers.py
