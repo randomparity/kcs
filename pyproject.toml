@@ -38,6 +38,7 @@ dependencies = [
     "sentence-transformers>=2.7.0,<3.0.0",
     "psycopg2-binary>=2.9.9",
     "psutil>=5.9.0",
+    "watchdog>=3.0.0",
 ]
 
 [project.optional-dependencies]
