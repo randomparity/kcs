@@ -122,7 +122,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 ### System Integration
 
 - [x] T036 Integrate with existing KCS logging infrastructure
-- [ ] T037 Add semantic search to main KCS server startup
+- [x] T037 Add semantic search to main KCS server startup
 - [ ] T038 Database migration scripts for semantic search tables
 - [ ] T039 Configuration management for embedding model paths
 
