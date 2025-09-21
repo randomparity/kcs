@@ -4,9 +4,58 @@
 
 The KCS API provides endpoints for kernel analysis, organized into categories:
 
+- **Root**: API discovery and metadata (`/`)
 - **Tools**: MCP tools for kernel analysis (`/mcp/tools/*`)
-- **Resources**: MCP resources for data access (`/mcp/resources/*`)  
+- **Resources**: MCP resources for data access (`/mcp/resources/*`)
 - **System**: Health and metrics (`/health`, `/metrics`)
+
+## Root Endpoint
+
+### GET /
+
+**Summary**: API discovery and service metadata
+
+**Description**: Returns information about the KCS API including available endpoints, MCP capabilities,
+service metadata, and constitutional requirements. This endpoint does not require authentication and
+provides a standard way for clients to discover API capabilities.
+
+**Responses**:
+
+- **200**: Service metadata and API discovery information
+  - Content-Type: `application/json`
+
+**Response Schema**:
+
+```json
+{
+  "service": "kcs",
+  "title": "Kernel Context Server MCP API",
+  "version": "1.0.0",
+  "description": "Model Context Protocol API for Linux kernel analysis",
+  "mcp": {
+    "protocol_version": "2025-09-20",
+    "capabilities": ["tools", "resources"]
+  },
+  "endpoints": {
+    "health": "/health",
+    "metrics": "/metrics",
+    "mcp_tools": "/mcp/tools",
+    "mcp_resources": "/mcp/resources",
+    "docs": "/docs"
+  },
+  "constitutional_requirements": {
+    "read_only": true,
+    "citations_required": true,
+    "performance_target": "p95 < 600ms"
+  }
+}
+```
+
+**Example**:
+
+```bash
+curl http://localhost:8080/
+```
 
 ## MCP Tools
 
