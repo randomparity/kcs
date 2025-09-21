@@ -1,7 +1,8 @@
 """
 Logging configuration for semantic search engine.
 
-Provides structured logging setup consistent with KCS patterns using structlog.
+Integrates with KCS logging infrastructure using structlog for consistent
+structured logging across the entire KCS platform.
 """
 
 import os
@@ -193,6 +194,39 @@ def setup_default() -> None:
         format_type="json",
         enable_metrics=True,
     )
+
+
+def integrate_with_kcs_logging() -> None:
+    """
+    Integrate semantic search logging with KCS infrastructure.
+
+    This function ensures semantic search components use the same
+    logging configuration as the rest of the KCS platform.
+    """
+    # Check if KCS logging is already configured
+    current_config = structlog.get_config()
+
+    if current_config and current_config.get("processors"):
+        # KCS logging is already configured, just add semantic search specific settings
+        logger = get_logger("semantic_search.integration")
+        logger.info("Integrating with existing KCS logging configuration")
+
+        # Set log levels for semantic search specific libraries
+        import logging
+
+        logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.WARNING)
+        logging.getLogger("torch").setLevel(logging.WARNING)
+        logging.getLogger("asyncpg").setLevel(logging.INFO)
+
+        logger.info("Semantic search logging integration complete")
+    else:
+        # No existing KCS logging, set up default configuration
+        logger_before = structlog.get_logger("semantic_search.integration")
+        logger_before.info(
+            "No existing KCS logging found, setting up default configuration"
+        )
+        setup_default()
 
 
 class LoggingContext:
