@@ -20,8 +20,8 @@ from typing import Any
 import aiofiles
 import pytest
 import pytest_asyncio
-from kcs_mcp.chunk_loader import ChunkLoader
-from kcs_mcp.chunk_processor import ChunkProcessor
+from kcs_mcp.chunk_loader import ChunkDataLoader
+from kcs_mcp.chunk_processor import ChunkWorkflowProcessor
 from kcs_mcp.database import Database
 from kcs_mcp.models.chunk_models import ChunkManifest, ChunkMetadata
 
@@ -190,7 +190,7 @@ class TestParallelChunkLoading:
                 print(f"\nTesting parallelism level: {parallelism}")
 
                 # Create chunk loader
-                loader = ChunkLoader(verify_checksums=True)
+                loader = ChunkDataLoader(verify_checksums=True)
 
                 # Create semaphore to control parallelism
                 semaphore = asyncio.Semaphore(parallelism)
@@ -198,7 +198,7 @@ class TestParallelChunkLoading:
                 async def load_chunk_with_semaphore(
                     chunk_metadata: ChunkMetadata,
                     semaphore: asyncio.Semaphore = semaphore,
-                    loader: ChunkLoader = loader,
+                    loader: ChunkDataLoader = loader,
                     temp_path: Path = temp_path,
                 ) -> float:
                     """Load a chunk with semaphore control and measure time."""
@@ -261,7 +261,7 @@ class TestParallelChunkLoading:
     @skip_in_ci
     @pytest.mark.asyncio
     async def test_chunk_processor_parallel_performance(self) -> None:
-        """Test ChunkProcessor's adaptive parallelism under load."""
+        """Test ChunkWorkflowProcessor's adaptive parallelism under load."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             num_chunks = 8
@@ -301,8 +301,8 @@ class TestParallelChunkLoading:
                 default_parallelism = (
                     config.get("max_parallelism") or 4
                 )  # Ensure it's never None
-                processor = ChunkProcessor(
-                    chunk_loader=ChunkLoader(
+                processor = ChunkWorkflowProcessor(
+                    chunk_loader=ChunkDataLoader(
                         verify_checksums=False
                     ),  # Skip checksum for speed
                     database_queries=None,  # Skip database operations for pure loading test
@@ -322,12 +322,12 @@ class TestParallelChunkLoading:
 
                 # Create loader tasks
                 semaphore = asyncio.Semaphore(optimal_parallelism)
-                loader = ChunkLoader(verify_checksums=False)
+                loader = ChunkDataLoader(verify_checksums=False)
 
                 async def load_chunk_task(
                     chunk_metadata: ChunkMetadata,
                     semaphore: asyncio.Semaphore = semaphore,
-                    loader: ChunkLoader = loader,
+                    loader: ChunkDataLoader = loader,
                     temp_path: Path = temp_path,
                 ) -> dict[str, Any]:
                     async with semaphore:
@@ -416,14 +416,14 @@ class TestParallelChunkLoading:
             for config in verification_configs:
                 print(f"\nTesting {config['label']}")
 
-                loader = ChunkLoader(verify_checksums=config["verify"])
+                loader = ChunkDataLoader(verify_checksums=config["verify"])
                 parallelism = 4
                 semaphore = asyncio.Semaphore(parallelism)
 
                 async def load_chunk_with_timing(
                     chunk_metadata: ChunkMetadata,
                     semaphore: asyncio.Semaphore = semaphore,
-                    loader: ChunkLoader = loader,
+                    loader: ChunkDataLoader = loader,
                     temp_path: Path = temp_path,
                 ) -> float:
                     async with semaphore:
@@ -527,13 +527,13 @@ class TestParallelChunkLoading:
                 memory_before = get_memory_usage()
 
                 # Load chunks in parallel
-                loader = ChunkLoader(verify_checksums=False)
+                loader = ChunkDataLoader(verify_checksums=False)
                 semaphore = asyncio.Semaphore(case["parallelism"])
 
                 async def load_chunk_with_semaphore(
                     chunk_metadata: ChunkMetadata,
                     semaphore: asyncio.Semaphore = semaphore,
-                    loader: ChunkLoader = loader,
+                    loader: ChunkDataLoader = loader,
                     temp_path: Path = temp_path,
                 ) -> dict[str, Any]:
                     async with semaphore:
@@ -608,7 +608,7 @@ class TestParallelChunkLoading:
             print("  - 1 missing chunk")
             print("  - 1 invalid JSON chunk")
 
-            loader = ChunkLoader(verify_checksums=False)
+            loader = ChunkDataLoader(verify_checksums=False)
             parallelism = 3
             semaphore = asyncio.Semaphore(parallelism)
 

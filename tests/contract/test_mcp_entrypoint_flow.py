@@ -64,7 +64,7 @@ async def http_client() -> httpx.AsyncClient:
 # Contract test cases for entrypoint_flow
 @skip_integration_in_ci
 @skip_without_mcp_server
-class TestEntrypointFlowContract:
+class TestEntrypointFlowContractIntegration:
     """Contract tests for entrypoint_flow MCP endpoint with call graph data."""
 
     async def test_entrypoint_flow_endpoint_exists(

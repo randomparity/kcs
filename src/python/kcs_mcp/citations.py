@@ -5,38 +5,11 @@ Formats citations in consistent format for MCP protocol.
 """
 
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
-@dataclass
-class Span:
-    """File span representing a location in source code."""
-
-    path: str
-    sha: str
-    start: int
-    end: int
-
-    def __post_init__(self) -> None:
-        """Validate span data."""
-        if self.start <= 0:
-            raise ValueError(f"Start line must be positive, got {self.start}")
-        if self.end < self.start:
-            raise ValueError(f"End line {self.end} must be >= start line {self.start}")
-        if not self.path:
-            raise ValueError("Path cannot be empty")
-        if not self.sha:
-            raise ValueError("SHA cannot be empty")
-
-
-@dataclass
-class Citation:
-    """Citation with span and optional context."""
-
-    span: Span
-    context: str | None = None
+# Import the Pydantic models instead of duplicating them
+from .models import Citation, Span
 
 
 class CitationFormatter:
@@ -79,9 +52,12 @@ class CitationFormatter:
         else:
             path_str = str(path_obj)
 
+        # Ensure SHA is padded to 40 characters if shorter
+        full_sha = sha.ljust(40, "0") if len(sha) < 40 else sha[:40]
+
         return Span(
             path=path_str,
-            sha=sha[:8],  # Truncate SHA to 8 chars for readability
+            sha=full_sha,  # Use full 40-char SHA as required by Pydantic model
             start=start_line,
             end=end_line,
         )
@@ -118,10 +94,12 @@ class CitationFormatter:
         Returns:
             Formatted string like "fs/read_write.c:451-465@a1b2c3d4"
         """
+        # Truncate SHA to 8 chars for display readability
+        short_sha = span.sha[:8]
         if span.start == span.end:
-            return f"{span.path}:{span.start}@{span.sha}"
+            return f"{span.path}:{span.start}@{short_sha}"
         else:
-            return f"{span.path}:{span.start}-{span.end}@{span.sha}"
+            return f"{span.path}:{span.start}-{span.end}@{short_sha}"
 
     def format_citation_text(self, citation: Citation) -> str:
         """Format citation as human-readable text.
@@ -146,18 +124,9 @@ class CitationFormatter:
         Returns:
             Dictionary representation
         """
-        if isinstance(span_or_citation, Span):
-            return {
-                "path": span_or_citation.path,
-                "sha": span_or_citation.sha,
-                "start": span_or_citation.start,
-                "end": span_or_citation.end,
-            }
-        elif isinstance(span_or_citation, Citation):
-            result: dict[str, Any] = {"span": self.to_dict(span_or_citation.span)}
-            if span_or_citation.context:
-                result["context"] = span_or_citation.context
-            return result
+        if isinstance(span_or_citation, (Span, Citation)):
+            # Use Pydantic's built-in dict() method
+            return span_or_citation.model_dump()
         else:
             raise TypeError(f"Expected Span or Citation, got {type(span_or_citation)}")
 
@@ -171,20 +140,11 @@ class CitationFormatter:
             Span or Citation object
         """
         if "span" in data:
-            # Citation format
-            span_data = data["span"]
-            span = Span(
-                path=span_data["path"],
-                sha=span_data["sha"],
-                start=span_data["start"],
-                end=span_data["end"],
-            )
-            return Citation(span=span, context=data.get("context"))
+            # Citation format - use Pydantic parsing
+            return Citation.model_validate(data)
         else:
-            # Span format
-            return Span(
-                path=data["path"], sha=data["sha"], start=data["start"], end=data["end"]
-            )
+            # Span format - use Pydantic parsing
+            return Span.model_validate(data)
 
     def parse_span_text(self, text: str) -> Span:
         """Parse span from text format.
@@ -209,7 +169,10 @@ class CitationFormatter:
         start = int(start_str)
         end = int(end_str) if end_str else start
 
-        return Span(path=path, sha=sha, start=start, end=end)
+        # Ensure SHA is padded to 40 characters if shorter
+        full_sha = sha.ljust(40, "0") if len(sha) < 40 else sha[:40]
+
+        return Span(path=path, sha=full_sha, start=start, end=end)
 
     def merge_spans(self, spans: list[Span]) -> list[Span]:
         """Merge overlapping spans from the same file.
@@ -358,7 +321,7 @@ def ensure_citations(
                 citation_objects = [
                     c
                     if isinstance(c, Citation)
-                    else Citation(span=c)
+                    else Citation(span=c, context=None)
                     if isinstance(c, Span)
                     else c
                     for c in citations

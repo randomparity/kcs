@@ -63,7 +63,7 @@ async def http_client() -> httpx.AsyncClient:
 # Contract test cases for list_dependencies
 @skip_integration_in_ci
 @skip_without_mcp_server
-class TestListDependenciesContract:
+class TestListDependenciesContractIntegration:
     """Contract tests for list_dependencies MCP endpoint with call graph data."""
 
     async def test_list_dependencies_endpoint_exists(

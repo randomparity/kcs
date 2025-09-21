@@ -204,7 +204,7 @@ def auth_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {TEST_TOKEN}"}
 
 
-class TestEntrypointFlowContract:
+class TestEntrypointFlowContractImplementation:
     """Contract tests for /mcp/tools/entrypoint_flow endpoint."""
 
     @skip_without_mcp

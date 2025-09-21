@@ -257,7 +257,7 @@ index abc123..def456 100644
 """
 
 
-class TestImpactOfContract:
+class TestImpactOfContractImplementation:
     """Contract tests for /mcp/tools/impact_of endpoint."""
 
     @skip_without_mcp

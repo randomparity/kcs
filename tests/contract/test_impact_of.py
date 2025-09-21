@@ -68,7 +68,7 @@ async def http_client() -> httpx.AsyncClient:
 
 @skip_integration_in_ci
 @skip_without_mcp_server
-class TestImpactOfContract:
+class TestImpactOfContractBasic:
     """Contract tests for impact_of MCP tool."""
 
     async def test_impact_of_endpoint_exists(

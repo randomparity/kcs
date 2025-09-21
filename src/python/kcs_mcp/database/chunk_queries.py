@@ -15,7 +15,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-class ChunkQueries:
+class ChunkQueryService:
     """Database queries for chunk operations."""
 
     def __init__(self, database: Any) -> None:
