@@ -199,7 +199,7 @@ async def root() -> RootEndpointResponse:
         title="Kernel Context Server MCP API",
         version="1.0.0",
         description="Model Context Protocol API for Linux kernel analysis",
-        mcp={"protocol_version": "2024-11-05", "capabilities": ["tools", "resources"]},
+        mcp={"protocol_version": "2025-09-20", "capabilities": ["tools", "resources"]},
         endpoints={
             "health": "/health",
             "metrics": "/metrics",

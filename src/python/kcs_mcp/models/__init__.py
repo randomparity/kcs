@@ -702,7 +702,7 @@ class RootEndpointResponse(BaseModel):
                 "version": "1.0.0",
                 "description": "Model Context Protocol API for Linux kernel analysis",
                 "mcp": {
-                    "protocol_version": "2024-11-05",
+                    "protocol_version": "2025-09-20",
                     "capabilities": ["tools", "resources"],
                 },
                 "endpoints": {
