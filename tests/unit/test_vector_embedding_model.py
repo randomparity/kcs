@@ -528,8 +528,8 @@ class TestVectorEmbeddingModel:
                 content_type="SOURCE_CODE",
                 content_text=f"test content {i}",
                 embedding=np.random.rand(384).tolist(),
-                line_start=i,
-                line_end=i + 10,
+                line_start=i + 1,  # Line numbers start at 1
+                line_end=i + 11,  # Ensure line_end > line_start
             )
             embeddings.append(embedding)
 
