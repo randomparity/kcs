@@ -79,8 +79,8 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Performance Tests [P]
 
-- [ ] T016 [P] Performance test: query response under 600ms in tests/performance/test_query_performance.py
-- [ ] T017 [P] Performance test: concurrent user handling in tests/performance/test_concurrent_users.py
+- [x] T016 [P] Performance test: query response under 600ms in tests/performance/test_query_performance.py
+- [x] T017 [P] Performance test: concurrent user handling in tests/performance/test_concurrent_users.py
 
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 

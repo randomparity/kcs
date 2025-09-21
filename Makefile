@@ -69,7 +69,7 @@ install-hooks: venv ## Install pre-commit hooks
 build-rust: ## Build Rust components
 	@echo "$(BLUE)Building Rust components...$(NC)"
 	@if [ -d "src/rust" ]; then \
-		cd src/rust && cargo build --release --workspace; \
+		cd src/rust && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo build --release --workspace; \
 		echo "$(GREEN)✅ Rust components built$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️  No Rust source found, skipping$(NC)"; \

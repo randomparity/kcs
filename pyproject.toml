@@ -35,8 +35,8 @@ dependencies = [
     "pgvector==0.3.0",
     "pyyaml>=6.0",
     "tomli-w>=1.0.0",
-    "sentence-transformers==2.7.0",
-    "psycopg2-binary==2.9.9",
+    "sentence-transformers>=2.7.0,<3.0.0",
+    "psycopg2-binary>=2.9.9",
     "psutil>=5.9.0",
 ]
 
