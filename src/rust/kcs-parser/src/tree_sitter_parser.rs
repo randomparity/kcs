@@ -126,11 +126,8 @@ impl TreeSitterParser {
         for (match_, _) in matches {
             for capture in match_.captures {
                 let node = capture.node;
-                let capture_name = self
-                    .symbol_query
-                    .capture_names()
-                    .get(capture.index as usize)
-                    .unwrap();
+                let capture_name =
+                    self.symbol_query.capture_names().get(capture.index as usize).unwrap();
 
                 let text = node.utf8_text(source_bytes).unwrap_or("");
                 let start_pos = node.start_position();
@@ -218,21 +215,18 @@ impl TreeSitterParser {
             // Process all captures for this match
             for capture in match_.captures {
                 let node = capture.node;
-                let capture_name = self
-                    .macro_query
-                    .capture_names()
-                    .get(capture.index as usize)
-                    .unwrap();
+                let capture_name =
+                    self.macro_query.capture_names().get(capture.index as usize).unwrap();
                 let text = node.utf8_text(source_bytes).unwrap_or("");
 
                 match capture_name.as_str() {
                     "macro.name" | "macro.function.name" => {
                         name = text.to_string();
                         start_line = node.start_position().row as u32 + 1;
-                    }
+                    },
                     "macro.value" | "macro.function.value" => {
                         definition = text.to_string();
-                    }
+                    },
                     "macro.function.params" => {
                         // Parse parameters (simplified)
                         parameters = text
@@ -242,8 +236,8 @@ impl TreeSitterParser {
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty())
                             .collect();
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
 

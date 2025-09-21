@@ -166,11 +166,7 @@ fn create_large_graph() -> KernelGraph {
                 config_guard: None,
             };
             graph
-                .add_call(
-                    &format!("kern_func_{}", i),
-                    &format!("kern_func_{}", i + 1),
-                    edge,
-                )
+                .add_call(&format!("kern_func_{}", i), &format!("kern_func_{}", i + 1), edge)
                 .unwrap();
         }
 
@@ -202,11 +198,7 @@ fn create_large_graph() -> KernelGraph {
                 config_guard: None,
             };
             graph
-                .add_call(
-                    &format!("kern_func_{}", i),
-                    &format!("kern_func_{}", i + 100),
-                    edge,
-                )
+                .add_call(&format!("kern_func_{}", i), &format!("kern_func_{}", i + 100), edge)
                 .unwrap();
         }
     }
@@ -226,10 +218,7 @@ fn benchmark_bfs_traversal(c: &mut Criterion) {
         let traversal = GraphTraversal::new(&small_graph);
         b.iter(|| {
             let result = traversal
-                .bfs(
-                    black_box("func_0"),
-                    kcs_graph::traversal::TraversalOptions::default(),
-                )
+                .bfs(black_box("func_0"), kcs_graph::traversal::TraversalOptions::default())
                 .unwrap();
             black_box(result);
         });
@@ -239,10 +228,7 @@ fn benchmark_bfs_traversal(c: &mut Criterion) {
         let traversal = GraphTraversal::new(&medium_graph);
         b.iter(|| {
             let result = traversal
-                .bfs(
-                    black_box("func_0"),
-                    kcs_graph::traversal::TraversalOptions::default(),
-                )
+                .bfs(black_box("func_0"), kcs_graph::traversal::TraversalOptions::default())
                 .unwrap();
             black_box(result);
         });
@@ -252,10 +238,7 @@ fn benchmark_bfs_traversal(c: &mut Criterion) {
         let traversal = GraphTraversal::new(&large_graph);
         b.iter(|| {
             let result = traversal
-                .bfs(
-                    black_box("kern_func_0"),
-                    kcs_graph::traversal::TraversalOptions::default(),
-                )
+                .bfs(black_box("kern_func_0"), kcs_graph::traversal::TraversalOptions::default())
                 .unwrap();
             black_box(result);
         });
@@ -276,10 +259,7 @@ fn benchmark_dfs_traversal(c: &mut Criterion) {
         let traversal = GraphTraversal::new(&small_graph);
         b.iter(|| {
             let result = traversal
-                .dfs(
-                    black_box("func_0"),
-                    kcs_graph::traversal::TraversalOptions::default(),
-                )
+                .dfs(black_box("func_0"), kcs_graph::traversal::TraversalOptions::default())
                 .unwrap();
             black_box(result);
         });
@@ -289,10 +269,7 @@ fn benchmark_dfs_traversal(c: &mut Criterion) {
         let traversal = GraphTraversal::new(&medium_graph);
         b.iter(|| {
             let result = traversal
-                .dfs(
-                    black_box("func_0"),
-                    kcs_graph::traversal::TraversalOptions::default(),
-                )
+                .dfs(black_box("func_0"), kcs_graph::traversal::TraversalOptions::default())
                 .unwrap();
             black_box(result);
         });
@@ -302,10 +279,7 @@ fn benchmark_dfs_traversal(c: &mut Criterion) {
         let traversal = GraphTraversal::new(&large_graph);
         b.iter(|| {
             let result = traversal
-                .dfs(
-                    black_box("kern_func_0"),
-                    kcs_graph::traversal::TraversalOptions::default(),
-                )
+                .dfs(black_box("kern_func_0"), kcs_graph::traversal::TraversalOptions::default())
                 .unwrap();
             black_box(result);
         });
@@ -409,11 +383,7 @@ fn benchmark_topological_sort(c: &mut Criterion) {
             config_guard: None,
         };
         medium_dag
-            .add_call(
-                &format!("dag_func_{}", i),
-                &format!("dag_func_{}", i + 1),
-                edge,
-            )
+            .add_call(&format!("dag_func_{}", i), &format!("dag_func_{}", i + 1), edge)
             .unwrap();
 
         // Add forward edges only
@@ -425,11 +395,7 @@ fn benchmark_topological_sort(c: &mut Criterion) {
                 config_guard: None,
             };
             medium_dag
-                .add_call(
-                    &format!("dag_func_{}", i),
-                    &format!("dag_func_{}", i + 10),
-                    edge,
-                )
+                .add_call(&format!("dag_func_{}", i), &format!("dag_func_{}", i + 10), edge)
                 .unwrap();
         }
     }
@@ -510,41 +476,29 @@ fn benchmark_reachability_analysis(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
 
     for depth in [1, 3, 5, 10].iter() {
-        group.bench_with_input(
-            BenchmarkId::new("small_graph", depth),
-            depth,
-            |b, &depth| {
-                b.iter(|| {
-                    let symbols = small_graph.get_reachable_symbols(black_box("func_0"), depth);
-                    black_box(symbols);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("small_graph", depth), depth, |b, &depth| {
+            b.iter(|| {
+                let symbols = small_graph.get_reachable_symbols(black_box("func_0"), depth);
+                black_box(symbols);
+            });
+        });
 
-        group.bench_with_input(
-            BenchmarkId::new("medium_graph", depth),
-            depth,
-            |b, &depth| {
-                b.iter(|| {
-                    let symbols = medium_graph.get_reachable_symbols(black_box("func_0"), depth);
-                    black_box(symbols);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("medium_graph", depth), depth, |b, &depth| {
+            b.iter(|| {
+                let symbols = medium_graph.get_reachable_symbols(black_box("func_0"), depth);
+                black_box(symbols);
+            });
+        });
 
         if *depth <= 5 {
             // Only test smaller depths on large graph
-            group.bench_with_input(
-                BenchmarkId::new("large_graph", depth),
-                depth,
-                |b, &depth| {
-                    b.iter(|| {
-                        let symbols =
-                            large_graph.get_reachable_symbols(black_box("kern_func_0"), depth);
-                        black_box(symbols);
-                    });
-                },
-            );
+            group.bench_with_input(BenchmarkId::new("large_graph", depth), depth, |b, &depth| {
+                b.iter(|| {
+                    let symbols =
+                        large_graph.get_reachable_symbols(black_box("kern_func_0"), depth);
+                    black_box(symbols);
+                });
+            });
         }
     }
 

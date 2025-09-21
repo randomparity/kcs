@@ -114,10 +114,7 @@ impl GraphBuilder {
             .unwrap_or("unknown")
             .to_string();
 
-        let line_number = symbol_data
-            .get("line")
-            .and_then(|l| l.as_u64())
-            .unwrap_or(0) as u32;
+        let line_number = symbol_data.get("line").and_then(|l| l.as_u64()).unwrap_or(0) as u32;
 
         let symbol_type = match symbol_data.get("type").and_then(|t| t.as_str()) {
             Some("function") => SymbolType::Function,
@@ -128,20 +125,13 @@ impl GraphBuilder {
             _ => SymbolType::Function, // Default fallback
         };
 
-        let signature = symbol_data
-            .get("signature")
-            .and_then(|s| s.as_str())
-            .map(|s| s.to_string());
+        let signature =
+            symbol_data.get("signature").and_then(|s| s.as_str()).map(|s| s.to_string());
 
         let config_dependencies = symbol_data
             .get("config_deps")
             .and_then(|deps| deps.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .collect()
-            })
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
             .unwrap_or_default();
 
         Ok(Symbol {
@@ -177,15 +167,10 @@ impl GraphBuilder {
 
         let call_site_line = call_data.get("line").and_then(|l| l.as_u64()).unwrap_or(0) as u32;
 
-        let conditional = call_data
-            .get("conditional")
-            .and_then(|c| c.as_bool())
-            .unwrap_or(false);
+        let conditional = call_data.get("conditional").and_then(|c| c.as_bool()).unwrap_or(false);
 
-        let config_guard = call_data
-            .get("config_guard")
-            .and_then(|g| g.as_str())
-            .map(|s| s.to_string());
+        let config_guard =
+            call_data.get("config_guard").and_then(|g| g.as_str()).map(|s| s.to_string());
 
         let edge = CallEdge {
             call_type,

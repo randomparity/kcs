@@ -100,26 +100,17 @@ fn generate_large_c_code(config: &BenchmarkConfig) -> String {
             // Mix of direct and conditional calls
             if j % 3 == 0 {
                 code.push_str(&format!("    if (temp > {}) {{\n", j));
-                code.push_str(&format!(
-                    "        result += function_{}(temp - 1);\n",
-                    target_func
-                ));
+                code.push_str(&format!("        result += function_{}(temp - 1);\n", target_func));
                 code.push_str("    }\n");
             } else {
-                code.push_str(&format!(
-                    "    result += function_{}(temp + {});\n",
-                    target_func, j
-                ));
+                code.push_str(&format!("    result += function_{}(temp + {});\n", target_func, j));
             }
         }
 
         // Add function pointer calls for complexity
         if config.include_function_pointers && i % 10 == 0 {
             code.push_str("    // Indirect call through function pointer\n");
-            code.push_str(&format!(
-                "    result += dispatch_operation({}, param);\n",
-                i % 20
-            ));
+            code.push_str(&format!("    result += dispatch_operation({}, param);\n", i % 20));
         }
 
         code.push_str("    return result;\n");
@@ -226,11 +217,7 @@ fn create_large_call_edges(config: &BenchmarkConfig) -> Vec<(String, String, Cal
             };
 
             // Indirect call to dispatcher
-            edges.push((
-                format!("function_{}", i),
-                "dispatch_operation".to_string(),
-                edge,
-            ));
+            edges.push((format!("function_{}", i), "dispatch_operation".to_string(), edge));
 
             // Dispatcher calls various functions indirectly
             for k in 0..20.min(config.function_count) {
@@ -393,10 +380,7 @@ fn test_medium_scale_performance() {
 
     // Verify metrics
     assert_eq!(graph.symbol_count(), config.function_count + 2); // +1 for main, +1 for dispatcher
-    assert!(
-        edge_count > config.function_count,
-        "Should have many call edges"
-    );
+    assert!(edge_count > config.function_count, "Should have many call edges");
 
     // Performance assertions (should be reasonable for medium scale)
     assert!(
@@ -439,10 +423,7 @@ fn test_large_scale_performance() {
     let (construction_time, graph, edge_count) = benchmark_graph_construction(&config);
 
     // Verify scale
-    assert!(
-        graph.symbol_count() > 10000,
-        "Should handle large symbol count"
-    );
+    assert!(graph.symbol_count() > 10000, "Should handle large symbol count");
     assert!(edge_count > 50000, "Should handle large edge count");
 
     // Performance assertions aligned with KCS targets
@@ -505,10 +486,7 @@ fn test_memory_usage_patterns() {
     println!("  Construction time: {}ms", construction_time.as_millis());
     println!("  Symbols: {}", graph.symbol_count());
     println!("  Edges: {}", edge_count);
-    println!(
-        "  Memory delta: {} (placeholder)",
-        final_memory.wrapping_sub(initial_memory)
-    );
+    println!("  Memory delta: {} (placeholder)", final_memory.wrapping_sub(initial_memory));
 }
 
 /// Stress test: Maximum reasonable scale
@@ -525,10 +503,7 @@ fn test_stress_maximum_scale() {
     let (construction_time, graph, edge_count) = benchmark_graph_construction(&config);
 
     // Verify we can handle KCS target scale
-    assert!(
-        graph.symbol_count() >= 50000,
-        "Should handle KCS target symbol count"
-    );
+    assert!(graph.symbol_count() >= 50000, "Should handle KCS target symbol count");
     assert!(edge_count > 100000, "Should handle large edge count");
 
     // Construction should complete within KCS targets
@@ -598,13 +573,13 @@ fn test_concurrent_query_performance() {
                 match i % 3 {
                     0 => {
                         graph_clone.find_callees(&function_name);
-                    }
+                    },
                     1 => {
                         graph_clone.find_callers(&function_name);
-                    }
+                    },
                     _ => {
                         graph_clone.get_call_path("main", &function_name);
-                    }
+                    },
                 }
 
                 query_count += 1;
@@ -634,11 +609,7 @@ fn test_concurrent_query_performance() {
 
     println!("Concurrent performance:");
     println!("  Construction: {}ms", construction_time.as_millis());
-    println!(
-        "  Concurrent queries: {} in {}ms",
-        total_queries,
-        concurrent_time.as_millis()
-    );
+    println!("  Concurrent queries: {} in {}ms", total_queries, concurrent_time.as_millis());
     println!(
         "  Avg per query: {:.2}ms",
         concurrent_time.as_millis() as f64 / total_queries as f64
@@ -660,20 +631,12 @@ fn test_generated_code_parsing_performance() {
 
     // Create temporary file
     let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-    temp_file
-        .write_all(c_code.as_bytes())
-        .expect("Failed to write code");
+    temp_file.write_all(c_code.as_bytes()).expect("Failed to write code");
 
     // Verify code generation
     assert!(c_code.len() > 10000, "Should generate substantial code");
-    assert!(
-        c_code.contains("function_0"),
-        "Should contain generated functions"
-    );
-    assert!(
-        c_code.contains("dispatch_operation"),
-        "Should contain function pointers"
-    );
+    assert!(c_code.contains("function_0"), "Should contain generated functions");
+    assert!(c_code.contains("dispatch_operation"), "Should contain function pointers");
 
     // For now, just verify the code structure (parsing integration pending)
     let function_count = c_code.matches("int function_").count();
@@ -685,10 +648,7 @@ fn test_generated_code_parsing_performance() {
     println!("Generated code performance test:");
     println!("  Generated code size: {} bytes", c_code.len());
     println!("  Function count: {}", function_count);
-    println!(
-        "  Include function pointers: {}",
-        config.include_function_pointers
-    );
+    println!("  Include function pointers: {}", config.include_function_pointers);
 
     // TODO: When kcs-parser supports call extraction:
     // - Parse the generated C code

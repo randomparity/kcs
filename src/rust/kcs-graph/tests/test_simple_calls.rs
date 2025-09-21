@@ -31,9 +31,7 @@ int main_function(int a, int b) {
 /// Helper function to create a temporary C file for testing
 fn create_temp_c_file(content: &str) -> NamedTempFile {
     let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-    temp_file
-        .write_all(content.as_bytes())
-        .expect("Failed to write to temp file");
+    temp_file.write_all(content.as_bytes()).expect("Failed to write to temp file");
     temp_file
 }
 
@@ -92,18 +90,8 @@ fn test_basic_call_extraction_integration() {
     // Simulate call edges that would be extracted by kcs-parser
     // Expected: main_function calls helper_function twice (lines 8, 9)
     let call_edges = vec![
-        (
-            "main_function",
-            "helper_function",
-            8,
-            kcs_parser::CallType::Direct,
-        ),
-        (
-            "main_function",
-            "helper_function",
-            9,
-            kcs_parser::CallType::Direct,
-        ),
+        ("main_function", "helper_function", 8, kcs_parser::CallType::Direct),
+        ("main_function", "helper_function", 9, kcs_parser::CallType::Direct),
     ];
 
     // Add call edges to graph
@@ -111,12 +99,7 @@ fn test_basic_call_extraction_integration() {
         let graph_edge = convert_parser_call_edge_to_graph(call_type, line);
 
         let result = graph.add_call(caller, callee, graph_edge);
-        assert!(
-            result.is_ok(),
-            "Failed to add call edge: {} -> {}",
-            caller,
-            callee
-        );
+        assert!(result.is_ok(), "Failed to add call edge: {} -> {}", caller, callee);
     }
 
     // Verify graph construction
@@ -129,10 +112,7 @@ fn test_basic_call_extraction_integration() {
     // Note: find_callees returns multiple entries for multiple call sites to same function
     // All callees should be helper_function
     for callee in &callees {
-        assert_eq!(
-            callee.name, "helper_function",
-            "Should call helper_function"
-        );
+        assert_eq!(callee.name, "helper_function", "Should call helper_function");
     }
 
     let callers = graph.find_callers("helper_function");
@@ -140,10 +120,7 @@ fn test_basic_call_extraction_integration() {
     // Note: find_callers returns one entry per incoming edge
     // All callers should be main_function (since it calls helper_function twice)
     for caller in &callers {
-        assert_eq!(
-            caller.name, "main_function",
-            "Should be called by main_function"
-        );
+        assert_eq!(caller.name, "main_function", "Should be called by main_function");
     }
 }
 
@@ -284,11 +261,7 @@ fn test_complex_call_patterns_integration() {
 
     // Test indirect call detection
     let execute_callees = graph.find_callees("execute_operation");
-    assert_eq!(
-        execute_callees.len(),
-        2,
-        "execute_operation should call 2 functions indirectly"
-    );
+    assert_eq!(execute_callees.len(), 2, "execute_operation should call 2 functions indirectly");
 
     // Test call path analysis
     let path = graph.get_call_path("main", "add");
@@ -333,11 +306,7 @@ fn test_call_extraction_performance() {
         }
     }
 
-    assert_eq!(
-        graph.symbol_count(),
-        num_functions,
-        "Should have correct symbol count"
-    );
+    assert_eq!(graph.symbol_count(), num_functions, "Should have correct symbol count");
     assert_eq!(
         graph.call_count(),
         num_functions * calls_per_function,
@@ -351,19 +320,11 @@ fn test_call_extraction_performance() {
     for i in 0..10 {
         let function_name = format!("function_{}", i * 10);
         let callees = graph.find_callees(&function_name);
-        assert_eq!(
-            callees.len(),
-            calls_per_function,
-            "Each function should have expected callees"
-        );
+        assert_eq!(callees.len(), calls_per_function, "Each function should have expected callees");
     }
 
     let duration = start.elapsed();
-    assert!(
-        duration.as_millis() < 100,
-        "Queries should be fast: {}ms",
-        duration.as_millis()
-    );
+    assert!(duration.as_millis() < 100, "Queries should be fast: {}ms", duration.as_millis());
 }
 
 /// Test call edge validation and error handling
@@ -392,17 +353,11 @@ fn test_call_edge_validation() {
 
     // Should fail when caller doesn't exist
     let result = graph.add_call("nonexistent_caller", "test_func", edge.clone());
-    assert!(
-        result.is_err(),
-        "Should fail when caller symbol doesn't exist"
-    );
+    assert!(result.is_err(), "Should fail when caller symbol doesn't exist");
 
     // Should fail when callee doesn't exist
     let result = graph.add_call("test_func", "nonexistent_callee", edge);
-    assert!(
-        result.is_err(),
-        "Should fail when callee symbol doesn't exist"
-    );
+    assert!(result.is_err(), "Should fail when callee symbol doesn't exist");
 }
 
 /// Test configuration-aware call graph construction
@@ -444,28 +399,14 @@ fn test_config_aware_call_graph() {
 
     // Test config-based symbol retrieval
     let debug_symbols = graph.symbols_by_config("CONFIG_DEBUG");
-    assert!(
-        debug_symbols.is_some(),
-        "Should find symbols for CONFIG_DEBUG"
-    );
-    assert_eq!(
-        debug_symbols.unwrap().len(),
-        1,
-        "Should have 1 debug symbol"
-    );
+    assert!(debug_symbols.is_some(), "Should find symbols for CONFIG_DEBUG");
+    assert_eq!(debug_symbols.unwrap().len(), 1, "Should have 1 debug symbol");
 
     let net_symbols = graph.symbols_by_config("CONFIG_NET");
     assert!(net_symbols.is_some(), "Should find symbols for CONFIG_NET");
-    assert_eq!(
-        net_symbols.unwrap().len(),
-        1,
-        "Should have 1 network symbol"
-    );
+    assert_eq!(net_symbols.unwrap().len(), 1, "Should have 1 network symbol");
 
     // Test non-existent config
     let nonexistent_symbols = graph.symbols_by_config("CONFIG_NONEXISTENT");
-    assert!(
-        nonexistent_symbols.is_none(),
-        "Should not find symbols for non-existent config"
-    );
+    assert!(nonexistent_symbols.is_none(), "Should not find symbols for non-existent config");
 }

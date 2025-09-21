@@ -201,10 +201,7 @@ impl PatternDetector {
                 let line_number = calculate_line_number(content, cap.get(0).unwrap().start());
 
                 let mut metadata = HashMap::new();
-                metadata.insert(
-                    "export_type".to_string(),
-                    "EXPORT_SYMBOL_NS_GPL".to_string(),
-                );
+                metadata.insert("export_type".to_string(), "EXPORT_SYMBOL_NS_GPL".to_string());
                 metadata.insert("namespace".to_string(), namespace);
 
                 patterns.push(KernelPattern {
@@ -420,18 +417,12 @@ EXPORT_SYMBOL_GPL(helper_func);
         assert_eq!(patterns.len(), 2);
 
         assert_eq!(patterns[0].name, "my_function");
-        assert_eq!(
-            patterns[0].metadata.get("export_type"),
-            Some(&"EXPORT_SYMBOL".to_string())
-        );
+        assert_eq!(patterns[0].metadata.get("export_type"), Some(&"EXPORT_SYMBOL".to_string()));
         // Line numbers: content starts with "\n", so EXPORT_SYMBOL is on line 5
         assert_eq!(patterns[0].line_number, 5);
 
         assert_eq!(patterns[1].name, "helper_func");
-        assert_eq!(
-            patterns[1].metadata.get("export_type"),
-            Some(&"EXPORT_SYMBOL_GPL".to_string())
-        );
+        assert_eq!(patterns[1].metadata.get("export_type"), Some(&"EXPORT_SYMBOL_GPL".to_string()));
         assert_eq!(patterns[1].line_number, 10);
     }
 
@@ -453,24 +444,15 @@ EXPORT_SYMBOL_NS_GPL(gpl_ns_func, ANOTHER_NS);
         assert_eq!(patterns.len(), 2);
 
         assert_eq!(patterns[0].name, "ns_function");
-        assert_eq!(
-            patterns[0].metadata.get("export_type"),
-            Some(&"EXPORT_SYMBOL_NS".to_string())
-        );
-        assert_eq!(
-            patterns[0].metadata.get("namespace"),
-            Some(&"MY_NAMESPACE".to_string())
-        );
+        assert_eq!(patterns[0].metadata.get("export_type"), Some(&"EXPORT_SYMBOL_NS".to_string()));
+        assert_eq!(patterns[0].metadata.get("namespace"), Some(&"MY_NAMESPACE".to_string()));
 
         assert_eq!(patterns[1].name, "gpl_ns_func");
         assert_eq!(
             patterns[1].metadata.get("export_type"),
             Some(&"EXPORT_SYMBOL_NS_GPL".to_string())
         );
-        assert_eq!(
-            patterns[1].metadata.get("namespace"),
-            Some(&"ANOTHER_NS".to_string())
-        );
+        assert_eq!(patterns[1].metadata.get("namespace"), Some(&"ANOTHER_NS".to_string()));
     }
 
     #[test]
@@ -528,29 +510,14 @@ module_param(mode, charp, 0644);
         // Check debug parameter
         let debug_param = patterns.iter().find(|p| p.name == "debug").unwrap();
         assert_eq!(debug_param.pattern_type, PatternType::ModuleParam);
-        assert_eq!(
-            debug_param.metadata.get("param_type"),
-            Some(&"int".to_string())
-        );
-        assert_eq!(
-            debug_param.metadata.get("permissions"),
-            Some(&"0644".to_string())
-        );
-        assert_eq!(
-            debug_param.metadata.get("description"),
-            Some(&"Enable debug mode".to_string())
-        );
+        assert_eq!(debug_param.metadata.get("param_type"), Some(&"int".to_string()));
+        assert_eq!(debug_param.metadata.get("permissions"), Some(&"0644".to_string()));
+        assert_eq!(debug_param.metadata.get("description"), Some(&"Enable debug mode".to_string()));
 
         // Check buffer_size parameter
         let buffer_param = patterns.iter().find(|p| p.name == "buffer_size").unwrap();
-        assert_eq!(
-            buffer_param.metadata.get("param_type"),
-            Some(&"ulong".to_string())
-        );
-        assert_eq!(
-            buffer_param.metadata.get("permissions"),
-            Some(&"0444".to_string())
-        );
+        assert_eq!(buffer_param.metadata.get("param_type"), Some(&"ulong".to_string()));
+        assert_eq!(buffer_param.metadata.get("permissions"), Some(&"0444".to_string()));
         assert_eq!(
             buffer_param.metadata.get("description"),
             Some(&"Buffer size in bytes".to_string())
@@ -558,10 +525,7 @@ module_param(mode, charp, 0644);
 
         // Check mode parameter (no description)
         let mode_param = patterns.iter().find(|p| p.name == "mode").unwrap();
-        assert_eq!(
-            mode_param.metadata.get("param_type"),
-            Some(&"charp".to_string())
-        );
+        assert_eq!(mode_param.metadata.get("param_type"), Some(&"charp".to_string()));
         assert_eq!(mode_param.metadata.get("description"), None);
     }
 
@@ -584,22 +548,10 @@ module_param_array(names, charp, NULL, 0644);
         // Check irqs array parameter
         let irqs_param = patterns.iter().find(|p| p.name == "irqs").unwrap();
         assert_eq!(irqs_param.pattern_type, PatternType::ModuleParam);
-        assert_eq!(
-            irqs_param.metadata.get("param_type"),
-            Some(&"int".to_string())
-        );
-        assert_eq!(
-            irqs_param.metadata.get("array_size"),
-            Some(&"&num_irqs".to_string())
-        );
-        assert_eq!(
-            irqs_param.metadata.get("permissions"),
-            Some(&"0444".to_string())
-        );
-        assert_eq!(
-            irqs_param.metadata.get("is_array"),
-            Some(&"true".to_string())
-        );
+        assert_eq!(irqs_param.metadata.get("param_type"), Some(&"int".to_string()));
+        assert_eq!(irqs_param.metadata.get("array_size"), Some(&"&num_irqs".to_string()));
+        assert_eq!(irqs_param.metadata.get("permissions"), Some(&"0444".to_string()));
+        assert_eq!(irqs_param.metadata.get("is_array"), Some(&"true".to_string()));
         assert_eq!(
             irqs_param.metadata.get("description"),
             Some(&"IRQ numbers for devices".to_string())
@@ -607,18 +559,9 @@ module_param_array(names, charp, NULL, 0644);
 
         // Check names array parameter (no description, NULL size)
         let names_param = patterns.iter().find(|p| p.name == "names").unwrap();
-        assert_eq!(
-            names_param.metadata.get("param_type"),
-            Some(&"charp".to_string())
-        );
-        assert_eq!(
-            names_param.metadata.get("array_size"),
-            Some(&"NULL".to_string())
-        );
-        assert_eq!(
-            names_param.metadata.get("is_array"),
-            Some(&"true".to_string())
-        );
+        assert_eq!(names_param.metadata.get("param_type"), Some(&"charp".to_string()));
+        assert_eq!(names_param.metadata.get("array_size"), Some(&"NULL".to_string()));
+        assert_eq!(names_param.metadata.get("is_array"), Some(&"true".to_string()));
         assert_eq!(names_param.metadata.get("description"), None);
     }
 
@@ -644,30 +587,15 @@ __setup("initparam=", init_param);
         assert_eq!(patterns.len(), 2);
 
         // Check ext4_nodelalloc parameter
-        let ext4_param = patterns
-            .iter()
-            .find(|p| p.name == "ext4_nodelalloc")
-            .unwrap();
+        let ext4_param = patterns.iter().find(|p| p.name == "ext4_nodelalloc").unwrap();
         assert_eq!(ext4_param.pattern_type, PatternType::BootParam);
-        assert_eq!(
-            ext4_param.metadata.get("param_type"),
-            Some(&"__setup".to_string())
-        );
-        assert_eq!(
-            ext4_param.metadata.get("handler"),
-            Some(&"ext4_setup_nodelalloc".to_string())
-        );
+        assert_eq!(ext4_param.metadata.get("param_type"), Some(&"__setup".to_string()));
+        assert_eq!(ext4_param.metadata.get("handler"), Some(&"ext4_setup_nodelalloc".to_string()));
 
         // Check initparam= parameter
         let init_param = patterns.iter().find(|p| p.name == "initparam=").unwrap();
-        assert_eq!(
-            init_param.metadata.get("param_type"),
-            Some(&"__setup".to_string())
-        );
-        assert_eq!(
-            init_param.metadata.get("handler"),
-            Some(&"init_param".to_string())
-        );
+        assert_eq!(init_param.metadata.get("param_type"), Some(&"__setup".to_string()));
+        assert_eq!(init_param.metadata.get("handler"), Some(&"init_param".to_string()));
     }
 
     #[test]
@@ -694,25 +622,13 @@ early_param("mem", early_mem_setup);
         // Check earlyprintk parameter
         let early_printk = patterns.iter().find(|p| p.name == "earlyprintk").unwrap();
         assert_eq!(early_printk.pattern_type, PatternType::BootParam);
-        assert_eq!(
-            early_printk.metadata.get("param_type"),
-            Some(&"early_param".to_string())
-        );
-        assert_eq!(
-            early_printk.metadata.get("handler"),
-            Some(&"early_console_setup".to_string())
-        );
+        assert_eq!(early_printk.metadata.get("param_type"), Some(&"early_param".to_string()));
+        assert_eq!(early_printk.metadata.get("handler"), Some(&"early_console_setup".to_string()));
 
         // Check mem parameter
         let mem_param = patterns.iter().find(|p| p.name == "mem").unwrap();
-        assert_eq!(
-            mem_param.metadata.get("param_type"),
-            Some(&"early_param".to_string())
-        );
-        assert_eq!(
-            mem_param.metadata.get("handler"),
-            Some(&"early_mem_setup".to_string())
-        );
+        assert_eq!(mem_param.metadata.get("param_type"), Some(&"early_param".to_string()));
+        assert_eq!(mem_param.metadata.get("handler"), Some(&"early_mem_setup".to_string()));
     }
 
     #[test]
@@ -735,42 +651,21 @@ core_param(boot_command, boot_command_line, charp, 0444);
         // Check pause_on_oops parameter
         let pause_param = patterns.iter().find(|p| p.name == "pause_on_oops").unwrap();
         assert_eq!(pause_param.pattern_type, PatternType::BootParam);
-        assert_eq!(
-            pause_param.metadata.get("param_type"),
-            Some(&"core_param".to_string())
-        );
-        assert_eq!(
-            pause_param.metadata.get("variable"),
-            Some(&"pause_on_oops".to_string())
-        );
+        assert_eq!(pause_param.metadata.get("param_type"), Some(&"core_param".to_string()));
+        assert_eq!(pause_param.metadata.get("variable"), Some(&"pause_on_oops".to_string()));
         assert_eq!(pause_param.metadata.get("type"), Some(&"int".to_string()));
-        assert_eq!(
-            pause_param.metadata.get("permissions"),
-            Some(&"0644".to_string())
-        );
+        assert_eq!(pause_param.metadata.get("permissions"), Some(&"0644".to_string()));
 
         // Check ignore_loglevel parameter
-        let ignore_param = patterns
-            .iter()
-            .find(|p| p.name == "ignore_loglevel")
-            .unwrap();
-        assert_eq!(
-            ignore_param.metadata.get("variable"),
-            Some(&"ignore_loglevel".to_string())
-        );
+        let ignore_param = patterns.iter().find(|p| p.name == "ignore_loglevel").unwrap();
+        assert_eq!(ignore_param.metadata.get("variable"), Some(&"ignore_loglevel".to_string()));
         assert_eq!(ignore_param.metadata.get("type"), Some(&"bool".to_string()));
 
         // Check boot_command parameter
         let boot_param = patterns.iter().find(|p| p.name == "boot_command").unwrap();
-        assert_eq!(
-            boot_param.metadata.get("variable"),
-            Some(&"boot_command_line".to_string())
-        );
+        assert_eq!(boot_param.metadata.get("variable"), Some(&"boot_command_line".to_string()));
         assert_eq!(boot_param.metadata.get("type"), Some(&"charp".to_string()));
-        assert_eq!(
-            boot_param.metadata.get("permissions"),
-            Some(&"0444".to_string())
-        );
+        assert_eq!(boot_param.metadata.get("permissions"), Some(&"0444".to_string()));
     }
 
     #[test]

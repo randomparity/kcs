@@ -36,6 +36,24 @@ libbpf-rs = "0.23"
 [workspace.metadata.docs.rs]
 all-features = true
 
+[workspace.lints]
+clippy.cognitive_complexity = "warn"
+clippy.too_many_arguments = "warn"
+clippy.too_many_lines = "warn"
+clippy.large_enum_variant = "warn"
+clippy.struct_excessive_bools = "warn"
+clippy.inefficient_to_string = "deny"
+clippy.string_add = "deny"
+clippy.string_add_assign = "deny"
+clippy.unwrap_used = "deny"
+clippy.expect_used = "deny"
+clippy.panic = "deny"
+clippy.indexing_slicing = "warn"
+clippy.float_cmp = "deny"
+clippy.mem_forget = "deny"
+clippy.missing_errors_doc = "warn"
+clippy.missing_panics_doc = "warn"
+
 [profile.release]
 lto = true
 codegen-units = 1

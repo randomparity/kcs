@@ -5,10 +5,21 @@ These endpoints implement the contract defined in the OpenAPI spec
 and tested by our contract tests.
 """
 
+import asyncio
+import json
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from .database import Database, get_database
+from .database.call_graph import CallGraphWriter
+from .database.queries import CallGraphAnalyzer
 from .models import (
     AsyncJobInfo,
     CallerInfo,
@@ -75,6 +86,779 @@ from .models.chunk_models import (
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+
+# Call Graph Extraction Models
+class ExtractCallGraphRequest(BaseModel):
+    """Request schema for call graph extraction."""
+
+    file_paths: list[str] = Field(
+        ..., description="List of source file paths to analyze", min_length=1
+    )
+    include_indirect: bool = Field(
+        True, description="Whether to include function pointer calls"
+    )
+    include_macros: bool = Field(
+        True, description="Whether to expand and analyze macro calls"
+    )
+    config_context: str | None = Field(
+        None,
+        description="Kernel configuration context for conditional compilation",
+        examples=["x86_64:defconfig"],
+    )
+    max_depth: int = Field(5, description="Maximum call depth to analyze", ge=1, le=10)
+
+
+class CallSite(BaseModel):
+    """Location information for a function call."""
+
+    file_path: str = Field(..., description="Path to the source file")
+    line_number: int = Field(..., description="Line number of the call", gt=0)
+    column_number: int | None = Field(None, description="Column position")
+    context_before: str | None = Field(None, description="Code context before call")
+    context_after: str | None = Field(None, description="Code context after call")
+    function_context: str | None = Field(None, description="Containing function name")
+
+
+class FunctionReference(BaseModel):
+    """Reference to a function in the codebase."""
+
+    name: str = Field(..., description="Function name")
+    signature: str | None = Field(None, description="Function signature")
+    file_path: str = Field(..., description="Source file path")
+    line_number: int = Field(..., description="Line number", gt=0)
+    symbol_type: str = Field(
+        ..., description="Symbol type", pattern="^(function|macro|variable|type)$"
+    )
+    config_dependencies: list[str] = Field(
+        default_factory=list, description="Configuration dependencies"
+    )
+
+
+class CallEdge(BaseModel):
+    """Represents a function call relationship."""
+
+    caller: FunctionReference = Field(..., description="Calling function")
+    callee: FunctionReference = Field(..., description="Called function")
+    call_site: CallSite = Field(..., description="Location of the call")
+    call_type: str = Field(
+        ...,
+        description="Type of call mechanism",
+        pattern="^(direct|indirect|macro|callback|conditional|assembly|syscall)$",
+    )
+    confidence: str = Field(
+        ..., description="Confidence level", pattern="^(high|medium|low)$"
+    )
+    conditional: bool = Field(False, description="Whether call is conditional")
+    config_guard: str | None = Field(None, description="Configuration dependency")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional call context"
+    )
+
+
+class FunctionPointer(BaseModel):
+    """Function pointer assignment and usage information."""
+
+    pointer_name: str = Field(..., description="Function pointer variable name")
+    assignment_site: CallSite = Field(..., description="Where pointer is assigned")
+    assigned_function: FunctionReference = Field(..., description="Assigned function")
+    usage_sites: list[CallSite] = Field(
+        default_factory=list, description="Where pointer is called"
+    )
+    struct_context: str | None = Field(
+        None, description="Struct name if pointer is member"
+    )
+
+
+class MacroCall(BaseModel):
+    """Macro call expansion information."""
+
+    macro_name: str = Field(..., description="Name of the macro")
+    macro_definition: str | None = Field(None, description="Macro definition")
+    expansion_site: CallSite = Field(..., description="Where macro is expanded")
+    expanded_calls: list[CallEdge] = Field(
+        ..., description="Function calls from expansion"
+    )
+    preprocessor_context: str | None = Field(None, description="Preprocessor context")
+
+
+class ExtractionStats(BaseModel):
+    """Statistics from call graph extraction."""
+
+    files_processed: int = Field(..., description="Number of files processed", ge=0)
+    functions_analyzed: int = Field(..., description="Functions analyzed", ge=0)
+    call_edges_found: int = Field(..., description="Call edges found", ge=0)
+    function_pointers_found: int = Field(
+        default=0, description="Function pointers found", ge=0
+    )
+    macro_calls_found: int = Field(default=0, description="Macro calls found", ge=0)
+    processing_time_ms: int = Field(..., description="Processing time", ge=0)
+    accuracy_estimate: float = Field(
+        default=0.95, description="Estimated accuracy", ge=0.0, le=1.0
+    )
+
+
+class ExtractCallGraphResponse(BaseModel):
+    """Response schema for call graph extraction."""
+
+    call_edges: list[CallEdge] = Field(..., description="Extracted call edges")
+    function_pointers: list[FunctionPointer] = Field(
+        default_factory=list, description="Function pointer assignments"
+    )
+    macro_calls: list[MacroCall] = Field(
+        default_factory=list, description="Macro call expansions"
+    )
+    extraction_stats: ExtractionStats = Field(..., description="Extraction statistics")
+
+
+# Get Call Relationships Models
+class GetCallRelationshipsRequest(BaseModel):
+    """Request schema for call relationship queries."""
+
+    function_name: str = Field(..., description="Name of function to analyze")
+    relationship_type: str = Field(
+        default="both",
+        description="Type of relationships to retrieve",
+        pattern="^(callers|callees|both)$",
+    )
+    config_context: str | None = Field(
+        None,
+        description="Kernel configuration context",
+        examples=["x86_64:defconfig"],
+    )
+    max_depth: int = Field(
+        default=1,
+        description="Maximum traversal depth",
+        ge=1,
+        le=5,
+    )
+
+
+class CallRelationship(BaseModel):
+    """Call relationship information."""
+
+    function: FunctionReference = Field(..., description="Related function")
+    call_edge: CallEdge = Field(..., description="Call edge information")
+    depth: int = Field(..., description="Depth from original function", ge=1)
+
+
+class GetCallRelationshipsResponse(BaseModel):
+    """Response schema for call relationship queries."""
+
+    function_name: str = Field(..., description="Queried function name")
+    relationships: dict[str, list[CallRelationship]] = Field(
+        ..., description="Call relationships (callers/callees)"
+    )
+
+
+# Trace Call Path Models
+class TraceCallPathRequest(BaseModel):
+    """Request schema for call path tracing."""
+
+    from_function: str = Field(..., description="Starting function name")
+    to_function: str = Field(..., description="Target function name")
+    config_context: str | None = Field(
+        None,
+        description="Kernel configuration context",
+        examples=["x86_64:defconfig"],
+    )
+    max_paths: int = Field(
+        default=3,
+        description="Maximum number of paths to return",
+        ge=1,
+        le=10,
+    )
+    max_depth: int = Field(
+        default=5,
+        description="Maximum path length to consider",
+        ge=1,
+        le=10,
+    )
+
+
+class CallPath(BaseModel):
+    """Call path information."""
+
+    path_edges: list[CallEdge] = Field(..., description="Call edges in the path")
+    path_length: int = Field(..., description="Length of the path", ge=1)
+    total_confidence: float = Field(
+        ..., description="Total confidence of the path", ge=0.0, le=1.0
+    )
+    config_context: str | None = Field(None, description="Configuration context")
+
+
+class TraceCallPathResponse(BaseModel):
+    """Response schema for call path tracing."""
+
+    from_function: str = Field(..., description="Starting function name")
+    to_function: str = Field(..., description="Target function name")
+    paths: list[CallPath] = Field(..., description="Found call paths")
+
+
+class AnalyzeFunctionPointersRequest(BaseModel):
+    """Request schema for function pointer analysis."""
+
+    file_paths: list[str] | None = Field(
+        None, description="Specific files to analyze (optional)"
+    )
+    pointer_patterns: list[str] | None = Field(
+        None,
+        description="Specific pointer patterns to search for",
+        examples=[["file_operations", "device_operations"]],
+    )
+    config_context: str | None = Field(None, description="Kernel configuration context")
+
+
+class AnalysisStats(BaseModel):
+    """Analysis statistics for function pointer analysis."""
+
+    pointers_analyzed: int = Field(..., description="Number of pointers analyzed")
+    assignments_found: int = Field(..., description="Number of assignments found")
+    usage_sites_found: int = Field(..., description="Number of usage sites found")
+    callback_patterns_matched: int = Field(
+        ..., description="Number of callback patterns matched"
+    )
+
+
+class CallbackRegistration(BaseModel):
+    """Callback registration information."""
+
+    registration_site: CallSite = Field(
+        ..., description="Where callback was registered"
+    )
+    callback_function: FunctionReference | None = Field(
+        None, description="Function being registered as callback"
+    )
+    registration_pattern: str = Field(
+        ..., description="Pattern used for registration detection"
+    )
+
+
+class AnalyzeFunctionPointersResponse(BaseModel):
+    """Response schema for function pointer analysis."""
+
+    function_pointers: list[FunctionPointer] = Field(
+        ..., description="Analyzed function pointers"
+    )
+    callback_registrations: list[CallbackRegistration] | None = Field(
+        None, description="Detected callback registrations"
+    )
+    analysis_stats: AnalysisStats = Field(..., description="Analysis statistics")
+
+
+class CallGraphExtractor:
+    """Handles call graph extraction using the Rust parser."""
+
+    def __init__(self, database: Database):
+        self.database = database
+        self.call_graph_queries = CallGraphWriter(database)
+
+    async def extract_call_graph(
+        self, request: ExtractCallGraphRequest
+    ) -> ExtractCallGraphResponse:
+        """
+        Extract call graph from the specified source files.
+
+        Args:
+            request: Extraction request parameters
+
+        Returns:
+            Extracted call graph data
+
+        Raises:
+            ValueError: If file paths are invalid
+            RuntimeError: If extraction fails
+        """
+        start_time = time.time()
+
+        # Validate file paths
+        invalid_files = []
+        for file_path in request.file_paths:
+            if not Path(file_path).exists():
+                invalid_files.append(file_path)
+
+        if invalid_files:
+            raise ValueError(f"Files not found: {invalid_files}")
+
+        logger.info(
+            "Starting call graph extraction",
+            file_count=len(request.file_paths),
+            include_indirect=request.include_indirect,
+            include_macros=request.include_macros,
+            max_depth=request.max_depth,
+        )
+
+        try:
+            # Run the Rust-based call graph extraction
+            extraction_result = await self._run_rust_extraction(request)
+
+            # Process and store results in database
+            call_edges = await self._process_call_edges(
+                extraction_result.get("call_edges", [])
+            )
+            function_pointers = await self._process_function_pointers(
+                extraction_result.get("function_pointers", [])
+            )
+            macro_calls = await self._process_macro_calls(
+                extraction_result.get("macro_calls", [])
+            )
+
+            processing_time = int((time.time() - start_time) * 1000)
+
+            # Generate statistics
+            stats = ExtractionStats(
+                files_processed=len(request.file_paths),
+                functions_analyzed=extraction_result.get("functions_analyzed", 0),
+                call_edges_found=len(call_edges),
+                function_pointers_found=len(function_pointers),
+                macro_calls_found=len(macro_calls),
+                processing_time_ms=processing_time,
+                accuracy_estimate=extraction_result.get("accuracy_estimate", 0.95),
+            )
+
+            logger.info(
+                "Call graph extraction completed",
+                call_edges=len(call_edges),
+                function_pointers=len(function_pointers),
+                macro_calls=len(macro_calls),
+                processing_time_ms=processing_time,
+            )
+
+            return ExtractCallGraphResponse(
+                call_edges=call_edges,
+                function_pointers=function_pointers,
+                macro_calls=macro_calls,
+                extraction_stats=stats,
+            )
+
+        except Exception as e:
+            logger.error("Call graph extraction failed", error=str(e))
+            raise RuntimeError(f"Call graph extraction failed: {e}") from e
+
+    async def _run_rust_extraction(
+        self, request: ExtractCallGraphRequest
+    ) -> dict[str, Any]:
+        """
+        Run the Rust-based call graph extraction tool.
+
+        Args:
+            request: Extraction request parameters
+
+        Returns:
+            Raw extraction results from Rust tool
+        """
+        # Create temporary config file for the extraction
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as config_file:
+            config = {
+                "file_paths": request.file_paths,
+                "include_indirect": request.include_indirect,
+                "include_macros": request.include_macros,
+                "config_context": request.config_context,
+                "max_depth": request.max_depth,
+            }
+            json.dump(config, config_file)
+            config_path = config_file.name
+
+        try:
+            # Run the kcs-graph extraction tool
+            cmd = [
+                "cargo",
+                "run",
+                "--bin",
+                "kcs-graph",
+                "--",
+                "extract",
+                "--config",
+                config_path,
+                "--output-format",
+                "json",
+            ]
+
+            # Execute the command
+            result = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=Path(__file__).parents[4],  # Go to project root
+            )
+
+            stdout, stderr = await result.communicate()
+
+            if result.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                raise RuntimeError(f"Rust extraction failed: {error_msg}")
+
+            # Parse the JSON output
+            try:
+                extraction_data: dict[str, Any] = json.loads(stdout.decode())
+                return extraction_data
+            except json.JSONDecodeError as e:
+                raise RuntimeError(f"Failed to parse extraction output: {e}") from e
+
+        finally:
+            # Clean up temporary config file
+            Path(config_path).unlink(missing_ok=True)
+
+    async def _process_call_edges(
+        self, raw_edges: list[dict[str, Any]]
+    ) -> list[CallEdge]:
+        """
+        Process raw call edge data into CallEdge models.
+
+        Args:
+            raw_edges: Raw call edge data from Rust extraction
+
+        Returns:
+            List of processed CallEdge models
+        """
+        call_edges = []
+
+        for edge_data in raw_edges:
+            try:
+                # Map the raw data to our models
+                caller = FunctionReference(
+                    name=edge_data["caller"]["name"],
+                    signature=edge_data["caller"].get("signature"),
+                    file_path=edge_data["caller"]["file_path"],
+                    line_number=edge_data["caller"]["line_number"],
+                    symbol_type=edge_data["caller"].get("symbol_type", "function"),
+                    config_dependencies=edge_data["caller"].get(
+                        "config_dependencies", []
+                    ),
+                )
+
+                callee = FunctionReference(
+                    name=edge_data["callee"]["name"],
+                    signature=edge_data["callee"].get("signature"),
+                    file_path=edge_data["callee"]["file_path"],
+                    line_number=edge_data["callee"]["line_number"],
+                    symbol_type=edge_data["callee"].get("symbol_type", "function"),
+                    config_dependencies=edge_data["callee"].get(
+                        "config_dependencies", []
+                    ),
+                )
+
+                call_site = CallSite(
+                    file_path=edge_data["call_site"]["file_path"],
+                    line_number=edge_data["call_site"]["line_number"],
+                    column_number=edge_data["call_site"].get("column_number"),
+                    context_before=edge_data["call_site"].get("context_before"),
+                    context_after=edge_data["call_site"].get("context_after"),
+                    function_context=edge_data["call_site"].get("function_context"),
+                )
+
+                call_edge = CallEdge(
+                    caller=caller,
+                    callee=callee,
+                    call_site=call_site,
+                    call_type=edge_data["call_type"],
+                    confidence=edge_data["confidence"],
+                    conditional=edge_data.get("conditional", False),
+                    config_guard=edge_data.get("config_guard"),
+                    metadata=edge_data.get("metadata", {}),
+                )
+
+                call_edges.append(call_edge)
+
+                # Store in database for future queries
+                await self._store_call_edge(call_edge)
+
+            except KeyError as e:
+                logger.warning("Skipping malformed call edge", missing_field=str(e))
+                continue
+
+        return call_edges
+
+    async def _process_function_pointers(
+        self, raw_pointers: list[dict[str, Any]]
+    ) -> list[FunctionPointer]:
+        """
+        Process raw function pointer data into FunctionPointer models.
+
+        Args:
+            raw_pointers: Raw function pointer data from Rust extraction
+
+        Returns:
+            List of processed FunctionPointer models
+        """
+        function_pointers = []
+
+        for pointer_data in raw_pointers:
+            try:
+                assignment_site = CallSite(
+                    file_path=pointer_data["assignment_site"]["file_path"],
+                    line_number=pointer_data["assignment_site"]["line_number"],
+                    column_number=pointer_data["assignment_site"].get("column_number"),
+                    context_before=pointer_data["assignment_site"].get(
+                        "context_before"
+                    ),
+                    context_after=pointer_data["assignment_site"].get("context_after"),
+                    function_context=pointer_data["assignment_site"].get(
+                        "function_context"
+                    ),
+                )
+
+                assigned_function = FunctionReference(
+                    name=pointer_data["assigned_function"]["name"],
+                    signature=pointer_data["assigned_function"].get("signature"),
+                    file_path=pointer_data["assigned_function"]["file_path"],
+                    line_number=pointer_data["assigned_function"]["line_number"],
+                    symbol_type=pointer_data["assigned_function"].get(
+                        "symbol_type", "function"
+                    ),
+                    config_dependencies=pointer_data["assigned_function"].get(
+                        "config_dependencies", []
+                    ),
+                )
+
+                usage_sites = []
+                for site_data in pointer_data.get("usage_sites", []):
+                    usage_site = CallSite(
+                        file_path=site_data["file_path"],
+                        line_number=site_data["line_number"],
+                        column_number=site_data.get("column_number"),
+                        context_before=site_data.get("context_before"),
+                        context_after=site_data.get("context_after"),
+                        function_context=site_data.get("function_context"),
+                    )
+                    usage_sites.append(usage_site)
+
+                function_pointer = FunctionPointer(
+                    pointer_name=pointer_data["pointer_name"],
+                    assignment_site=assignment_site,
+                    assigned_function=assigned_function,
+                    usage_sites=usage_sites,
+                    struct_context=pointer_data.get("struct_context"),
+                )
+
+                function_pointers.append(function_pointer)
+
+                # Store in database
+                await self._store_function_pointer(function_pointer)
+
+            except KeyError as e:
+                logger.warning(
+                    "Skipping malformed function pointer", missing_field=str(e)
+                )
+                continue
+
+        return function_pointers
+
+    async def _process_macro_calls(
+        self, raw_macros: list[dict[str, Any]]
+    ) -> list[MacroCall]:
+        """
+        Process raw macro call data into MacroCall models.
+
+        Args:
+            raw_macros: Raw macro call data from Rust extraction
+
+        Returns:
+            List of processed MacroCall models
+        """
+        macro_calls = []
+
+        for macro_data in raw_macros:
+            try:
+                expansion_site = CallSite(
+                    file_path=macro_data["expansion_site"]["file_path"],
+                    line_number=macro_data["expansion_site"]["line_number"],
+                    column_number=macro_data["expansion_site"].get("column_number"),
+                    context_before=macro_data["expansion_site"].get("context_before"),
+                    context_after=macro_data["expansion_site"].get("context_after"),
+                    function_context=macro_data["expansion_site"].get(
+                        "function_context"
+                    ),
+                )
+
+                # Process expanded calls
+                expanded_calls = []
+                for call_data in macro_data.get("expanded_calls", []):
+                    # Reuse the call edge processing logic
+                    caller = FunctionReference(
+                        name=call_data["caller"]["name"],
+                        signature=call_data["caller"].get("signature"),
+                        file_path=call_data["caller"]["file_path"],
+                        line_number=call_data["caller"]["line_number"],
+                        symbol_type=call_data["caller"].get("symbol_type", "function"),
+                    )
+
+                    callee = FunctionReference(
+                        name=call_data["callee"]["name"],
+                        signature=call_data["callee"].get("signature"),
+                        file_path=call_data["callee"]["file_path"],
+                        line_number=call_data["callee"]["line_number"],
+                        symbol_type=call_data["callee"].get("symbol_type", "function"),
+                    )
+
+                    call_site = CallSite(
+                        file_path=call_data["call_site"]["file_path"],
+                        line_number=call_data["call_site"]["line_number"],
+                        column_number=call_data["call_site"].get("column_number"),
+                        context_before=call_data["call_site"].get("context_before"),
+                        context_after=call_data["call_site"].get("context_after"),
+                        function_context=call_data["call_site"].get("function_context"),
+                    )
+
+                    expanded_call = CallEdge(
+                        caller=caller,
+                        callee=callee,
+                        call_site=call_site,
+                        call_type=call_data["call_type"],
+                        confidence=call_data["confidence"],
+                        conditional=call_data.get("conditional", False),
+                        config_guard=call_data.get("config_guard"),
+                    )
+
+                    expanded_calls.append(expanded_call)
+
+                macro_call = MacroCall(
+                    macro_name=macro_data["macro_name"],
+                    macro_definition=macro_data.get("macro_definition"),
+                    expansion_site=expansion_site,
+                    expanded_calls=expanded_calls,
+                    preprocessor_context=macro_data.get("preprocessor_context"),
+                )
+
+                macro_calls.append(macro_call)
+
+                # Store in database
+                await self._store_macro_call(macro_call)
+
+            except KeyError as e:
+                logger.warning("Skipping malformed macro call", missing_field=str(e))
+                continue
+
+        return macro_calls
+
+    async def _store_call_edge(self, call_edge: CallEdge) -> None:
+        """Store a call edge in the database."""
+        try:
+            # Get or create symbol IDs for caller and callee
+            caller_id = await self._get_or_create_symbol_id(call_edge.caller)
+            callee_id = await self._get_or_create_symbol_id(call_edge.callee)
+
+            # Store the call edge
+            await self.call_graph_queries.insert_call_edge(
+                caller_id=caller_id,
+                callee_id=callee_id,
+                file_path=call_edge.call_site.file_path,
+                line_number=call_edge.call_site.line_number,
+                call_type=call_edge.call_type,  # type: ignore[arg-type]
+                confidence=call_edge.confidence,  # type: ignore[arg-type]
+                conditional=call_edge.conditional,
+                column_number=call_edge.call_site.column_number,
+                function_context=call_edge.call_site.function_context,
+                context_before=call_edge.call_site.context_before,
+                context_after=call_edge.call_site.context_after,
+                config_guard=call_edge.config_guard,
+                metadata=call_edge.metadata,
+            )
+        except Exception as e:
+            logger.warning("Failed to store call edge", error=str(e))
+
+    async def _store_function_pointer(self, function_pointer: FunctionPointer) -> None:
+        """Store a function pointer in the database."""
+        try:
+            # Get symbol ID for assigned function
+            assigned_function_id = await self._get_or_create_symbol_id(
+                function_pointer.assigned_function
+            )
+
+            # Convert usage sites to JSON format
+            usage_sites_data = [
+                {
+                    "file_path": site.file_path,
+                    "line_number": site.line_number,
+                    "column_number": site.column_number,
+                    "function_context": site.function_context,
+                }
+                for site in function_pointer.usage_sites
+            ]
+
+            await self.call_graph_queries.insert_function_pointer(
+                pointer_name=function_pointer.pointer_name,
+                assignment_file=function_pointer.assignment_site.file_path,
+                assignment_line=function_pointer.assignment_site.line_number,
+                assigned_function_id=assigned_function_id,
+                assignment_column=function_pointer.assignment_site.column_number,
+                struct_context=function_pointer.struct_context,
+                assignment_context=function_pointer.assignment_site.function_context,
+                usage_sites=usage_sites_data,
+            )
+        except Exception as e:
+            logger.warning("Failed to store function pointer", error=str(e))
+
+    async def _store_macro_call(self, macro_call: MacroCall) -> None:
+        """Store a macro call in the database."""
+        try:
+            # Store expanded call edges first and collect their IDs
+            expanded_call_ids = []
+            for expanded_call in macro_call.expanded_calls:
+                # Get symbol IDs
+                caller_id = await self._get_or_create_symbol_id(expanded_call.caller)
+                callee_id = await self._get_or_create_symbol_id(expanded_call.callee)
+
+                # Insert call edge and get its ID
+                call_edge_id = await self.call_graph_queries.insert_call_edge(
+                    caller_id=caller_id,
+                    callee_id=callee_id,
+                    file_path=expanded_call.call_site.file_path,
+                    line_number=expanded_call.call_site.line_number,
+                    call_type=expanded_call.call_type,  # type: ignore[arg-type]
+                    confidence=expanded_call.confidence,  # type: ignore[arg-type]
+                    conditional=expanded_call.conditional,
+                    metadata={
+                        "source": "macro_expansion",
+                        "macro_name": macro_call.macro_name,
+                    },
+                )
+                expanded_call_ids.append(call_edge_id)
+
+            # Store the macro call record
+            await self.call_graph_queries.insert_macro_call(
+                macro_name=macro_call.macro_name,
+                expansion_file=macro_call.expansion_site.file_path,
+                expansion_line=macro_call.expansion_site.line_number,
+                macro_definition=macro_call.macro_definition,
+                expansion_column=macro_call.expansion_site.column_number,
+                expanded_call_ids=expanded_call_ids,
+                preprocessor_context=macro_call.preprocessor_context,
+            )
+        except Exception as e:
+            logger.warning("Failed to store macro call", error=str(e))
+
+    async def _get_or_create_symbol_id(self, function_ref: FunctionReference) -> int:
+        """Get or create a symbol ID for a function reference."""
+        # This would integrate with the existing symbol table in the database
+        # For now, we'll use a simplified approach
+        async with self.database.acquire() as conn:
+            # Try to find existing symbol
+            symbol_id = await conn.fetchval(
+                "SELECT id FROM symbols WHERE name = $1 AND file_path = $2",
+                function_ref.name,
+                function_ref.file_path,
+            )
+
+            if symbol_id is not None:
+                return int(symbol_id)
+
+            # Create new symbol
+            symbol_id = await conn.fetchval(
+                """
+                INSERT INTO symbols (name, file_path, line_number, symbol_type)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id
+                """,
+                function_ref.name,
+                function_ref.file_path,
+                function_ref.line_number,
+                function_ref.symbol_type,
+            )
+
+            return int(symbol_id)
 
 
 @router.post("/search_code", response_model=SearchCodeResponse)
@@ -780,7 +1564,6 @@ async def parse_kernel_config(
     This endpoint integrates with the kcs-config crate to parse .config files
     and provide structured configuration data with dependency resolution.
     """
-    import subprocess
     import uuid
     from datetime import datetime
     from pathlib import Path
@@ -1003,7 +1786,6 @@ async def validate_spec(
     This endpoint integrates with the kcs-drift crate to compare specifications
     against actual kernel implementation and identify deviations.
     """
-    import subprocess
     import uuid
     from datetime import datetime
 
@@ -1316,7 +2098,6 @@ async def semantic_search(
     This endpoint integrates with the kcs-search crate to provide semantic
     similarity search across the kernel codebase using vector embeddings.
     """
-    import subprocess
     import time
     import uuid
 
@@ -1630,7 +2411,6 @@ async def traverse_call_graph(
     """
     import json
     import os
-    import subprocess
     import tempfile
     import time
     import uuid
@@ -1973,7 +2753,6 @@ async def export_graph(
     import json
     import math
     import os
-    import subprocess
     import tempfile
     import uuid
     from datetime import datetime
@@ -2922,3 +3701,544 @@ async def process_batch(
                 message=f"Failed to process batch: {e!s}",
             ).dict(),
         ) from e
+
+
+# Call Graph Extraction Endpoints
+@router.post("/extract_call_graph")
+async def extract_call_graph(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Extract call graph from kernel source files.
+
+    This endpoint processes the specified source files to extract function call
+    relationships, function pointer assignments, and macro expansions. The results
+    are stored in the database and returned in the response.
+    """
+    try:
+        # Validate and parse request
+        validated_request = ExtractCallGraphRequest(**request)
+
+        logger.info(
+            "extract_call_graph_request",
+            file_count=len(validated_request.file_paths),
+            include_indirect=validated_request.include_indirect,
+            include_macros=validated_request.include_macros,
+            max_depth=validated_request.max_depth,
+        )
+
+        extractor = CallGraphExtractor(db)
+        result = await extractor.extract_call_graph(validated_request)
+
+        logger.info(
+            "extract_call_graph_success",
+            call_edges=len(result.call_edges),
+            function_pointers=len(result.function_pointers),
+            macro_calls=len(result.macro_calls),
+            processing_time_ms=result.extraction_stats.processing_time_ms,
+        )
+
+        return result.dict()
+
+    except ValueError as e:
+        logger.warning("extract_call_graph_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except Exception as e:
+        logger.error("extract_call_graph_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="extraction_failed",
+                message=f"Call graph extraction failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+@router.post("/get_call_relationships")
+async def get_call_relationships(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Get call relationships for a specific function.
+
+    This endpoint queries the database for functions that call the specified
+    function (callers), functions called by the specified function (callees),
+    or both, up to a specified depth.
+    """
+    try:
+        # Validate and parse request
+        validated_request = GetCallRelationshipsRequest(**request)
+
+        logger.info(
+            "get_call_relationships_request",
+            function_name=validated_request.function_name,
+            relationship_type=validated_request.relationship_type,
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Query call relationships from database
+        call_graph_queries = CallGraphAnalyzer(db)
+        result = await call_graph_queries.get_call_relationships(
+            function_name=validated_request.function_name,
+            relationship_type=validated_request.relationship_type,  # type: ignore[arg-type]
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Check if function was found
+        if "error" in result:
+            if result["error"] == "Function not found":
+                logger.warning(
+                    "get_call_relationships_function_not_found",
+                    function_name=validated_request.function_name,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=ErrorResponse(
+                        error="function_not_found",
+                        message=f"Function '{validated_request.function_name}' not found",
+                    ).dict(),
+                )
+
+        # Transform database result to API response format
+        relationships: dict[str, list[CallRelationship]] = {}
+        if validated_request.relationship_type in ["callers", "both"]:
+            relationships["callers"] = [
+                CallRelationship(**_transform_relationship_to_api_format(rel))
+                for rel in result["relationships"]["callers"]
+            ]
+        if validated_request.relationship_type in ["callees", "both"]:
+            relationships["callees"] = [
+                CallRelationship(**_transform_relationship_to_api_format(rel))
+                for rel in result["relationships"]["callees"]
+            ]
+
+        response = GetCallRelationshipsResponse(
+            function_name=validated_request.function_name,
+            relationships=relationships,
+        )
+
+        logger.info(
+            "get_call_relationships_success",
+            function_name=validated_request.function_name,
+            callers_count=len(relationships.get("callers", [])),
+            callees_count=len(relationships.get("callees", [])),
+        )
+
+        return response.dict()
+
+    except ValueError as e:
+        logger.warning("get_call_relationships_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404)
+        raise
+    except Exception as e:
+        logger.error("get_call_relationships_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="query_failed",
+                message=f"Call relationship query failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+def _transform_relationship_to_api_format(
+    db_relationship: dict[str, Any],
+) -> dict[str, Any]:
+    """Transform database relationship result to API format."""
+    # The database returns relationship data that needs to be formatted
+    # according to the API contract
+    function_ref = FunctionReference(
+        name=db_relationship["function"]["name"],
+        file_path=db_relationship["function"]["file_path"],
+        line_number=db_relationship["function"]["line_number"],
+        signature=db_relationship["function"].get("signature"),
+        symbol_type=db_relationship["function"].get("symbol_type", "function"),
+        config_dependencies=db_relationship["function"].get("config_dependencies", []),
+    )
+
+    call_site = CallSite(
+        file_path=db_relationship["call_edge"]["call_site"]["file_path"],
+        line_number=db_relationship["call_edge"]["call_site"]["line_number"],
+        column_number=db_relationship["call_edge"]["call_site"].get("column_number"),
+        context_before=db_relationship["call_edge"]["call_site"].get("context_before"),
+        context_after=db_relationship["call_edge"]["call_site"].get("context_after"),
+        function_context=db_relationship["call_edge"]["call_site"].get(
+            "function_context"
+        ),
+    )
+
+    caller_ref = FunctionReference(
+        name=db_relationship["call_edge"]["caller"]["name"],
+        file_path=db_relationship["call_edge"]["caller"]["file_path"],
+        line_number=db_relationship["call_edge"]["caller"]["line_number"],
+        signature=db_relationship["call_edge"]["caller"].get("signature"),
+        symbol_type=db_relationship["call_edge"]["caller"].get(
+            "symbol_type", "function"
+        ),
+        config_dependencies=db_relationship["call_edge"]["caller"].get(
+            "config_dependencies", []
+        ),
+    )
+
+    callee_ref = FunctionReference(
+        name=db_relationship["call_edge"]["callee"]["name"],
+        file_path=db_relationship["call_edge"]["callee"]["file_path"],
+        line_number=db_relationship["call_edge"]["callee"]["line_number"],
+        signature=db_relationship["call_edge"]["callee"].get("signature"),
+        symbol_type=db_relationship["call_edge"]["callee"].get(
+            "symbol_type", "function"
+        ),
+        config_dependencies=db_relationship["call_edge"]["callee"].get(
+            "config_dependencies", []
+        ),
+    )
+
+    call_edge = CallEdge(
+        caller=caller_ref,
+        callee=callee_ref,
+        call_site=call_site,
+        call_type=db_relationship["call_edge"]["call_type"],
+        confidence=db_relationship["call_edge"]["confidence"],
+        conditional=db_relationship["call_edge"].get("conditional", False),
+        config_guard=db_relationship["call_edge"].get("config_guard"),
+        metadata=db_relationship["call_edge"].get("metadata", {}),
+    )
+
+    return {
+        "function": function_ref,
+        "call_edge": call_edge,
+        "depth": db_relationship["depth"],
+    }
+
+
+@router.post("/trace_call_path")
+async def trace_call_path(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Trace call paths between two functions.
+
+    This endpoint finds call paths from a starting function to a target function
+    using graph traversal algorithms, returning multiple paths if they exist.
+    """
+    try:
+        # Validate and parse request
+        validated_request = TraceCallPathRequest(**request)
+
+        logger.info(
+            "trace_call_path_request",
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            max_paths=validated_request.max_paths,
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Query call paths from database
+        call_graph_analyzer = CallGraphAnalyzer(db)
+        result = await call_graph_analyzer.trace_call_paths(
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            max_paths=validated_request.max_paths,
+            max_depth=validated_request.max_depth,
+            config_context=validated_request.config_context,
+        )
+
+        # Check for errors
+        if "error" in result:
+            error_msg = result["error"]
+            if "not found" in error_msg:
+                logger.warning(
+                    "trace_call_path_function_not_found",
+                    from_function=validated_request.from_function,
+                    to_function=validated_request.to_function,
+                    error=error_msg,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=ErrorResponse(
+                        error="function_not_found",
+                        message=error_msg,
+                    ).dict(),
+                )
+            else:
+                logger.warning(
+                    "trace_call_path_no_path",
+                    from_function=validated_request.from_function,
+                    to_function=validated_request.to_function,
+                    error=error_msg,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=ErrorResponse(
+                        error="no_path_found",
+                        message=error_msg,
+                    ).dict(),
+                )
+
+        # Transform database result to API response format
+        call_paths = [
+            CallPath(**_transform_call_path_to_api_format(path))
+            for path in result["paths"]
+        ]
+
+        response = TraceCallPathResponse(
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            paths=call_paths,
+        )
+
+        logger.info(
+            "trace_call_path_success",
+            from_function=validated_request.from_function,
+            to_function=validated_request.to_function,
+            paths_found=len(call_paths),
+        )
+
+        return response.dict()
+
+    except ValueError as e:
+        logger.warning("trace_call_path_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404)
+        raise
+    except Exception as e:
+        logger.error("trace_call_path_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="path_tracing_failed",
+                message=f"Call path tracing failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+def _transform_call_path_to_api_format(db_path: dict[str, Any]) -> dict[str, Any]:
+    """Transform database call path result to API format."""
+    # Transform each call edge in the path
+    path_edges = []
+    for edge in db_path["path_edges"]:
+        # Create the edge objects using existing models
+        caller_ref = FunctionReference(
+            name=edge["caller"]["name"],
+            file_path=edge["caller"]["file_path"],
+            line_number=edge["caller"]["line_number"],
+            signature=edge["caller"].get("signature"),
+            symbol_type=edge["caller"].get("symbol_type", "function"),
+            config_dependencies=edge["caller"].get("config_dependencies", []),
+        )
+
+        callee_ref = FunctionReference(
+            name=edge["callee"]["name"],
+            file_path=edge["callee"]["file_path"],
+            line_number=edge["callee"]["line_number"],
+            signature=edge["callee"].get("signature"),
+            symbol_type=edge["callee"].get("symbol_type", "function"),
+            config_dependencies=edge["callee"].get("config_dependencies", []),
+        )
+
+        call_site = CallSite(
+            file_path=edge["call_site"]["file_path"],
+            line_number=edge["call_site"]["line_number"],
+            column_number=edge["call_site"].get("column_number"),
+            context_before=edge["call_site"].get("context_before"),
+            context_after=edge["call_site"].get("context_after"),
+            function_context=edge["call_site"].get("function_context"),
+        )
+
+        call_edge = CallEdge(
+            caller=caller_ref,
+            callee=callee_ref,
+            call_site=call_site,
+            call_type=edge["call_type"],
+            confidence=edge["confidence"],
+            conditional=edge.get("conditional", False),
+            config_guard=edge.get("config_guard"),
+            metadata=edge.get("metadata", {}),
+        )
+
+        path_edges.append(call_edge)
+
+    return {
+        "path_edges": path_edges,
+        "path_length": db_path["path_length"],
+        "total_confidence": db_path["total_confidence"],
+        "config_context": db_path.get("config_context"),
+    }
+
+
+@router.post("/analyze_function_pointers")
+async def analyze_function_pointers(
+    request: dict, db: Database = Depends(get_database)
+) -> dict[str, Any]:
+    """
+    Analyze function pointer assignments and usage patterns.
+
+    This endpoint analyzes function pointer patterns in the codebase,
+    identifying assignments, usage sites, and callback registration patterns.
+    """
+    try:
+        # Validate and parse request
+        validated_request = AnalyzeFunctionPointersRequest(**request)
+
+        logger.info(
+            "analyze_function_pointers_request",
+            file_paths=validated_request.file_paths,
+            pointer_patterns=validated_request.pointer_patterns,
+            config_context=validated_request.config_context,
+        )
+
+        # Query function pointer analysis from database
+        call_graph_analyzer = CallGraphAnalyzer(db)
+        result = await call_graph_analyzer.analyze_function_pointers(
+            file_paths=validated_request.file_paths,
+            pointer_patterns=validated_request.pointer_patterns,
+            config_context=validated_request.config_context,
+        )
+
+        # Transform database result to API response format
+        function_pointers = [
+            FunctionPointer(**_transform_function_pointer_to_api_format(fp))
+            for fp in result["function_pointers"]
+        ]
+
+        callback_registrations = None
+        if result.get("callback_registrations"):
+            callback_registrations = [
+                CallbackRegistration(
+                    **_transform_callback_registration_to_api_format(cb)
+                )
+                for cb in result["callback_registrations"]
+            ]
+
+        analysis_stats = AnalysisStats(**result["analysis_stats"])
+
+        response = AnalyzeFunctionPointersResponse(
+            function_pointers=function_pointers,
+            callback_registrations=callback_registrations,
+            analysis_stats=analysis_stats,
+        )
+
+        logger.info(
+            "analyze_function_pointers_success",
+            pointers_analyzed=len(function_pointers),
+            callback_registrations=len(callback_registrations)
+            if callback_registrations
+            else 0,
+            assignments_found=analysis_stats.assignments_found,
+        )
+
+        return response.dict()
+
+    except ValueError as e:
+        logger.warning("analyze_function_pointers_validation_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="invalid_request", message=str(e)).dict(),
+        ) from e
+    except Exception as e:
+        logger.error("analyze_function_pointers_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="analysis_failed",
+                message=f"Function pointer analysis failed: {e!s}",
+            ).dict(),
+        ) from e
+
+
+def _transform_function_pointer_to_api_format(
+    db_pointer: dict[str, Any],
+) -> dict[str, Any]:
+    """Transform database function pointer result to API format."""
+    assignment_site = CallSite(
+        file_path=db_pointer["assignment_site"]["file_path"],
+        line_number=db_pointer["assignment_site"]["line_number"],
+        column_number=db_pointer["assignment_site"].get("column_number"),
+        context_before=db_pointer["assignment_site"].get("context_before"),
+        context_after=db_pointer["assignment_site"].get("context_after"),
+        function_context=db_pointer["assignment_site"].get("function_context"),
+    )
+
+    # Transform usage sites
+    usage_sites = []
+    for usage in db_pointer.get("usage_sites", []):
+        usage_site = CallSite(
+            file_path=usage["file_path"],
+            line_number=usage["line_number"],
+            column_number=usage.get("column_number"),
+            context_before=usage.get("context_before"),
+            context_after=usage.get("context_after"),
+            function_context=usage.get("function_context"),
+        )
+        usage_sites.append(usage_site)
+
+    # Transform assigned function if present
+    assigned_function = None
+    if db_pointer.get("assigned_function"):
+        assigned_function = FunctionReference(
+            name=db_pointer["assigned_function"]["name"],
+            file_path=db_pointer["assigned_function"]["file_path"],
+            line_number=db_pointer["assigned_function"]["line_number"],
+            signature=db_pointer["assigned_function"].get("signature"),
+            symbol_type=db_pointer["assigned_function"].get("symbol_type", "function"),
+            config_dependencies=db_pointer["assigned_function"].get(
+                "config_dependencies", []
+            ),
+        )
+
+    return {
+        "pointer_name": db_pointer["pointer_name"],
+        "assignment_site": assignment_site,
+        "assigned_function": assigned_function,
+        "usage_sites": usage_sites,
+        "struct_context": db_pointer.get("struct_context"),
+        "metadata": db_pointer.get("metadata", {}),
+    }
+
+
+def _transform_callback_registration_to_api_format(
+    db_callback: dict[str, Any],
+) -> dict[str, Any]:
+    """Transform database callback registration result to API format."""
+    registration_site = CallSite(
+        file_path=db_callback["registration_site"]["file_path"],
+        line_number=db_callback["registration_site"]["line_number"],
+        column_number=db_callback["registration_site"].get("column_number"),
+        context_before=db_callback["registration_site"].get("context_before"),
+        context_after=db_callback["registration_site"].get("context_after"),
+        function_context=db_callback["registration_site"].get("function_context"),
+    )
+
+    callback_function = None
+    if db_callback.get("callback_function"):
+        callback_function = FunctionReference(
+            name=db_callback["callback_function"]["name"],
+            file_path=db_callback["callback_function"]["file_path"],
+            line_number=db_callback["callback_function"]["line_number"],
+            signature=db_callback["callback_function"].get("signature"),
+            symbol_type=db_callback["callback_function"].get("symbol_type", "function"),
+            config_dependencies=db_callback["callback_function"].get(
+                "config_dependencies", []
+            ),
+        )
+
+    return {
+        "registration_site": registration_site,
+        "callback_function": callback_function,
+        "registration_pattern": db_callback["registration_pattern"],
+    }

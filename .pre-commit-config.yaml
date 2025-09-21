@@ -19,7 +19,7 @@ repos:
         files: ^src/python/.*\.py$
         additional_dependencies: [
           types-requests, types-PyYAML, types-psutil, types-aiofiles,
-          pydantic, structlog, fastapi, asyncpg
+          pydantic, structlog, fastapi, asyncpg, uvicorn, tomli-w
         ]
         args: [--config-file=pyproject.toml]
 

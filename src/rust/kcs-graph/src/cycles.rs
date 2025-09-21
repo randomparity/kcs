@@ -208,20 +208,9 @@ impl<'a> CycleDetector<'a> {
         let mut path_edges = Vec::new();
 
         // Use DFS to find a cycle
-        if self.dfs_find_cycle(
-            start,
-            start,
-            &mut visited,
-            &mut path,
-            &mut path_edges,
-            scc,
-            true,
-        ) {
+        if self.dfs_find_cycle(start, start, &mut visited, &mut path, &mut path_edges, scc, true) {
             // Convert path to cycle
-            let symbols = path
-                .iter()
-                .filter_map(|&idx| graph.node_weight(idx).cloned())
-                .collect();
+            let symbols = path.iter().filter_map(|&idx| graph.node_weight(idx).cloned()).collect();
 
             let mut has_indirect_calls = false;
             let mut config_guards = HashSet::new();
@@ -319,9 +308,8 @@ impl<'a> CycleDetector<'a> {
             return Ok(None);
         }
 
-        let symbol = graph
-            .node_weight(node_idx)
-            .ok_or_else(|| anyhow::anyhow!("Node not found"))?;
+        let symbol =
+            graph.node_weight(node_idx).ok_or_else(|| anyhow::anyhow!("Node not found"))?;
 
         let mut has_indirect_calls = false;
         let mut config_guards = HashSet::new();
@@ -404,10 +392,8 @@ impl<'a> CycleDetector<'a> {
                     let mut cycle_edges = edges.clone();
                     cycle_edges.push((current, next));
 
-                    let symbols = path
-                        .iter()
-                        .filter_map(|&idx| graph.node_weight(idx).cloned())
-                        .collect();
+                    let symbols =
+                        path.iter().filter_map(|&idx| graph.node_weight(idx).cloned()).collect();
 
                     let edge_pairs = cycle_edges
                         .iter()
@@ -415,7 +401,7 @@ impl<'a> CycleDetector<'a> {
                             match (graph.node_weight(*from_idx), graph.node_weight(*to_idx)) {
                                 (Some(from), Some(to)) => {
                                     Some((from.name.clone(), to.name.clone()))
-                                }
+                                },
                                 _ => None,
                             }
                         })
@@ -571,9 +557,7 @@ mod tests {
             config_guard: None,
         };
 
-        graph
-            .add_call("recursive_func", "recursive_func", edge)
-            .unwrap();
+        graph.add_call("recursive_func", "recursive_func", edge).unwrap();
 
         let detector = CycleDetector::new(&graph);
         let analysis = detector.analyze().unwrap();
@@ -587,10 +571,7 @@ mod tests {
         assert_eq!(cycle.symbols.len(), 1);
         assert_eq!(cycle.symbols[0].name, "recursive_func");
         assert_eq!(cycle.edges.len(), 1);
-        assert_eq!(
-            cycle.edges[0],
-            ("recursive_func".to_string(), "recursive_func".to_string())
-        );
+        assert_eq!(cycle.edges[0], ("recursive_func".to_string(), "recursive_func".to_string()));
     }
 
     #[test]
@@ -613,11 +594,7 @@ mod tests {
         }
 
         // Create the cycle
-        let edges = vec![
-            ("func_a", "func_b"),
-            ("func_b", "func_c"),
-            ("func_c", "func_a"),
-        ];
+        let edges = vec![("func_a", "func_b"), ("func_b", "func_c"), ("func_c", "func_a")];
 
         for (caller, callee) in edges {
             let edge = CallEdge {
@@ -690,12 +667,8 @@ mod tests {
         let cycle = &analysis.cycles[0];
         assert!(cycle.has_indirect_calls);
         assert!(
-            cycle
-                .config_guards
-                .contains(&"CONFIG_FEATURE_X".to_string())
-                || cycle
-                    .config_guards
-                    .contains(&"CONFIG_FEATURE_Y".to_string())
+            cycle.config_guards.contains(&"CONFIG_FEATURE_X".to_string())
+                || cycle.config_guards.contains(&"CONFIG_FEATURE_Y".to_string())
         );
     }
 
@@ -965,9 +938,7 @@ mod tests {
                 conditional: false,
                 config_guard: None,
             };
-            graph
-                .add_call(&format!("func_{}", i), &format!("func_{}", next), edge)
-                .unwrap();
+            graph.add_call(&format!("func_{}", i), &format!("func_{}", next), edge).unwrap();
         }
 
         let detector = CycleDetector::new(&graph);
@@ -977,10 +948,7 @@ mod tests {
         assert_eq!(analysis.nodes_in_cycles, num_functions);
         // Should have one large SCC
         assert_eq!(analysis.strongly_connected_components.len(), 1);
-        assert_eq!(
-            analysis.strongly_connected_components[0].len(),
-            num_functions
-        );
+        assert_eq!(analysis.strongly_connected_components[0].len(), num_functions);
     }
 
     #[test]

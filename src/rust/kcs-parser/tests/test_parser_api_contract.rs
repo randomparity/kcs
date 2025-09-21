@@ -43,18 +43,12 @@ int main_function(int a, int b) {
     let parsed: ParseResult = result.unwrap();
 
     // Contract requirement: response must have symbols, call_edges, errors fields
-    assert!(
-        parsed.symbols.len() >= 2,
-        "Should find at least 2 symbols (functions)"
-    );
+    assert!(parsed.symbols.len() >= 2, "Should find at least 2 symbols (functions)");
 
     // Contract requirement: call_edges should contain function calls
     // Expected: main_function calls helper_function twice (lines 9, 10)
     let call_edges = &parsed.call_edges;
-    assert!(
-        call_edges.len() >= 2,
-        "Should extract at least 2 call edges"
-    );
+    assert!(call_edges.len() >= 2, "Should extract at least 2 call edges");
 
     // Find calls from main_function to helper_function
     let main_to_helper_calls: Vec<&CallEdge> = call_edges
@@ -62,11 +56,7 @@ int main_function(int a, int b) {
         .filter(|edge| edge.caller == "main_function" && edge.callee == "helper_function")
         .collect();
 
-    assert_eq!(
-        main_to_helper_calls.len(),
-        2,
-        "main_function should call helper_function twice"
-    );
+    assert_eq!(main_to_helper_calls.len(), 2, "main_function should call helper_function twice");
 
     // Contract requirement: call_type should be classified
     for call in &main_to_helper_calls {
@@ -153,10 +143,7 @@ int test_macro(void) {
     let call_edges = &parsed.call_edges;
 
     // Should detect some form of call (may be classified as Direct rather than Macro)
-    assert!(
-        !call_edges.is_empty(),
-        "Should detect calls from macro expansion"
-    );
+    assert!(!call_edges.is_empty(), "Should detect calls from macro expansion");
 
     // Look for calls that involve the macro or helper function
     let relevant_calls: Vec<&CallEdge> = call_edges
@@ -167,10 +154,7 @@ int test_macro(void) {
         })
         .collect();
 
-    assert!(
-        !relevant_calls.is_empty(),
-        "Should detect calls related to macro usage"
-    );
+    assert!(!relevant_calls.is_empty(), "Should detect calls related to macro usage");
 
     // Verify call details
     if let Some(call) = relevant_calls.first() {
@@ -208,10 +192,7 @@ int valid_function(void) {
     let result = parser.parse_file_content("test_problematic.c", content);
 
     // Contract requirement: parser should not crash, should return result
-    assert!(
-        result.is_ok(),
-        "Parser should handle syntax errors gracefully"
-    );
+    assert!(result.is_ok(), "Parser should handle syntax errors gracefully");
 
     let parsed: ParseResult = result.unwrap();
 
@@ -267,18 +248,9 @@ int simple_function() {
     if let Some(symbol) = parsed.symbols.first() {
         assert!(!symbol.name.is_empty(), "Symbol name should not be empty");
         assert!(!symbol.kind.is_empty(), "Symbol kind should not be empty");
-        assert!(
-            !symbol.file_path.is_empty(),
-            "Symbol file_path should not be empty"
-        );
-        assert!(
-            symbol.start_line > 0,
-            "Symbol start_line should be positive"
-        );
-        assert!(
-            symbol.end_line >= symbol.start_line,
-            "end_line should be >= start_line"
-        );
+        assert!(!symbol.file_path.is_empty(), "Symbol file_path should not be empty");
+        assert!(symbol.start_line > 0, "Symbol start_line should be positive");
+        assert!(symbol.end_line >= symbol.start_line, "end_line should be >= start_line");
     }
 }
 
@@ -357,10 +329,7 @@ int func2() {
     let parsed: ParseResult = result.unwrap();
 
     // Should aggregate results from multiple files
-    assert!(
-        parsed.symbols.len() >= 2,
-        "Should contain symbols from both files"
-    );
+    assert!(parsed.symbols.len() >= 2, "Should contain symbols from both files");
 
     // Should find the cross-file call (if supported)
     let cross_file_calls: Vec<&CallEdge> = parsed
@@ -428,8 +397,5 @@ int helper_function_{i}(int x) {{
 
     let parsed = result.unwrap();
     assert!(parsed.symbols.len() >= 100, "Should extract all functions");
-    assert!(
-        !parsed.call_edges.is_empty(),
-        "Should extract call relationships"
-    );
+    assert!(!parsed.call_edges.is_empty(), "Should extract call relationships");
 }

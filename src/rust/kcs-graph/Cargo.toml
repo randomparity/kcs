@@ -18,6 +18,7 @@ petgraph = "0.6"
 rayon = "1.8"
 indexmap = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
+md5 = "0.7"
 
 [dev-dependencies]
 tempfile = "3.0"

@@ -169,7 +169,7 @@ fn main() -> Result<()> {
                 std::fs::write(&output_path, serde_json::to_string_pretty(&stats)?)?;
                 println!("Graph stats saved to: {}", output_path.display());
             }
-        }
+        },
 
         Commands::Query {
             graph: _,
@@ -193,12 +193,12 @@ fn main() -> Result<()> {
                 QueryType::WhoCalls { symbol, depth } => {
                     let result = query_engine.who_calls(&symbol, Some(depth))?;
                     println!("{}", serde_json::to_string_pretty(&result)?);
-                }
+                },
 
                 QueryType::Dependencies { symbol, depth } => {
                     let result = query_engine.list_dependencies(&symbol, Some(depth))?;
                     println!("{}", serde_json::to_string_pretty(&result)?);
-                }
+                },
 
                 QueryType::Path {
                     from,
@@ -211,7 +211,7 @@ fn main() -> Result<()> {
                     } else {
                         println!("No path found between {} and {}", from, to);
                     }
-                }
+                },
 
                 QueryType::Impact {
                     symbol,
@@ -219,9 +219,9 @@ fn main() -> Result<()> {
                 } => {
                     let analysis = query_engine.analyze_impact(&symbol, change_type.into())?;
                     println!("{}", serde_json::to_string_pretty(&analysis)?);
-                }
+                },
             }
-        }
+        },
     }
 
     Ok(())
@@ -285,9 +285,7 @@ fn create_test_graph() -> KernelGraph {
         conditional: true,
         config_guard: Some("CONFIG_VFS".to_string()),
     };
-    graph
-        .add_call("vfs_read", "generic_file_read_iter", edge2)
-        .unwrap();
+    graph.add_call("vfs_read", "generic_file_read_iter", edge2).unwrap();
 
     graph
 }

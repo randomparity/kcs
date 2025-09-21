@@ -7,13 +7,25 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod builder;
+pub mod call_edge;
+pub mod call_path;
+pub mod call_site;
 pub mod config;
 pub mod cycles;
+pub mod function_pointer;
+pub mod macro_call;
 pub mod queries;
 pub mod traversal;
+pub mod types;
 
+pub use call_edge::{CallEdge as CallEdgeModel, CallEdgeBuilder};
+pub use call_path::{CallPath, CallPathBuilder};
+pub use call_site::{CallSite, CallSiteBuilder};
 pub use cycles::{Cycle, CycleAnalysis, CycleDetector};
+pub use function_pointer::{FunctionPointer, FunctionPointerBuilder};
+pub use macro_call::{MacroCall, MacroCallBuilder};
 pub use traversal::{GraphTraversal, TraversalOptions, TraversalResult};
+pub use types::{AnalysisScope, CallType as CallTypeEnum, ConfidenceLevel, PointerType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Symbol {
@@ -78,10 +90,7 @@ impl KernelGraph {
 
         // Index by config dependencies
         for config in &symbol.config_dependencies {
-            self.config_symbols
-                .entry(config.clone())
-                .or_default()
-                .push(node_idx);
+            self.config_symbols.entry(config.clone()).or_default().push(node_idx);
         }
 
         node_idx
@@ -101,9 +110,7 @@ impl KernelGraph {
     }
 
     pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.symbol_index
-            .get(name)
-            .and_then(|&idx| self.graph.node_weight(idx))
+        self.symbol_index.get(name).and_then(|&idx| self.graph.node_weight(idx))
     }
 
     pub fn find_callers(&self, symbol_name: &str) -> Vec<&Symbol> {
@@ -192,10 +199,8 @@ impl KernelGraph {
                     full_path.push(next);
 
                     // Convert to symbols
-                    let symbol_path: Vec<&Symbol> = full_path
-                        .iter()
-                        .filter_map(|&idx| self.graph.node_weight(idx))
-                        .collect();
+                    let symbol_path: Vec<&Symbol> =
+                        full_path.iter().filter_map(|&idx| self.graph.node_weight(idx)).collect();
 
                     if symbol_path.len() == full_path.len() {
                         all_paths.push(symbol_path);
@@ -362,11 +367,7 @@ mod tests {
         }
 
         // Create the chain
-        let edges = [
-            ("func_a", "func_b"),
-            ("func_b", "func_c"),
-            ("func_c", "func_d"),
-        ];
+        let edges = [("func_a", "func_b"), ("func_b", "func_c"), ("func_c", "func_d")];
 
         for (caller, callee) in edges.iter() {
             let edge = CallEdge {

@@ -48,12 +48,52 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://kcs:kcs_dev_password@localhost:5432/kcs"
 )
 JWT_SECRET = os.getenv("JWT_SECRET", "dev_jwt_secret_change_in_production")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+
+
+def _print_development_banner() -> None:
+    """Print a large ASCII banner warning about development build."""
+    banner = """
+╔═══════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                                   ║
+║  ██████╗ ███████╗██╗   ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗███╗   ██╗████████╗ ║
+║  ██╔══██╗██╔════╝██║   ██║██╔════╝██║     ██╔═══██╗██╔══██╗████╗ ████║██╔════╝████╗  ██║╚══██╔══╝ ║
+║  ██║  ██║█████╗  ██║   ██║█████╗  ██║     ██║   ██║██████╔╝██╔████╔██║█████╗  ██╔██╗ ██║   ██║    ║
+║  ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║     ██║   ██║██╔═══╝ ██║╚██╔╝██║██╔══╝  ██║╚██╗██║   ██║    ║
+║  ██████╔╝███████╗ ╚████╔╝ ███████╗███████╗╚██████╔╝██║     ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║    ║
+║  ╚═════╝ ╚══════╝  ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝    ║
+║                                                                                                   ║
+║                                 ██████╗ ██╗   ██╗██╗██╗     ██████╗                               ║
+║                                 ██╔══██╗██║   ██║██║██║     ██╔══██╗                              ║
+║                                 ██████╔╝██║   ██║██║██║     ██║  ██║                              ║
+║                                 ██╔══██╗██║   ██║██║██║     ██║  ██║                              ║
+║                                 ██████╔╝╚██████╔╝██║███████╗██████╔╝                              ║
+║                                 ╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝                               ║
+║                                                                                                   ║
+║                                           ⚠️  WARNING  ⚠️                                           ║
+║                                                                                                   ║
+║                            This is a DEVELOPMENT BUILD of the MCP server                          ║
+║                                                                                                   ║
+║                             • NOT FOR PRODUCTION USE                                              ║
+║                             • May contain debugging code                                          ║
+║                             • Security features may be disabled                                   ║
+║                             • Performance optimizations may be disabled                           ║
+║                                                                                                   ║
+║                           Set ENVIRONMENT=production for production deployment                    ║
+║                                                                                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════════════════════════╝
+"""
+    print(banner)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
+    # Show development warning banner if not in production
+    if ENVIRONMENT != "production":
+        _print_development_banner()
+
     logger.info("Starting KCS MCP server")
 
     # Initialize database connection
@@ -111,9 +151,25 @@ async def verify_token(
 
     token = credentials.credentials
 
-    # For development, accept test tokens
-    if token.startswith("test_token_") or token == "dev-token":
-        return "test_user"
+    # Security check: In production, ensure JWT_SECRET is not the default value
+    if (
+        ENVIRONMENT == "production"
+        and JWT_SECRET == "dev_jwt_secret_change_in_production"
+    ):
+        logger.error(
+            "SECURITY ALERT: Production environment detected with default JWT_SECRET. "
+            "This is a serious security vulnerability. Please set a unique JWT_SECRET "
+            "in your environment configuration before deploying to production."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server configuration error - check logs",
+        )
+
+    # Only allow development token in development environment
+    if ENVIRONMENT == "development" and token == "dev-token":
+        logger.info("Development token accepted")
+        return "dev_user"
 
     # TODO: Implement proper JWT verification
     # For now, reject all other tokens

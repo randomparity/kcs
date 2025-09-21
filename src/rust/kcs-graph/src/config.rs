@@ -68,9 +68,7 @@ impl ConfigParser {
                     .to_string();
 
                 if !option_name.is_empty() {
-                    self.config
-                        .options
-                        .insert(option_name, ConfigValue::Bool(false));
+                    self.config.options.insert(option_name, ConfigValue::Bool(false));
                 }
             } else if let Some(eq_pos) = line.find('=') {
                 // Enabled config option
@@ -111,9 +109,7 @@ impl ConfigParser {
                 // Save previous config if any
                 if let Some(config_name) = current_config.take() {
                     if !dependencies.is_empty() {
-                        self.config
-                            .dependencies
-                            .insert(config_name, dependencies.clone());
+                        self.config.dependencies.insert(config_name, dependencies.clone());
                         dependencies.clear();
                     }
                 }
@@ -141,19 +137,11 @@ impl ConfigParser {
     }
 
     pub fn is_option_enabled(&self, option: &str) -> bool {
-        self.config
-            .options
-            .get(option)
-            .map(|v| v.is_enabled())
-            .unwrap_or(false)
+        self.config.options.get(option).map(|v| v.is_enabled()).unwrap_or(false)
     }
 
     pub fn get_enabled_options(&self) -> HashMap<String, bool> {
-        self.config
-            .options
-            .iter()
-            .map(|(k, v)| (k.clone(), v.is_enabled()))
-            .collect()
+        self.config.options.iter().map(|(k, v)| (k.clone(), v.is_enabled())).collect()
     }
 
     pub fn resolve_dependencies(&self, option: &str) -> Vec<String> {

@@ -297,10 +297,10 @@ docker-compose-up-all: create-data-dirs ## Start all services including monitori
 	@docker compose --profile app --profile monitoring up -d
 	@printf "$(GREEN)✅ All services including monitoring started$(NC)\n"
 
-docker-compose-down: ## Stop services with docker compose
-	@echo "$(BLUE)Stopping services with docker compose...$(NC)"
-	@docker compose down
-	@echo "$(GREEN)✅ Services stopped$(NC)"
+docker-compose-down: ## Stop all services with docker compose (all profiles)
+	@echo "$(BLUE)Stopping all services with docker compose...$(NC)"
+	@docker compose --profile app --profile monitoring down
+	@echo "$(GREEN)✅ All services stopped$(NC)"
 
 # Database targets
 db-start: ## Start PostgreSQL database

@@ -1,0 +1,52 @@
+# Clippy configuration for kcs-parser call graph extraction modules
+# Optimized for kernel code analysis and Tree-sitter integration
+
+# Cognitive complexity limits for call graph analysis functions
+cognitive-complexity-threshold = 30
+
+# Type complexity for graph structures
+type-complexity-threshold = 250
+
+# Large enum variant limits for call types
+enum-variant-size-threshold = 300
+
+# Function length for Tree-sitter processing
+too-many-lines-threshold = 150
+
+# Argument limits for extraction functions
+too-many-arguments-threshold = 8
+
+# Single character variable names allowed for loop indices in AST traversal
+single-char-binding-names-threshold = 5
+
+# Vector initialization capacity for performance
+vec-box-size-threshold = 8192
+
+# Struct field limits for call graph entities
+max-struct-bools = 4
+
+# Disallowed methods for call graph modules (future enforcement)
+# Note: Some methods commented out due to existing usage in codebase
+disallowed-methods = [
+    # Memory safety concerns
+    "std::mem::forget",
+    # "std::mem::replace_with_uninit", # Not a real function
+
+    # Performance issues in large codebase processing
+    # "std::string::String::add", # Not a real function
+    # "std::string::String::add_assign", # Not a real function
+
+    # Security in processing untrusted kernel code (future enforcement)
+    # "std::option::Option::unwrap", # Currently used in existing code
+    # "std::result::Result::expect", # Currently used in existing code
+    # "std::panic!", # Not a function
+    # "std::unreachable!", # Not a function
+]
+
+# Disallowed types for safety (commented out existing uses)
+# disallowed-types = [
+#     "std::collections::HashMap", # Use IndexMap for deterministic iteration
+# ]
+
+# MSRV for Rust 1.75+ requirement
+msrv = "1.75.0"

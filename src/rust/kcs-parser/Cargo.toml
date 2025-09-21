@@ -25,6 +25,7 @@ tracing-subscriber = { workspace = true }
 
 # Internal dependencies
 kcs-serializer = { path = "../kcs-serializer" }
+kcs-graph = { path = "../kcs-graph" }
 
 # Parser-specific dependencies
 tree-sitter = { workspace = true }
@@ -37,6 +38,9 @@ regex = "1.10"
 rayon = "1.8"
 memmap2 = "0.9"
 sha2 = "0.10"
+thiserror = "1.0"
+toml = "0.8"
+serde_yaml = "0.9"
 
 [dev-dependencies]
 tempfile = "3.8"

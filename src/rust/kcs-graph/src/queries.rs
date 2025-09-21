@@ -244,7 +244,7 @@ impl<'a> QueryEngine<'a> {
                     affected_symbols.insert(caller.name.clone());
                     high_impact.push(caller.clone());
                 }
-            }
+            },
             ChangeType::BehaviorChange => {
                 // Direct callers are medium impact, indirect are low
                 let direct_callers = self.graph.find_callers(symbol_name);
@@ -261,7 +261,7 @@ impl<'a> QueryEngine<'a> {
                         }
                     }
                 }
-            }
+            },
             ChangeType::Deletion => {
                 // All direct callers are high impact (broken)
                 let callers = self.graph.find_callers(symbol_name);
@@ -269,7 +269,7 @@ impl<'a> QueryEngine<'a> {
                     affected_symbols.insert(caller.name.clone());
                     high_impact.push(caller.clone());
                 }
-            }
+            },
         }
 
         let execution_time = start_time.elapsed().as_millis() as u64;

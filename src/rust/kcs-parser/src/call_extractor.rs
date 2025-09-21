@@ -193,13 +193,8 @@ impl CallExtractor {
         let function_pointers = self.extract_function_pointers(&root_node, source)?;
 
         // Third pass: Extract call relationships
-        let call_edges = self.extract_call_edges(
-            &root_node,
-            source,
-            file_path,
-            &functions,
-            &function_pointers,
-        )?;
+        let call_edges =
+            self.extract_call_edges(&root_node, source, file_path, &functions, &function_pointers)?;
 
         Ok(CallExtractionResult {
             call_edges,
@@ -260,15 +255,12 @@ impl CallExtractor {
                     "pointer.var" => pointer_var = Some(text.to_string()),
                     "pointer.target" => target_function = Some(text.to_string()),
                     "field.function" => target_function = Some(text.to_string()),
-                    _ => {}
+                    _ => {},
                 }
             }
 
             if let (Some(var), Some(func)) = (pointer_var, target_function) {
-                function_pointers
-                    .entry(var)
-                    .or_insert_with(Vec::new)
-                    .push(func);
+                function_pointers.entry(var).or_insert_with(Vec::new).push(func);
             }
         }
 
@@ -334,11 +326,11 @@ impl CallExtractor {
                                 .utf8_text(source.as_bytes())
                                 .context("Failed to extract function name")?,
                         );
-                    }
+                    },
                     "function.body" => {
                         function_body = Some(capture.node);
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
 
@@ -384,18 +376,18 @@ impl CallExtractor {
                             "call.direct" => call_type = CallType::Direct,
                             "call.field" => call_type = CallType::Direct,
                             "call.indirect" => call_type = CallType::Indirect,
-                            _ => {}
+                            _ => {},
                         }
                     }
                     call_node = Some(node);
-                }
+                },
                 "call.direct" | "call.field" | "call.indirect" => {
                     // These are the overall call expression nodes
                     if call_node.is_none() {
                         call_node = Some(node);
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -467,8 +459,8 @@ impl CallExtractor {
                 | "switch_statement"
                 | "conditional_expression" => {
                     return true;
-                }
-                _ => {}
+                },
+                _ => {},
             }
             node = parent;
         }
@@ -479,8 +471,7 @@ impl CallExtractor {
     #[allow(dead_code)]
     fn is_likely_macro(&self, name: &str) -> bool {
         // Common macro patterns in kernel code
-        name.chars()
-            .all(|c| c.is_uppercase() || c.is_numeric() || c == '_')
+        name.chars().all(|c| c.is_uppercase() || c.is_numeric() || c == '_')
             || name.starts_with("DECLARE_")
             || name.starts_with("DEFINE_")
             || name.starts_with("INIT_")
@@ -500,9 +491,7 @@ mod tests {
         let mut parser = Parser::new();
         parser.set_language(language).unwrap();
 
-        parser
-            .parse(code, None)
-            .ok_or_else(|| anyhow::anyhow!("Failed to parse code"))
+        parser.parse(code, None).ok_or_else(|| anyhow::anyhow!("Failed to parse code"))
     }
 
     #[test]
@@ -623,18 +612,12 @@ mod tests {
         assert!(result.functions.len() >= 4);
 
         // Should find calls from main to dispatch, and from dispatch to func_a and func_b
-        let main_calls: Vec<_> = result
-            .call_edges
-            .iter()
-            .filter(|edge| edge.caller == "main")
-            .collect();
+        let main_calls: Vec<_> =
+            result.call_edges.iter().filter(|edge| edge.caller == "main").collect();
         assert!(!main_calls.is_empty());
 
-        let dispatch_calls: Vec<_> = result
-            .call_edges
-            .iter()
-            .filter(|edge| edge.caller == "dispatch")
-            .collect();
+        let dispatch_calls: Vec<_> =
+            result.call_edges.iter().filter(|edge| edge.caller == "dispatch").collect();
         assert_eq!(dispatch_calls.len(), 2); // Should call both func_a and func_b
 
         Ok(())
