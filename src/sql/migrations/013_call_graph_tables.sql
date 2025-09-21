@@ -13,11 +13,11 @@ BEGIN;
 -- Call Edges Table
 -- ============================================================================
 
--- Stores function call relationships between symbols
+-- Stores function call relationships between symbol entries
 CREATE TABLE call_edges (
     id BIGSERIAL PRIMARY KEY,
-    caller_id BIGINT NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
-    callee_id BIGINT NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+    caller_id BIGINT NOT NULL REFERENCES symbol(id) ON DELETE CASCADE,
+    callee_id BIGINT NOT NULL REFERENCES symbol(id) ON DELETE CASCADE,
 
     -- Call site location information
     file_path VARCHAR(1000) NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE call_edges (
 CREATE TABLE function_pointers (
     id BIGSERIAL PRIMARY KEY,
     pointer_name VARCHAR(255) NOT NULL,
-    assigned_function_id BIGINT REFERENCES symbols(id) ON DELETE CASCADE,
+    assigned_function_id BIGINT REFERENCES symbol(id) ON DELETE CASCADE,
 
     -- Assignment location
     assignment_file VARCHAR(1000) NOT NULL,
@@ -123,8 +123,8 @@ CREATE TABLE macro_calls (
 -- Stores pre-computed call paths for performance optimization
 CREATE TABLE call_paths (
     id BIGSERIAL PRIMARY KEY,
-    entry_point_id BIGINT NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
-    target_function_id BIGINT NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+    entry_point_id BIGINT NOT NULL REFERENCES symbol(id) ON DELETE CASCADE,
+    target_function_id BIGINT NOT NULL REFERENCES symbol(id) ON DELETE CASCADE,
 
     -- Path information
     path_edge_ids BIGINT[], -- Array of call_edge IDs forming the path
