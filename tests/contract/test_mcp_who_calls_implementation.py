@@ -177,7 +177,7 @@ def auth_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {TEST_TOKEN}"}
 
 
-class TestWhoCallsContract:
+class TestWhoCallsContractImplementation:
     """Contract tests for /mcp/tools/who_calls endpoint."""
 
     @skip_without_mcp

@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from kcs_mcp.chunk_loader import ChunkLoader, ChunkLoadError
-from kcs_mcp.chunk_processor import ChunkProcessingError, ChunkProcessor
-from kcs_mcp.chunk_tracker import ChunkTracker
-from kcs_mcp.database import ChunkQueries, Database
+from kcs_mcp.chunk_loader import ChunkDataLoader, ChunkLoadError
+from kcs_mcp.chunk_processor import ChunkProcessingError, ChunkWorkflowProcessor
+from kcs_mcp.chunk_tracker import ChunkStateTracker
+from kcs_mcp.database import ChunkQueryService, Database
 from kcs_mcp.models.chunk_models import ChunkManifest
 
 # Configure structured logging
@@ -97,7 +97,7 @@ async def load_manifest(manifest_path: Path, database: Database | None = None) -
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest file not found: {manifest_path}")
 
-    chunk_loader = ChunkLoader(database=database)
+    chunk_loader = ChunkDataLoader(database=database)
     try:
         manifest = await chunk_loader.load_manifest(manifest_path)
         logger.info(
@@ -112,26 +112,26 @@ async def load_manifest(manifest_path: Path, database: Database | None = None) -
         raise
 
 
-async def setup_database(database_url: str) -> tuple[Database, ChunkQueries]:
+async def setup_database(database_url: str) -> tuple[Database, ChunkQueryService]:
     """Setup database connection and queries."""
     logger.info("Setting up database connection")
 
     database = Database(database_url)
     await database.connect()
 
-    chunk_queries = ChunkQueries(database)
+    chunk_queries = ChunkQueryService(database)
     return database, chunk_queries
 
 
 async def initialize_tracking(
     manifest: ChunkManifest,
-    chunk_queries: ChunkQueries,
+    chunk_queries: ChunkQueryService,
     force: bool = False
 ) -> dict[str, Any]:
     """Initialize chunk tracking for the manifest."""
     logger.info("Initializing chunk tracking", force=force)
 
-    tracker = ChunkTracker(chunk_queries)
+    tracker = ChunkStateTracker(chunk_queries)
     result = await tracker.initialize_chunks_for_manifest(manifest, force)
 
     logger.info(
@@ -146,7 +146,7 @@ async def initialize_tracking(
 
 async def get_chunks_to_process(
     manifest: ChunkManifest,
-    chunk_queries: ChunkQueries,
+    chunk_queries: ChunkQueryService,
     resume: bool = False,
     chunk_ids: list[str] | None = None,
 ) -> list[str]:
@@ -193,7 +193,7 @@ async def get_chunks_to_process(
 async def process_chunks_parallel(
     manifest: ChunkManifest,
     chunk_ids: list[str],
-    chunk_processor: ChunkProcessor,
+    chunk_processor: ChunkWorkflowProcessor,
     parallel: int,
     stats: ProcessingStats,
 ) -> None:
@@ -335,14 +335,14 @@ async def process_chunks_parallel(
 
 
 async def cleanup_stuck_chunks(
-    chunk_queries: ChunkQueries,
+    chunk_queries: ChunkQueryService,
     manifest_version: str,
     max_age_minutes: int = 60,
 ) -> None:
     """Reset chunks stuck in processing status."""
     logger.info("Cleaning up stuck processing chunks", max_age_minutes=max_age_minutes)
 
-    tracker = ChunkTracker(chunk_queries)
+    tracker = ChunkStateTracker(chunk_queries)
     result = await tracker.reset_processing_chunks(manifest_version, max_age_minutes)
 
     if result["reset_chunks"] > 0:
@@ -354,11 +354,11 @@ async def cleanup_stuck_chunks(
 
 
 async def print_processing_status(
-    chunk_queries: ChunkQueries,
+    chunk_queries: ChunkQueryService,
     manifest_version: str,
 ) -> None:
     """Print current processing status."""
-    tracker = ChunkTracker(chunk_queries)
+    tracker = ChunkStateTracker(chunk_queries)
     progress = await tracker.get_processing_progress(manifest_version)
 
     print("\n=== Processing Status ===")
@@ -537,12 +537,12 @@ async def main() -> None:
                 raise
 
         # Setup chunk processor with database-connected loader and adaptive parallelism
-        chunk_loader = ChunkLoader(database=database)
+        chunk_loader = ChunkDataLoader(database=database)
 
         # Determine adaptive parallelism setting
         use_adaptive = args.adaptive_parallelism and not args.no_adaptive_parallelism
 
-        chunk_processor = ChunkProcessor(
+        chunk_processor = ChunkWorkflowProcessor(
             database_queries=chunk_queries,
             chunk_loader=chunk_loader,
             default_max_parallelism=args.parallel,

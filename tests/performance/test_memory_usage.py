@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from kcs_mcp.chunk_loader import ChunkLoader
+from kcs_mcp.chunk_loader import ChunkDataLoader
 from kcs_mcp.models.chunk_models import ChunkManifest, ChunkMetadata
 
 # Skip in CI unless explicitly enabled
@@ -153,7 +153,7 @@ class TestMemoryUsage:
                 temp_path, chunk_sizes
             )
 
-            loader = ChunkLoader()
+            loader = ChunkDataLoader()
 
             for _i, (size_mb, chunk_file) in enumerate(
                 zip(chunk_sizes, chunk_files, strict=True)
@@ -268,7 +268,7 @@ class TestMemoryUsage:
                 temp_path, chunk_sizes
             )
 
-            loader = ChunkLoader()
+            loader = ChunkDataLoader()
 
             for iteration in range(num_iterations):
                 print(f"\nIteration {iteration + 1}/{num_iterations}")
@@ -352,7 +352,7 @@ class TestMemoryUsage:
                 chunk_file: Path, chunk_id: int
             ) -> dict[str, Any]:
                 """Process a chunk and track memory usage."""
-                loader = ChunkLoader()
+                loader = ChunkDataLoader()
 
                 # Load chunk
                 chunk_data = await loader.load_chunk(chunk_file)
@@ -474,7 +474,7 @@ class TestMemoryUsage:
                 gc.collect()
                 memory_before = measure_memory_usage()
 
-                loader = ChunkLoader()
+                loader = ChunkDataLoader()
                 chunk_data = await loader.load_chunk(chunk_file)
 
                 # Simulate realistic processing

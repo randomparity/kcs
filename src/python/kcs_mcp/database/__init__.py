@@ -18,7 +18,7 @@ from kcs_mcp.models import ErrorResponse
 from .call_graph import CallGraphWriter
 
 # Import query classes from submodules
-from .chunk_queries import ChunkQueries
+from .chunk_queries import ChunkQueryService
 
 logger = structlog.get_logger(__name__)
 
@@ -3762,4 +3762,4 @@ def set_database(database: Database) -> None:
     _database = database
 
 
-__all__ = ["ChunkQueries", "Database", "get_database", "set_database"]
+__all__ = ["ChunkQueryService", "Database", "get_database", "set_database"]

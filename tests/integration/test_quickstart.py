@@ -501,14 +501,16 @@ class TestQuickstartDocumentation:
         from kcs_mcp.citations import Span
 
         with pytest.raises(ValueError) as exc_info:
-            Span("", "abc123", 1, 1)  # Empty path
+            Span(
+                path="", sha="abc1234567890123456789012345678901234567", start=1, end=1
+            )  # Empty path
 
         assert "Path cannot be empty" in str(exc_info.value)
 
         with pytest.raises(ValueError) as exc_info:
-            Span("test.c", "", 1, 1)  # Empty SHA
+            Span(path="test.c", sha="", start=1, end=1)  # Empty SHA
 
-        assert "SHA cannot be empty" in str(exc_info.value)
+        assert "String should have at least 40 characters" in str(exc_info.value)
 
     def test_configuration_validation(self):
         """Test that configuration is validated with helpful messages."""

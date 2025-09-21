@@ -34,6 +34,17 @@ class Span(BaseModel):
     start: int = Field(..., description="Starting line number", gt=0)
     end: int = Field(..., description="Ending line number", gt=0)
 
+    @model_validator(mode="after")
+    def validate_span_range(self) -> "Span":
+        """Validate that end line is >= start line."""
+        if self.end < self.start:
+            raise ValueError(f"End line {self.end} must be >= start line {self.start}")
+        if not self.path:
+            raise ValueError("Path cannot be empty")
+        if not self.sha:
+            raise ValueError("SHA cannot be empty")
+        return self
+
     class Config:
         json_schema_extra: typing.ClassVar[dict[str, typing.Any]] = {
             "example": {

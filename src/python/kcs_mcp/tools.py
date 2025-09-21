@@ -3354,9 +3354,9 @@ async def get_chunk_manifest(db: Database = Depends(get_database)) -> ChunkManif
 
     try:
         # Import ChunkQueries dynamically to avoid circular imports
-        from .database.chunk_queries import ChunkQueries
+        from .database.chunk_queries import ChunkQueryService
 
-        chunk_queries = ChunkQueries(db)
+        chunk_queries = ChunkQueryService(db)
         manifest_data = await chunk_queries.get_manifest()
 
         if not manifest_data:
@@ -3407,9 +3407,9 @@ async def get_chunk_status(
 
     try:
         # Import ChunkQueries dynamically to avoid circular imports
-        from .database.chunk_queries import ChunkQueries
+        from .database.chunk_queries import ChunkQueryService
 
-        chunk_queries = ChunkQueries(db)
+        chunk_queries = ChunkQueryService(db)
         status_data = await chunk_queries.get_chunk_status(chunk_id)
 
         if not status_data:
@@ -3462,10 +3462,10 @@ async def process_chunk(
 
     try:
         # Import required modules dynamically to avoid circular imports
-        from .chunk_processor import ChunkProcessor
-        from .database.chunk_queries import ChunkQueries
+        from .chunk_processor import ChunkWorkflowProcessor
+        from .database.chunk_queries import ChunkQueryService
 
-        chunk_queries = ChunkQueries(db)
+        chunk_queries = ChunkQueryService(db)
 
         # Check if chunk is already being processed
         existing_status = await chunk_queries.get_chunk_status(chunk_id)
@@ -3515,7 +3515,7 @@ async def process_chunk(
             )
 
         # Initialize processor and start processing
-        chunk_processor = ChunkProcessor(
+        chunk_processor = ChunkWorkflowProcessor(
             database_queries=chunk_queries,
             verify_checksums=True,
         )
@@ -3597,10 +3597,10 @@ async def process_batch(
 
     try:
         # Import required modules dynamically to avoid circular imports
-        from .chunk_processor import ChunkProcessor
-        from .database.chunk_queries import ChunkQueries
+        from .chunk_processor import ChunkWorkflowProcessor
+        from .database.chunk_queries import ChunkQueryService
 
-        chunk_queries = ChunkQueries(db)
+        chunk_queries = ChunkQueryService(db)
 
         # Get manifest to find chunk metadata
         manifest_data = await chunk_queries.get_manifest()
@@ -3631,7 +3631,7 @@ async def process_batch(
             chunk_metadata_list.append(chunk_id_to_metadata[chunk_id])
 
         # Initialize processor and start batch processing
-        chunk_processor = ChunkProcessor(
+        chunk_processor = ChunkWorkflowProcessor(
             database_queries=chunk_queries,
             verify_checksums=True,
         )

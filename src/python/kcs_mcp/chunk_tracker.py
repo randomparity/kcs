@@ -11,13 +11,13 @@ from typing import Any
 
 import structlog
 
-from .database.chunk_queries import ChunkQueries
+from .database.chunk_queries import ChunkQueryService
 from .models.chunk_models import ChunkManifest
 
 logger = structlog.get_logger(__name__)
 
 
-class ChunkTracker:
+class ChunkStateTracker:
     """
     High-level chunk status tracking and management.
 
@@ -26,7 +26,7 @@ class ChunkTracker:
     across the entire system.
     """
 
-    def __init__(self, database_queries: ChunkQueries):
+    def __init__(self, database_queries: ChunkQueryService):
         """
         Initialize chunk tracker.
 
@@ -452,7 +452,7 @@ class ChunkTracker:
 
 async def initialize_manifest_tracking(
     manifest: ChunkManifest,
-    database_queries: ChunkQueries,
+    database_queries: ChunkQueryService,
     force: bool = False,
 ) -> dict[str, Any]:
     """
@@ -466,12 +466,12 @@ async def initialize_manifest_tracking(
     Returns:
         Initialization result
     """
-    tracker = ChunkTracker(database_queries)
+    tracker = ChunkStateTracker(database_queries)
     return await tracker.initialize_chunks_for_manifest(manifest, force)
 
 
 async def get_processing_overview(
-    database_queries: ChunkQueries,
+    database_queries: ChunkQueryService,
     manifest_version: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -484,12 +484,12 @@ async def get_processing_overview(
     Returns:
         Processing overview
     """
-    tracker = ChunkTracker(database_queries)
+    tracker = ChunkStateTracker(database_queries)
     return await tracker.get_processing_progress(manifest_version)
 
 
 async def reset_stuck_chunks(
-    database_queries: ChunkQueries,
+    database_queries: ChunkQueryService,
     manifest_version: str | None = None,
     max_age_minutes: int = 60,
 ) -> dict[str, Any]:
@@ -504,5 +504,5 @@ async def reset_stuck_chunks(
     Returns:
         Reset operation result
     """
-    tracker = ChunkTracker(database_queries)
+    tracker = ChunkStateTracker(database_queries)
     return await tracker.reset_processing_chunks(manifest_version, max_age_minutes)

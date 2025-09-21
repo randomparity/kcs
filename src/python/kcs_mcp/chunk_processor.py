@@ -15,8 +15,8 @@ import aiofiles
 import structlog
 
 from .bridge import RUST_BRIDGE_AVAILABLE
-from .chunk_loader import ChecksumMismatchError, ChunkLoader
-from .database.chunk_queries import ChunkQueries
+from .chunk_loader import ChecksumMismatchError, ChunkDataLoader
+from .database.chunk_queries import ChunkQueryService
 from .models.chunk_models import ChunkManifest, ChunkMetadata
 
 if RUST_BRIDGE_AVAILABLE:
@@ -46,7 +46,7 @@ class ChunkProcessingFatalError(ChunkProcessingError):
         super().__init__(message, chunk_id, retryable=False)
 
 
-class ChunkProcessor:
+class ChunkWorkflowProcessor:
     """
     Processes chunk files into the database with resume capability.
 
@@ -56,8 +56,8 @@ class ChunkProcessor:
 
     def __init__(
         self,
-        database_queries: ChunkQueries,
-        chunk_loader: ChunkLoader | None = None,
+        database_queries: ChunkQueryService,
+        chunk_loader: ChunkDataLoader | None = None,
         max_retry_count: int = 3,
         retry_delay_seconds: float = 1.0,
         verify_checksums: bool = True,
@@ -86,7 +86,7 @@ class ChunkProcessor:
         """
         self.database_queries = database_queries
         self.entrypoints_data = entrypoints_data or []
-        self.chunk_loader = chunk_loader or ChunkLoader(
+        self.chunk_loader = chunk_loader or ChunkDataLoader(
             verify_checksums=verify_checksums
         )
         self.max_retry_count = max_retry_count
@@ -229,7 +229,7 @@ class ChunkProcessor:
         }
 
         # Create a temporary chunk loader for verification only
-        verification_loader = ChunkLoader(
+        verification_loader = ChunkDataLoader(
             verify_checksums=True,  # Always verify for pre-verification
             database=None,  # No database logging for pre-verification
         )
@@ -1595,7 +1595,7 @@ class ChunkProcessor:
 async def process_single_chunk(
     chunk_metadata: ChunkMetadata,
     manifest_version: str,
-    database_queries: ChunkQueries,
+    database_queries: ChunkQueryService,
     base_path: Path | str | None = None,
     force: bool = False,
     verify_checksums: bool = True,
@@ -1614,7 +1614,7 @@ async def process_single_chunk(
     Returns:
         Processing result
     """
-    processor = ChunkProcessor(
+    processor = ChunkWorkflowProcessor(
         database_queries=database_queries, verify_checksums=verify_checksums
     )
     return await processor.process_chunk(
@@ -1624,7 +1624,7 @@ async def process_single_chunk(
 
 async def resume_failed_chunks(
     manifest: ChunkManifest,
-    database_queries: ChunkQueries,
+    database_queries: ChunkQueryService,
     base_path: Path | str | None = None,
     max_parallelism: int = 4,
 ) -> dict[str, Any]:
@@ -1640,7 +1640,7 @@ async def resume_failed_chunks(
     Returns:
         Resume processing result
     """
-    processor = ChunkProcessor(database_queries=database_queries)
+    processor = ChunkWorkflowProcessor(database_queries=database_queries)
     return await processor.resume_processing(
         manifest, base_path, max_parallelism, status_filter="failed"
     )

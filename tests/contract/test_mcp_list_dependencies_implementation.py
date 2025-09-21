@@ -200,7 +200,7 @@ def auth_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {TEST_TOKEN}"}
 
 
-class TestListDependenciesContract:
+class TestListDependenciesContractImplementation:
     """Contract tests for /mcp/tools/list_dependencies endpoint."""
 
     @skip_without_mcp

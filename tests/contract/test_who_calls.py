@@ -55,7 +55,7 @@ async def http_client() -> httpx.AsyncClient:
 # Contract test cases
 @skip_integration_in_ci
 @skip_without_mcp_server
-class TestWhoCallsContract:
+class TestWhoCallsContractBasic:
     """Contract tests for who_calls MCP tool."""
 
     async def test_who_calls_endpoint_exists(

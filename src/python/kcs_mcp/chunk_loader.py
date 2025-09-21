@@ -47,7 +47,7 @@ class ChecksumMismatchError(ChunkLoadError):
         self.actual = actual
 
 
-class ChunkLoader:
+class ChunkDataLoader:
     """
     Async loader for chunk manifests and chunk files with validation.
 
@@ -556,7 +556,7 @@ class ChunkLoader:
 
 async def load_manifest_from_path(manifest_path: Path | str) -> ChunkManifest:
     """Load a chunk manifest from the given path."""
-    loader = ChunkLoader()
+    loader = ChunkDataLoader()
     return await loader.load_manifest(manifest_path)
 
 
@@ -591,7 +591,7 @@ async def load_chunk_by_id(
     if chunk_metadata is None:
         raise ChunkLoadError(f"Chunk ID {chunk_id} not found in manifest")
 
-    loader = ChunkLoader(verify_checksums=verify_checksum)
+    loader = ChunkDataLoader(verify_checksums=verify_checksum)
     return await loader.load_chunk(chunk_metadata, base_path)
 
 
@@ -608,6 +608,6 @@ async def verify_all_chunks(
     Returns:
         True if all chunks are valid, False otherwise
     """
-    loader = ChunkLoader()
+    loader = ChunkDataLoader()
     result = await loader.verify_manifest_integrity(manifest, base_path)
     return bool(result["valid"])
