@@ -136,8 +136,8 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Additional Tests [P]
 
-- [ ] T043 [P] Unit tests for embedding service in tests/unit/test_embedding_service.py
-- [ ] T044 [P] Unit tests for query preprocessing in tests/unit/test_query_preprocessor.py
+- [x] T043 [P] Unit tests for embedding service in tests/unit/test_embedding_service.py
+- [x] T044 [P] Unit tests for query preprocessing in tests/unit/test_query_preprocessor.py
 - [ ] T045 [P] Unit tests for ranking algorithm in tests/unit/test_ranking_service.py
 - [ ] T046 [P] Unit tests for vector operations in tests/unit/test_vector_operations.py
 
