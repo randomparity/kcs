@@ -124,11 +124,11 @@ These tests MUST be written and MUST FAIL before ANY implementation
 - [x] T036 Integrate with existing KCS logging infrastructure
 - [x] T037 Add semantic search to main KCS server startup
 - [x] T038 Database migration scripts for semantic search tables
-- [ ] T039 Configuration management for embedding model paths
+- [x] T039 Configuration management for embedding model paths
 
 ### Background Processing
 
-- [ ] T040 Content indexing background worker in src/python/semantic_search/workers/indexing_worker.py
+- [x] T040 Content indexing background worker in src/python/semantic_search/workers/indexing_worker.py
 - [ ] T041 Incremental index updates based on file changes
 - [ ] T042 Data retention policy enforcement per FR-012
 
