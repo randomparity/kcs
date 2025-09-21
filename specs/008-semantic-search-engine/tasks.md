@@ -86,7 +86,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Data Models [P]
 
-- [ ] T018 [P] SearchQuery model with validation in src/python/semantic_search/models/search_query.py
+- [x] T018 [P] SearchQuery model with validation in src/python/semantic_search/models/search_query.py
 - [ ] T019 [P] VectorEmbedding model with pgvector integration in src/python/semantic_search/models/vector_embedding.py
 - [ ] T020 [P] SearchResult model with ranking logic in src/python/semantic_search/models/search_result.py
 - [ ] T021 [P] IndexedContent model with status tracking in src/python/semantic_search/models/indexed_content.py
