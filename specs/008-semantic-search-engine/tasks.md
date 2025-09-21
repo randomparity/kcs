@@ -152,7 +152,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 - [x] T051 Run complete test suite and ensure all pass
 - [x] T052 Validate constitutional compliance (MCP-first, read-only, citations)
-- [ ] T053 Performance benchmarking against requirements (p95 ≤ 600ms)
+- [x] T053 Performance benchmarking against requirements (p95 ≤ 600ms)
 
 ## Dependencies
 
