@@ -59,9 +59,9 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Contract Tests [P]
 
-- [ ] T005 [P] Contract test semantic_search MCP tool in tests/contract/test_semantic_search_tool.py
-- [ ] T006 [P] Contract test index_content MCP tool in tests/contract/test_index_content_tool.py
-- [ ] T007 [P] Contract test get_index_status MCP tool in tests/contract/test_index_status_tool.py
+- [x] T005 [P] Contract test semantic_search MCP tool in tests/contract/test_semantic_search_tool.py
+- [x] T006 [P] Contract test index_content MCP tool in tests/contract/test_index_content_tool.py
+- [x] T007 [P] Contract test get_index_status MCP tool in tests/contract/test_index_status_tool.py
 
 ### Model Tests [P]
 
