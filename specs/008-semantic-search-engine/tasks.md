@@ -130,7 +130,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 - [x] T040 Content indexing background worker in src/python/semantic_search/workers/indexing_worker.py
 - [x] T041 Incremental index updates based on file changes
-- [ ] T042 Data retention policy enforcement per FR-012
+- [x] T042 Data retention policy enforcement per FR-012
 
 ## Phase 3.5: Polish
 
