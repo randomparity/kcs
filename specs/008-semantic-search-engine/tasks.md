@@ -75,7 +75,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 - [x] T012 [P] Integration test: memory allocation search scenario in tests/integration/test_memory_allocation_search.py
 - [x] T013 [P] Integration test: buffer overflow search scenario in tests/integration/test_buffer_overflow_search.py
 - [x] T014 [P] Integration test: configuration filtering in tests/integration/test_config_filtering.py
-- [ ] T015 [P] Integration test: MCP endpoint error handling in tests/integration/test_mcp_error_handling.py
+- [x] T015 [P] Integration test: MCP endpoint error handling in tests/integration/test_mcp_error_handling.py
 
 ### Performance Tests [P]
 
