@@ -25,11 +25,12 @@ and provide accurate kernel development guidance.
 
 ## Quick Start
 
-1. **Authentication**: Obtain an auth token
-2. **Health Check**: Verify server status at `/health`
-3. **Search Code**: Use `/mcp/tools/search_code` for semantic search
-4. **Explore Symbols**: Get symbol info with `/mcp/tools/get_symbol`
-5. **Trace Calls**: Find callers with `/mcp/tools/who_calls`
+1. **API Discovery**: Start with `GET /` to discover available endpoints and capabilities
+2. **Authentication**: Obtain an auth token
+3. **Health Check**: Verify server status at `/health`
+4. **Search Code**: Use `/mcp/tools/search_code` for semantic search
+5. **Explore Symbols**: Get symbol info with `/mcp/tools/get_symbol`
+6. **Trace Calls**: Find callers with `/mcp/tools/who_calls`
 
 ## Constitutional Requirements
 

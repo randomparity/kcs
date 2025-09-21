@@ -680,6 +680,47 @@ class TraverseCallGraphResponse(BaseModel):
     )
 
 
+# Root endpoint response
+class RootEndpointResponse(BaseModel):
+    """Root endpoint API discovery response."""
+
+    service: str = Field(..., description="Service name")
+    title: str = Field(..., description="API title")
+    version: str = Field(..., description="API version")
+    description: str = Field(..., description="API description")
+    mcp: dict[str, Any] = Field(..., description="MCP protocol information")
+    endpoints: dict[str, str] = Field(..., description="Available endpoints")
+    constitutional_requirements: dict[str, Any] = Field(
+        ..., description="Constitutional requirements"
+    )
+
+    class Config:
+        json_schema_extra: typing.ClassVar[dict[str, typing.Any]] = {
+            "example": {
+                "service": "kcs",
+                "title": "Kernel Context Server MCP API",
+                "version": "1.0.0",
+                "description": "Model Context Protocol API for Linux kernel analysis",
+                "mcp": {
+                    "protocol_version": "2024-11-05",
+                    "capabilities": ["tools", "resources"],
+                },
+                "endpoints": {
+                    "health": "/health",
+                    "metrics": "/metrics",
+                    "mcp_tools": "/mcp/tools",
+                    "mcp_resources": "/mcp/resources",
+                    "docs": "/docs",
+                },
+                "constitutional_requirements": {
+                    "read_only": True,
+                    "citations_required": True,
+                    "performance_target": "p95 < 600ms",
+                },
+            }
+        }
+
+
 # Error response
 class ErrorResponse(BaseModel):
     """Standard error response."""
@@ -1177,6 +1218,7 @@ __all__ = [
     "ProcessChunkRequest",
     "ProcessChunkResponse",
     "ProcessingStatus",
+    "RootEndpointResponse",
     "SearchCodeRequest",
     "SearchCodeResponse",
     "SearchDocsRequest",

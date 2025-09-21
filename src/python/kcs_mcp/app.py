@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .database import Database, set_database
-from .models import ErrorResponse
+from .models import ErrorResponse, RootEndpointResponse
 from .resources import router as resources_router
 from .tools import router as tools_router
 
@@ -189,6 +189,30 @@ async def global_exception_handler(request: Request, exc: Exception) -> dict[str
         error="internal_server_error", message="An internal server error occurred"
     )
     return {"error": error_response.error, "message": error_response.message}
+
+
+@app.get("/", response_model=RootEndpointResponse)
+async def root() -> RootEndpointResponse:
+    """Root endpoint for API discovery and metadata."""
+    return RootEndpointResponse(
+        service="kcs",
+        title="Kernel Context Server MCP API",
+        version="1.0.0",
+        description="Model Context Protocol API for Linux kernel analysis",
+        mcp={"protocol_version": "2024-11-05", "capabilities": ["tools", "resources"]},
+        endpoints={
+            "health": "/health",
+            "metrics": "/metrics",
+            "mcp_tools": "/mcp/tools",
+            "mcp_resources": "/mcp/resources",
+            "docs": "/docs",
+        },
+        constitutional_requirements={
+            "read_only": True,
+            "citations_required": True,
+            "performance_target": "p95 < 600ms",
+        },
+    )
 
 
 @app.get("/health")
