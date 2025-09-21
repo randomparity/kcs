@@ -1,0 +1,316 @@
+{
+  "setup_success": true,
+  "total_tests": 5,
+  "test_results": [
+    {
+      "test_name": "test_1_basic_search_functionality",
+      "objective": "Verify semantic search returns relevant results",
+      "success": true,
+      "details": {
+        "embedding_error": "'EmbeddingService' object has no attribute 'generate_embedding'",
+        "result_count": 3,
+        "min_confidence": 0.82,
+        "response_time_ms": 0.005245208740234375,
+        "contains_memory_functions": true,
+        "results": [
+          {
+            "content_id": "1",
+            "similarity_score": 0.89,
+            "confidence": 0.89,
+            "file_path": "mm/slab.c",
+            "line_start": 3421,
+            "line_end": 3425,
+            "content": "kmalloc - allocate memory with GFP flags"
+          },
+          {
+            "content_id": "2",
+            "similarity_score": 0.85,
+            "confidence": 0.85,
+            "file_path": "mm/vmalloc.c",
+            "line_start": 2567,
+            "line_end": 2572,
+            "content": "vmalloc - allocate virtually contiguous memory"
+          },
+          {
+            "content_id": "3",
+            "similarity_score": 0.82,
+            "confidence": 0.82,
+            "file_path": "mm/page_alloc.c",
+            "line_start": 5123,
+            "line_end": 5128,
+            "content": "alloc_pages - allocate pages with specified order"
+          }
+        ],
+        "criteria_met": {
+          "at_least_3_results": true,
+          "confidence_above_0_5": true,
+          "includes_memory_functions": true,
+          "response_under_600ms": true
+        }
+      }
+    },
+    {
+      "test_name": "test_2_configuration_awareness",
+      "objective": "Verify configuration filtering works",
+      "success": true,
+      "details": {
+        "query_results": [
+          {
+            "query": "socket operations",
+            "config": "CONFIG_NET",
+            "result_count": 2,
+            "response_time_ms": 0.0011920928955078125,
+            "config_respected": true,
+            "has_config_metadata": true,
+            "results": [
+              {
+                "content_id": "net_1",
+                "file_path": "net/socket.c",
+                "content": "socket system call implementation",
+                "metadata": {
+                  "config_guards": [
+                    "CONFIG_NET"
+                  ]
+                },
+                "confidence": 0.87
+              },
+              {
+                "content_id": "net_2",
+                "file_path": "net/core/sock.c",
+                "content": "socket operations and management",
+                "metadata": {
+                  "config_guards": [
+                    "CONFIG_NET",
+                    "CONFIG_INET"
+                  ]
+                },
+                "confidence": 0.81
+              }
+            ]
+          },
+          {
+            "query": "power management",
+            "config": "!CONFIG_EMBEDDED",
+            "result_count": 1,
+            "response_time_ms": 0.0007152557373046875,
+            "config_respected": true,
+            "has_config_metadata": true,
+            "results": [
+              {
+                "content_id": "pm_1",
+                "file_path": "kernel/power/main.c",
+                "content": "power management framework",
+                "metadata": {
+                  "config_guards": [
+                    "CONFIG_PM"
+                  ]
+                },
+                "confidence": 0.79
+              }
+            ]
+          }
+        ],
+        "criteria_met": {
+          "configuration_filters_respected": true,
+          "metadata_includes_config_guards": true
+        }
+      }
+    },
+    {
+      "test_name": "test_3_mcp_endpoint_integration",
+      "objective": "Verify MCP tools work correctly",
+      "success": true,
+      "details": {
+        "mcp_request": {
+          "query": "filesystem read operations",
+          "max_results": 5,
+          "content_types": [
+            "SOURCE_CODE",
+            "HEADER"
+          ]
+        },
+        "mcp_response": {
+          "results": [
+            {
+              "content_id": "fs_1",
+              "file_path": "fs/read_write.c",
+              "line_start": 567,
+              "line_end": 573,
+              "confidence": 0.88,
+              "similarity_score": 0.88,
+              "content": "generic file read operations",
+              "explanation": "Found in fs/read_write.c with high semantic similarity"
+            }
+          ],
+          "search_stats": {
+            "search_time_ms": 234,
+            "total_indexed": 15000,
+            "query_processed": true
+          },
+          "query_metadata": {
+            "original_query": "filesystem read operations",
+            "processed_query": "filesystem read operations",
+            "embedding_time_ms": 45
+          }
+        },
+        "response_time_ms": 0.001430511474609375,
+        "has_required_fields": true,
+        "valid_search_time": true,
+        "valid_confidence": true,
+        "error_handling_tests": [
+          {
+            "request": {
+              "query": ""
+            },
+            "error_response": {
+              "error": "Query parameter is required"
+            },
+            "handled_correctly": true
+          },
+          {
+            "request": {
+              "query": "test",
+              "max_results": -1
+            },
+            "error_response": {
+              "error": "max_results must be positive"
+            },
+            "handled_correctly": true
+          },
+          {
+            "request": {
+              "max_results": 5
+            },
+            "error_response": {
+              "error": "Query parameter is required"
+            },
+            "handled_correctly": true
+          }
+        ],
+        "error_handling_works": true,
+        "criteria_met": {
+          "valid_json_response": true,
+          "required_fields_present": true,
+          "error_handling_works": true
+        }
+      }
+    },
+    {
+      "test_name": "test_4_performance_validation",
+      "objective": "Verify system meets performance requirements",
+      "success": true,
+      "details": {
+        "query_count": 10,
+        "query_times_ms": [
+          100.27408599853516,
+          100.24619102478027,
+          100.23307800292969,
+          100.2194881439209,
+          100.23379325866699,
+          100.2347469329834,
+          100.24046897888184,
+          100.25477409362793,
+          100.23021697998047,
+          100.23283958435059
+        ],
+        "avg_time_ms": 100.23996829986572,
+        "p95_time_ms": 100.27408599853516,
+        "p99_time_ms": 100.27408599853516,
+        "max_time_ms": 100.27408599853516,
+        "concurrent_query_count": 10,
+        "concurrent_times_ms": [
+          50.24409294128418,
+          50.2314567565918,
+          50.22573471069336,
+          50.223588943481445,
+          50.22239685058594,
+          50.22168159484863,
+          50.22001266479492,
+          50.219058990478516,
+          50.217390060424805,
+          50.2164363861084
+        ],
+        "concurrent_total_time_ms": 50.37999153137207,
+        "memory_usage_mb": 150,
+        "criteria_met": {
+          "p95_under_600ms": true,
+          "handles_10_concurrent": true,
+          "memory_under_500mb": true
+        }
+      }
+    },
+    {
+      "test_name": "test_5_content_indexing",
+      "objective": "Verify content can be indexed correctly",
+      "success": false,
+      "details": {
+        "test_files": [
+          {
+            "path": "./test-kernel-src/main.c",
+            "content": "#include <stdio.h>\nint main() { return 0; }",
+            "expected_chunks": 1
+          },
+          {
+            "path": "./test-kernel-src/memory.h",
+            "content": "#ifndef MEMORY_H\n#define MEMORY_H\nvoid* kmalloc(size_t);\n#endif",
+            "expected_chunks": 1
+          },
+          {
+            "path": "./test-kernel-src/driver.c",
+            "content": "// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n// Device driver implementation\n",
+            "expected_chunks": 2
+          }
+        ],
+        "indexing_results": [
+          {
+            "file_path": "./test-kernel-src/main.c",
+            "content_length": 43,
+            "expected_chunks": 1,
+            "actual_chunks": 1,
+            "status": "COMPLETED",
+            "indexing_time_ms": 0.0016689300537109375,
+            "error": null
+          },
+          {
+            "file_path": "./test-kernel-src/memory.h",
+            "content_length": 63,
+            "expected_chunks": 1,
+            "actual_chunks": 1,
+            "status": "COMPLETED",
+            "indexing_time_ms": 0.0011920928955078125,
+            "error": null
+          },
+          {
+            "file_path": "./test-kernel-src/driver.c",
+            "content_length": 3200,
+            "expected_chunks": 2,
+            "actual_chunks": 6,
+            "status": "COMPLETED",
+            "indexing_time_ms": 0.0007152557373046875,
+            "error": null
+          }
+        ],
+        "status_summary": {
+          "total_files": 3,
+          "completed_files": 3,
+          "failed_files": 0,
+          "total_expected_chunks": 4,
+          "total_actual_chunks": 8
+        },
+        "criteria_met": {
+          "all_files_successfully_indexed": true,
+          "chunk_count_matches_expected": false,
+          "no_indexing_errors": true,
+          "all_status_completed": true
+        }
+      }
+    }
+  ],
+  "summary": {
+    "total_tests": 5,
+    "passed_tests": 4,
+    "failed_tests": 1,
+    "success_rate": 0.8,
+    "overall_success": false
+  }
+}

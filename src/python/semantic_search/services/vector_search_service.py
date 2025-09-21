@@ -6,7 +6,10 @@ efficient vector similarity operations and hybrid search functionality.
 """
 
 import asyncio
+import hashlib
+import json
 import logging
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -34,6 +37,26 @@ class SearchFilters(BaseModel):
     include_context: bool = Field(True, description="Include surrounding context lines")
 
 
+class CacheEntry:
+    """Cache entry for query results with TTL support."""
+
+    def __init__(self, results: list[SearchResult], ttl_seconds: int = 300) -> None:
+        """
+        Initialize cache entry.
+
+        Args:
+            results: Search results to cache
+            ttl_seconds: Time-to-live in seconds (default 5 minutes)
+        """
+        self.results = results
+        self.created_at = time.time()
+        self.ttl_seconds = ttl_seconds
+
+    def is_expired(self) -> bool:
+        """Check if cache entry has expired."""
+        return time.time() - self.created_at > self.ttl_seconds
+
+
 class VectorSearchService:
     """
     Vector search service with pgvector operations.
@@ -47,16 +70,21 @@ class VectorSearchService:
     - Efficient HNSW index utilization
     """
 
-    def __init__(self, connection_string: str) -> None:
+    def __init__(self, connection_string: str, enable_cache: bool = True) -> None:
         """
         Initialize vector search service.
 
         Args:
             connection_string: PostgreSQL connection string with pgvector support
+            enable_cache: Enable query result caching for performance
         """
         self.connection_string = connection_string
+        self.enable_cache = enable_cache
         self.logger = logging.getLogger(__name__)
         self._connection_pool: asyncpg.Pool | None = None
+        self._cache: dict[str, CacheEntry] = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
 
     async def initialize(self) -> None:
         """Initialize connection pool and verify pgvector extension."""
@@ -101,6 +129,136 @@ class VectorSearchService:
         async with self._connection_pool.acquire() as connection:
             yield connection
 
+    def _create_cache_key(
+        self, query_embedding: list[float], filters: SearchFilters | None
+    ) -> str:
+        """
+        Create cache key for query and filters combination.
+
+        Args:
+            query_embedding: Query embedding vector
+            filters: Search filters
+
+        Returns:
+            Unique cache key string
+        """
+        # Create deterministic hash of embedding and filters
+        embedding_hash = hashlib.md5(
+            json.dumps(query_embedding, sort_keys=True).encode()
+        ).hexdigest()
+
+        filters_dict = {}
+        if filters:
+            filters_dict = {
+                "content_types": filters.content_types,
+                "file_paths": filters.file_paths,
+                "path_patterns": filters.path_patterns,
+                "max_results": filters.max_results,
+                "similarity_threshold": filters.similarity_threshold,
+                "include_context": filters.include_context,
+            }
+
+        filters_hash = hashlib.md5(
+            json.dumps(filters_dict, sort_keys=True).encode()
+        ).hexdigest()
+
+        return f"search:{embedding_hash}:{filters_hash}"
+
+    def _cleanup_expired_cache(self) -> None:
+        """Remove expired entries from cache."""
+        if not self.enable_cache:
+            return
+
+        expired_keys = [key for key, entry in self._cache.items() if entry.is_expired()]
+        for key in expired_keys:
+            del self._cache[key]
+
+        if expired_keys:
+            self.logger.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
+
+    def _get_from_cache(self, cache_key: str) -> list[SearchResult] | None:
+        """
+        Get results from cache if available and not expired.
+
+        Args:
+            cache_key: Cache key to lookup
+
+        Returns:
+            Cached results or None if not found/expired
+        """
+        if not self.enable_cache:
+            return None
+
+        entry = self._cache.get(cache_key)
+        if not entry:
+            self._cache_misses += 1
+            return None
+
+        if entry.is_expired():
+            del self._cache[cache_key]
+            self._cache_misses += 1
+            return None
+
+        self._cache_hits += 1
+        self.logger.debug(f"Cache hit for key: {cache_key[:16]}...")
+        return entry.results
+
+    def _store_in_cache(
+        self, cache_key: str, results: list[SearchResult], ttl_seconds: int = 300
+    ) -> None:
+        """
+        Store results in cache.
+
+        Args:
+            cache_key: Cache key
+            results: Search results to cache
+            ttl_seconds: Time-to-live in seconds
+        """
+        if not self.enable_cache:
+            return
+
+        # Cleanup expired entries periodically
+        if len(self._cache) > 100:  # Cleanup trigger
+            self._cleanup_expired_cache()
+
+        # Don't cache if results are empty or too large
+        if not results or len(results) > 50:
+            return
+
+        self._cache[cache_key] = CacheEntry(results, ttl_seconds)
+        self.logger.debug(f"Cached {len(results)} results for key: {cache_key[:16]}...")
+
+    def get_cache_stats(self) -> dict[str, Any]:
+        """
+        Get cache performance statistics.
+
+        Returns:
+            Dictionary with cache statistics
+        """
+        total_requests = self._cache_hits + self._cache_misses
+        hit_rate = self._cache_hits / total_requests if total_requests > 0 else 0.0
+
+        # Count non-expired entries
+        active_entries = sum(
+            1 for entry in self._cache.values() if not entry.is_expired()
+        )
+
+        return {
+            "enabled": self.enable_cache,
+            "total_entries": len(self._cache),
+            "active_entries": active_entries,
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
+            "hit_rate": hit_rate,
+        }
+
+    def clear_cache(self) -> None:
+        """Clear all cached results."""
+        self._cache.clear()
+        self._cache_hits = 0
+        self._cache_misses = 0
+        self.logger.info("Search result cache cleared")
+
     async def similarity_search(
         self,
         query_embedding: list[float],
@@ -111,6 +269,7 @@ class VectorSearchService:
 
         Uses pgvector cosine similarity with HNSW index for optimal performance.
         Supports filtering by content type, file paths, and similarity threshold.
+        Includes result caching for improved performance on repeated queries.
 
         Args:
             query_embedding: 384-dimensional query vector
@@ -134,6 +293,12 @@ class VectorSearchService:
             similarity_threshold=0.0,
             include_context=True,
         )
+
+        # Check cache first
+        cache_key = self._create_cache_key(query_embedding, filters)
+        cached_results = self._get_from_cache(cache_key)
+        if cached_results is not None:
+            return cached_results
 
         try:
             async with self._get_connection() as conn:
@@ -228,6 +393,9 @@ class VectorSearchService:
                         ),
                     )
                     search_results.append(search_result)
+
+                # Store results in cache
+                self._store_in_cache(cache_key, search_results)
 
                 return search_results
 
@@ -408,7 +576,7 @@ class VectorSearchService:
                     """
                 )
 
-                return {
+                result = {
                     "total_embeddings": stats["total_embeddings"],
                     "unique_content": stats["unique_content"],
                     "content_types": stats["content_types"],
@@ -419,6 +587,10 @@ class VectorSearchService:
                     if stats["failed_count"] == 0
                     else "degraded",
                 }
+
+                # Add cache statistics
+                result["cache_stats"] = self.get_cache_stats()
+                return result
 
         except Exception as e:
             self.logger.error(f"Get embedding stats failed: {e}")

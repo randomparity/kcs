@@ -240,11 +240,17 @@ class TestSearchQueryModel:
 
     def test_search_query_embedding_caching(self):
         """Test that embeddings are cached for identical queries."""
-        from src.python.semantic_search.models.search_query import SearchQuery
+        from src.python.semantic_search.models.search_query import (
+            SearchQuery,
+            _embedding_cache,
+        )
+
+        # Clear cache before test
+        _embedding_cache.clear()
 
         # Mock the embedding service to track calls
         with patch(
-            "src.python.semantic_search.services.embedding_service.EmbeddingService"
+            "src.python.semantic_search.models.search_query.EmbeddingService"
         ) as mock_service:
             mock_embed = Mock(return_value=np.random.rand(384).tolist())
             mock_service.return_value.embed_query = mock_embed
@@ -255,8 +261,7 @@ class TestSearchQueryModel:
 
             # Second identical query should use cache
             SearchQuery(query_text="identical query")
-            # Note: This assumes caching is implemented
-            # If not implemented, this test documents the requirement
+            assert mock_embed.call_count == 1  # Should still be 1 (cached)
 
     def test_search_query_preprocessing_steps(self):
         """Test specific preprocessing steps applied to query text."""

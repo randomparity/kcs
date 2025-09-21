@@ -14,8 +14,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler  # type: ignore
-from watchdog.observers import Observer  # type: ignore
+from watchdog.events import (
+    FileSystemEvent,
+    FileSystemEventHandler,
+)
+from watchdog.observers import Observer
 
 from ..config_loader import load_semantic_search_config
 from ..database.connection import get_database_connection

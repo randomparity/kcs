@@ -5,6 +5,8 @@ Represents a user's natural language search request with automatic processing
 and embedding generation using BAAI/bge-small-en-v1.5 model.
 """
 
+import hashlib
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -14,6 +16,41 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..services.embedding_service import EmbeddingService
 from ..services.query_preprocessor import QueryPreprocessor
+
+# Global cache for embeddings (in-memory)
+_embedding_cache: dict[
+    str, tuple[list[float], float]
+] = {}  # cache_key -> (embedding, timestamp)
+_cache_ttl_seconds = 300  # 5 minutes TTL
+
+
+def _get_cache_key(processed_query: str, config_context: list[str] | None) -> str:
+    """Generate cache key for embedding."""
+    config_str = ",".join(sorted(config_context or []))
+    content = f"{processed_query}:{config_str}"
+    return hashlib.md5(content.encode()).hexdigest()
+
+
+def _get_cached_embedding(cache_key: str) -> list[float] | None:
+    """Get embedding from cache if not expired."""
+    if cache_key in _embedding_cache:
+        embedding, timestamp = _embedding_cache[cache_key]
+        if time.time() - timestamp < _cache_ttl_seconds:
+            return embedding
+        else:
+            # Remove expired entry
+            del _embedding_cache[cache_key]
+    return None
+
+
+def _cache_embedding(cache_key: str, embedding: list[float]) -> None:
+    """Store embedding in cache."""
+    _embedding_cache[cache_key] = (embedding, time.time())
+
+    # Simple cache cleanup - remove oldest entries if cache gets too large
+    if len(_embedding_cache) > 100:
+        oldest_key = min(_embedding_cache.keys(), key=lambda k: _embedding_cache[k][1])
+        del _embedding_cache[oldest_key]
 
 
 @dataclass(frozen=True)
@@ -56,15 +93,26 @@ class SearchQuery:
         processed = preprocessor.preprocess(self.query_text)
         object.__setattr__(self, "processed_query", processed)
 
-        # Generate embedding
-        embedding_service = EmbeddingService()
-        embedding_vector = embedding_service.embed_query(self.processed_query)
+        # Generate embedding with caching
+        cache_key = _get_cache_key(processed, self.config_context)
+        cached_embedding = _get_cached_embedding(cache_key)
 
-        # Ensure embedding is normalized (unit vector for cosine similarity)
-        embedding_array = np.array(embedding_vector)
-        norm = np.linalg.norm(embedding_array)
-        if norm > 0:
-            embedding_vector = (embedding_array / norm).tolist()
+        if cached_embedding is not None:
+            # Use cached embedding
+            embedding_vector = cached_embedding
+        else:
+            # Generate new embedding
+            embedding_service = EmbeddingService()
+            embedding_vector = embedding_service.embed_query(processed)
+
+            # Ensure embedding is normalized (unit vector for cosine similarity)
+            embedding_array = np.array(embedding_vector)
+            norm = np.linalg.norm(embedding_array)
+            if norm > 0:
+                embedding_vector = (embedding_array / norm).tolist()
+
+            # Cache the normalized embedding
+            _cache_embedding(cache_key, embedding_vector)
 
         object.__setattr__(self, "embedding", embedding_vector)
 

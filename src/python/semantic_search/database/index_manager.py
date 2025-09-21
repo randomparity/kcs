@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from .connection import get_database_connection
+from .index_optimizer import IndexOptimizer
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class IndexManager:
     def __init__(self) -> None:
         """Initialize index manager."""
         self._db = get_database_connection()
+        self._optimizer = IndexOptimizer()
 
     async def analyze_table_stats(self, table_name: str) -> dict[str, Any]:
         """
@@ -552,9 +554,14 @@ class IndexManager:
             logger.error(f"Failed to get performance metrics: {e}")
             return {"error": str(e)}
 
-    async def optimize_all_indexes(self) -> dict[str, Any]:
+    async def optimize_all_indexes(
+        self, apply_optimizations: bool = False
+    ) -> dict[str, Any]:
         """
         Perform comprehensive index optimization.
+
+        Args:
+            apply_optimizations: Whether to apply recommended optimizations
 
         Returns:
             Optimization results
@@ -566,24 +573,53 @@ class IndexManager:
             logger.info("Starting VACUUM ANALYZE on all tables")
             results["vacuum_results"] = await self.vacuum_analyze_tables()
 
-            # 2. Optimize vector indexes
-            logger.info("Optimizing vector indexes")
+            # 2. Advanced vector index optimization using new optimizer
+            logger.info("Performing advanced vector index optimization")
+            results[
+                "advanced_vector_optimization"
+            ] = await self._optimizer.optimize_index(dry_run=not apply_optimizations)
+
+            # 3. Basic vector index optimization (legacy)
+            logger.info("Optimizing vector indexes (legacy)")
             results["vector_optimization"] = await self.optimize_vector_index()
 
-            # 3. Check index usage
+            # 4. Check index usage
             logger.info("Analyzing index usage patterns")
             results["usage_analysis"] = await self.check_index_usage()
 
-            # 4. Get performance metrics
+            # 5. Get performance metrics
             logger.info("Collecting performance metrics")
             results["performance_metrics"] = await self.get_performance_metrics()
 
-            # 5. Generate summary
+            # 6. Get index information
+            logger.info("Gathering index configuration")
+            results["index_info"] = await self._optimizer.get_index_info()
+
+            # 7. Benchmark current performance
+            logger.info("Benchmarking current performance")
+            results[
+                "performance_benchmark"
+            ] = await self._optimizer.benchmark_current_index()
+
+            # 8. Generate summary
             total_tables_vacuumed = sum(
                 1
                 for r in results["vacuum_results"].values()
                 if isinstance(r, dict) and r.get("success")
             )
+
+            advanced_opt = results["advanced_vector_optimization"]
+            recommendations = results["usage_analysis"].get("recommendations", [])
+
+            # Add advanced optimizer recommendations
+            if "recommendations" in advanced_opt:
+                recommendations.extend(
+                    [
+                        f"Advanced HNSW tuning: {advanced_opt['recommendations'].get('rationale', 'N/A')}",
+                        f"Recommended parameters: m={advanced_opt['recommendations'].get('m', 'N/A')}, "
+                        f"ef_construction={advanced_opt['recommendations'].get('ef_construction', 'N/A')}",
+                    ]
+                )
 
             results["summary"] = {
                 "optimization_completed": True,
@@ -591,7 +627,15 @@ class IndexManager:
                 "vector_indexes_optimized": len(
                     results["vector_optimization"].get("results", {})
                 ),
-                "recommendations": results["usage_analysis"].get("recommendations", []),
+                "advanced_optimization_applied": apply_optimizations
+                and advanced_opt.get("status") == "optimization_applied",
+                "performance_meets_requirements": results["performance_benchmark"].get(
+                    "meets_requirements", False
+                ),
+                "p95_response_time_ms": results["performance_benchmark"].get(
+                    "p95_response_time_ms", "N/A"
+                ),
+                "recommendations": recommendations,
             }
 
             logger.info("Index optimization completed successfully")
@@ -600,3 +644,55 @@ class IndexManager:
         except Exception as e:
             logger.error(f"Index optimization failed: {e}")
             return {"error": str(e), "optimization_completed": False}
+
+    async def quick_performance_check(self) -> dict[str, Any]:
+        """
+        Perform a quick performance check of the vector search system.
+
+        Returns:
+            Performance check results
+        """
+        try:
+            results = {}
+
+            # Quick data analysis
+            logger.info("Analyzing data characteristics")
+            results[
+                "data_analysis"
+            ] = await self._optimizer.analyze_data_characteristics()
+
+            # Performance benchmark
+            logger.info("Running performance benchmark")
+            results["benchmark"] = await self._optimizer.benchmark_current_index(
+                test_queries=5
+            )
+
+            # Current index info
+            logger.info("Getting current index configuration")
+            results["index_config"] = await self._optimizer.get_index_info()
+
+            # Generate recommendations
+            if "error" not in results["data_analysis"]:
+                results["recommendations"] = self._optimizer.recommend_hnsw_parameters(
+                    results["data_analysis"]
+                )
+
+            # Summary
+            meets_requirements = results["benchmark"].get("meets_requirements", False)
+            p95_time = results["benchmark"].get("p95_response_time_ms", "N/A")
+
+            results["summary"] = {
+                "performance_grade": results["benchmark"].get(
+                    "performance_grade", "unknown"
+                ),
+                "meets_600ms_requirement": meets_requirements,
+                "p95_response_time_ms": p95_time,
+                "total_embeddings": results["data_analysis"].get("total_embeddings", 0),
+                "optimization_needed": not meets_requirements,
+            }
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Quick performance check failed: {e}")
+            return {"error": str(e)}
