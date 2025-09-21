@@ -65,10 +65,10 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Model Tests [P]
 
-- [ ] T008 [P] SearchQuery model test in tests/unit/test_search_query_model.py
-- [ ] T009 [P] VectorEmbedding model test in tests/unit/test_vector_embedding_model.py
-- [ ] T010 [P] SearchResult model test in tests/unit/test_search_result_model.py
-- [ ] T011 [P] IndexedContent model test in tests/unit/test_indexed_content_model.py
+- [x] T008 [P] SearchQuery model test in tests/unit/test_search_query_model.py
+- [x] T009 [P] VectorEmbedding model test in tests/unit/test_vector_embedding_model.py
+- [x] T010 [P] SearchResult model test in tests/unit/test_search_result_model.py
+- [x] T011 [P] IndexedContent model test in tests/unit/test_indexed_content_model.py
 
 ### Integration Tests [P]
 
