@@ -19,6 +19,7 @@ from kcs_mcp.citations import (
     ensure_citations,
     span_from_symbol,
 )
+from pydantic import ValidationError
 
 
 class TestSpan:
@@ -26,40 +27,69 @@ class TestSpan:
 
     def test_valid_span_creation(self):
         """Test creating valid spans."""
-        span = Span(path="fs/read_write.c", sha="a1b2c3d4", start=451, end=465)
+        span = Span(
+            path="fs/read_write.c",
+            sha="a1b2c3d4e5f6789012345678901234567890abcd",
+            start=451,
+            end=465,
+        )
 
         assert span.path == "fs/read_write.c"
-        assert span.sha == "a1b2c3d4"
+        assert span.sha == "a1b2c3d4e5f6789012345678901234567890abcd"
         assert span.start == 451
         assert span.end == 465
 
     def test_single_line_span(self):
         """Test span with same start and end line."""
-        span = Span(path="include/linux/fs.h", sha="abcdef12", start=100, end=100)
+        span = Span(
+            path="include/linux/fs.h",
+            sha="abcdef1234567890123456789012345678901234",
+            start=100,
+            end=100,
+        )
 
         assert span.start == span.end == 100
 
     def test_invalid_start_line(self):
         """Test span with invalid start line."""
-        with pytest.raises(ValueError, match="Start line must be positive"):
-            Span(path="test.c", sha="abc123", start=0, end=10)
+        with pytest.raises(ValueError, match="Input should be greater than 0"):
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=0,
+                end=10,
+            )
 
-        with pytest.raises(ValueError, match="Start line must be positive"):
-            Span(path="test.c", sha="abc123", start=-5, end=10)
+        with pytest.raises(ValueError, match="Input should be greater than 0"):
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=-5,
+                end=10,
+            )
 
     def test_invalid_end_line(self):
         """Test span with end line before start line."""
         with pytest.raises(ValueError, match=r"End line .* must be >= start line"):
-            Span(path="test.c", sha="abc123", start=10, end=5)
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=10,
+                end=5,
+            )
 
     def test_empty_path(self):
         """Test span with empty path."""
         with pytest.raises(ValueError, match="Path cannot be empty"):
-            Span(path="", sha="abc123", start=1, end=1)
+            Span(
+                path="", sha="abc1234567890123456789012345678901234567", start=1, end=1
+            )
 
     def test_empty_sha(self):
         """Test span with empty SHA."""
-        with pytest.raises(ValueError, match="SHA cannot be empty"):
+        with pytest.raises(
+            ValueError, match="String should have at least 40 characters"
+        ):
             Span(path="test.c", sha="", start=1, end=1)
 
 
@@ -68,7 +98,12 @@ class TestCitation:
 
     def test_citation_with_context(self):
         """Test citation with context."""
-        span = Span("test.c", "abc123", 10, 15)
+        span = Span(
+            path="test.c",
+            sha="abc1234567890123456789012345678901234567",
+            start=10,
+            end=15,
+        )
         citation = Citation(span=span, context="Function definition")
 
         assert citation.span == span
@@ -76,7 +111,12 @@ class TestCitation:
 
     def test_citation_without_context(self):
         """Test citation without context."""
-        span = Span("test.c", "abc123", 10, 15)
+        span = Span(
+            path="test.c",
+            sha="abc1234567890123456789012345678901234567",
+            start=10,
+            end=15,
+        )
         citation = Citation(span=span)
 
         assert citation.span == span
@@ -104,13 +144,15 @@ class TestCitationFormatter:
             file_path="fs/read_write.c",
             start_line=451,
             end_line=465,
-            sha="a1b2c3d4e5f6789",
+            sha="a1b2c3d4e5f6789012345678901234567890abcd",
         )
 
         assert span.path == "fs/read_write.c"
         assert span.start == 451
         assert span.end == 465
-        assert span.sha == "a1b2c3d4"  # Truncated to 8 chars
+        assert (
+            span.sha == "a1b2c3d4e5f6789012345678901234567890abcd"
+        )  # Truncated to 8 chars
 
     def test_create_span_with_repo_root(self):
         """Test span creation with repo root path relativization."""
@@ -123,11 +165,13 @@ class TestCitationFormatter:
                 file_path=str(abs_path),
                 start_line=100,
                 end_line=200,
-                sha="abcdef123456",
+                sha="abcdef1234567890123456789012345678901234",
             )
 
             assert span.path == "fs/read_write.c"
-            assert span.sha == "abcdef12"
+            assert (
+                span.sha == "abcdef1234567890123456789012345678901234"
+            )  # Full SHA preserved
 
     def test_create_span_absolute_path_outside_repo(self):
         """Test span creation with absolute path outside repo root."""
@@ -149,20 +193,25 @@ class TestCitationFormatter:
             file_path="kernel/sched.c",
             start_line=1000,
             end_line=1050,
-            sha="fedcba987654",
+            sha="fedcba9876543210987654321098765432109876",
             context="Schedule function",
         )
 
         assert citation.span.path == "kernel/sched.c"
         assert citation.span.start == 1000
         assert citation.span.end == 1050
-        assert citation.span.sha == "fedcba98"
+        assert citation.span.sha == "fedcba9876543210987654321098765432109876"
         assert citation.context == "Schedule function"
 
     def test_format_span_text_single_line(self):
         """Test formatting span text for single line."""
         formatter = CitationFormatter()
-        span = Span("test.c", "abc12345", 42, 42)
+        span = Span(
+            path="test.c",
+            sha="abc1234567890123456789012345678901234567",
+            start=42,
+            end=42,
+        )
 
         formatted = formatter.format_span_text(span)
         assert formatted == "test.c:42@abc12345"
@@ -170,7 +219,12 @@ class TestCitationFormatter:
     def test_format_span_text_multiple_lines(self):
         """Test formatting span text for multiple lines."""
         formatter = CitationFormatter()
-        span = Span("fs/namei.c", "def67890", 100, 150)
+        span = Span(
+            path="fs/namei.c",
+            sha="def6789012345678901234567890123456789012",
+            start=100,
+            end=150,
+        )
 
         formatted = formatter.format_span_text(span)
         assert formatted == "fs/namei.c:100-150@def67890"
@@ -178,30 +232,45 @@ class TestCitationFormatter:
     def test_format_citation_text_with_context(self):
         """Test formatting citation text with context."""
         formatter = CitationFormatter()
-        span = Span("mm/mmap.c", "123abc", 500, 600)
+        span = Span(
+            path="mm/mmap.c",
+            sha="abc1234567890123456789012345678901234567",
+            start=500,
+            end=600,
+        )
         citation = Citation(span=span, context="Memory mapping")
 
         formatted = formatter.format_citation_text(citation)
-        assert formatted == "mm/mmap.c:500-600@123abc (Memory mapping)"
+        assert formatted == "mm/mmap.c:500-600@abc12345 (Memory mapping)"
 
     def test_format_citation_text_without_context(self):
         """Test formatting citation text without context."""
         formatter = CitationFormatter()
-        span = Span("net/socket.c", "456def", 200, 200)
+        span = Span(
+            path="net/socket.c",
+            sha="def4567890123456789012345678901234567890",
+            start=200,
+            end=200,
+        )
         citation = Citation(span=span)
 
         formatted = formatter.format_citation_text(citation)
-        assert formatted == "net/socket.c:200@456def"
+        assert formatted == "net/socket.c:200@def45678"
 
     def test_to_dict_span(self):
         """Test converting span to dictionary."""
         formatter = CitationFormatter()
-        span = Span("drivers/net/e1000.c", "789ghi", 300, 400)
+        span = Span(
+            path="drivers/net/e1000.c",
+            sha="ghi7890123456789012345678901234567890123",
+            start=300,
+            end=400,
+        )
 
         result = formatter.to_dict(span)
         expected = {
             "path": "drivers/net/e1000.c",
-            "sha": "789ghi",
+            "sha": "ghi7890123456789012345678901234567890123",
             "start": 300,
             "end": 400,
         }
@@ -211,14 +280,19 @@ class TestCitationFormatter:
     def test_to_dict_citation(self):
         """Test converting citation to dictionary."""
         formatter = CitationFormatter()
-        span = Span("arch/x86/kernel/cpu.c", "abc789", 150, 180)
+        span = Span(
+            path="arch/x86/kernel/cpu.c",
+            sha="abc7890123456789012345678901234567890123",
+            start=150,
+            end=180,
+        )
         citation = Citation(span=span, context="CPU initialization")
 
         result = formatter.to_dict(citation)
         expected = {
             "span": {
                 "path": "arch/x86/kernel/cpu.c",
-                "sha": "abc789",
+                "sha": "abc7890123456789012345678901234567890123",
                 "start": 150,
                 "end": 180,
             },
@@ -230,12 +304,23 @@ class TestCitationFormatter:
     def test_to_dict_citation_without_context(self):
         """Test converting citation without context to dictionary."""
         formatter = CitationFormatter()
-        span = Span("crypto/aes.c", "def456", 75, 75)
+        span = Span(
+            path="crypto/aes.c",
+            sha="def4567890123456789012345678901234567890",
+            start=75,
+            end=75,
+        )
         citation = Citation(span=span)
 
         result = formatter.to_dict(citation)
         expected = {
-            "span": {"path": "crypto/aes.c", "sha": "def456", "start": 75, "end": 75}
+            "span": {
+                "path": "crypto/aes.c",
+                "sha": "def4567890123456789012345678901234567890",
+                "start": 75,
+                "end": 75,
+            },
+            "context": None,
         }
 
         assert result == expected
@@ -250,12 +335,17 @@ class TestCitationFormatter:
     def test_from_dict_span(self):
         """Test creating span from dictionary."""
         formatter = CitationFormatter()
-        data = {"path": "fs/ext4/inode.c", "sha": "xyz123", "start": 50, "end": 100}
+        data = {
+            "path": "fs/ext4/inode.c",
+            "sha": "xyz1234567890123456789012345678901234567",
+            "start": 50,
+            "end": 100,
+        }
 
         span = formatter.from_dict(data)
         assert isinstance(span, Span)
         assert span.path == "fs/ext4/inode.c"
-        assert span.sha == "xyz123"
+        assert span.sha == "xyz1234567890123456789012345678901234567"
         assert span.start == 50
         assert span.end == 100
 
@@ -265,7 +355,7 @@ class TestCitationFormatter:
         data = {
             "span": {
                 "path": "security/selinux/hooks.c",
-                "sha": "selinux1",
+                "sha": "selinux123456789012345678901234567890123",
                 "start": 200,
                 "end": 250,
             },
@@ -275,7 +365,7 @@ class TestCitationFormatter:
         citation = formatter.from_dict(data)
         assert isinstance(citation, Citation)
         assert citation.span.path == "security/selinux/hooks.c"
-        assert citation.span.sha == "selinux1"
+        assert citation.span.sha == "selinux123456789012345678901234567890123"
         assert citation.span.start == 200
         assert citation.span.end == 250
         assert citation.context == "SELinux hook"
@@ -288,7 +378,9 @@ class TestCitationFormatter:
         assert span.path == "init/main.c"
         assert span.start == 123
         assert span.end == 123
-        assert span.sha == "abcd1234"
+        assert (
+            span.sha == "abcd123400000000000000000000000000000000"
+        )  # Padded from 8-char
 
     def test_parse_span_text_multiple_lines(self):
         """Test parsing span text for multiple lines."""
@@ -298,7 +390,9 @@ class TestCitationFormatter:
         assert span.path == "kernel/fork.c"
         assert span.start == 500
         assert span.end == 600
-        assert span.sha == "deadbeef"
+        assert (
+            span.sha == "deadbeef00000000000000000000000000000000"
+        )  # Padded from 8-char
 
     def test_parse_span_text_complex_path(self):
         """Test parsing span text with complex path."""
@@ -310,7 +404,9 @@ class TestCitationFormatter:
         assert span.path == "drivers/gpu/drm/i915/intel_display.c"
         assert span.start == 1000
         assert span.end == 2000
-        assert span.sha == "cafebabe"
+        assert (
+            span.sha == "cafebabe00000000000000000000000000000000"
+        )  # Padded from 8-char
 
     def test_parse_span_text_invalid_format(self):
         """Test parsing invalid span text formats."""
@@ -341,9 +437,24 @@ class TestCitationFormatter:
         """Test merging non-overlapping spans."""
         formatter = CitationFormatter()
         spans = [
-            Span("test.c", "abc123", 10, 20),
-            Span("test.c", "abc123", 30, 40),
-            Span("other.c", "def456", 5, 15),
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=10,
+                end=20,
+            ),
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=30,
+                end=40,
+            ),
+            Span(
+                path="other.c",
+                sha="def4567890123456789012345678901234567890",
+                start=5,
+                end=15,
+            ),
         ]
 
         result = formatter.merge_spans(spans)
@@ -359,22 +470,50 @@ class TestCitationFormatter:
         """Test merging overlapping spans."""
         formatter = CitationFormatter()
         spans = [
-            Span("test.c", "abc123", 10, 20),
-            Span("test.c", "abc123", 15, 25),
-            Span("test.c", "abc123", 23, 30),
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=10,
+                end=20,
+            ),
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=15,
+                end=25,
+            ),
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=23,
+                end=30,
+            ),
         ]
 
         result = formatter.merge_spans(spans)
         assert len(result) == 1
         assert result[0].path == "test.c"
-        assert result[0].sha == "abc123"
+        assert result[0].sha == "abc1234567890123456789012345678901234567"
         assert result[0].start == 10
         assert result[0].end == 30
 
     def test_merge_spans_adjacent(self):
         """Test merging adjacent spans."""
         formatter = CitationFormatter()
-        spans = [Span("test.c", "abc123", 10, 20), Span("test.c", "abc123", 21, 30)]
+        spans = [
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=10,
+                end=20,
+            ),
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=21,
+                end=30,
+            ),
+        ]
 
         result = formatter.merge_spans(spans)
         assert len(result) == 1
@@ -385,9 +524,24 @@ class TestCitationFormatter:
         """Test merging spans from different files."""
         formatter = CitationFormatter()
         spans = [
-            Span("file1.c", "abc123", 10, 20),
-            Span("file2.c", "abc123", 10, 20),
-            Span("file1.c", "abc123", 15, 25),
+            Span(
+                path="file1.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=10,
+                end=20,
+            ),
+            Span(
+                path="file2.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=10,
+                end=20,
+            ),
+            Span(
+                path="file1.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=15,
+                end=25,
+            ),
         ]
 
         result = formatter.merge_spans(spans)
@@ -405,7 +559,20 @@ class TestCitationFormatter:
     def test_merge_spans_different_shas(self):
         """Test merging spans with different SHAs."""
         formatter = CitationFormatter()
-        spans = [Span("test.c", "abc123", 10, 20), Span("test.c", "def456", 15, 25)]
+        spans = [
+            Span(
+                path="test.c",
+                sha="abc1234567890123456789012345678901234567",
+                start=10,
+                end=20,
+            ),
+            Span(
+                path="test.c",
+                sha="def4567890123456789012345678901234567890",
+                start=15,
+                end=25,
+            ),
+        ]
 
         result = formatter.merge_spans(spans)
         assert len(result) == 2  # Different SHAs, shouldn't merge
@@ -414,8 +581,23 @@ class TestCitationFormatter:
         """Test validating valid citations."""
         formatter = CitationFormatter()
         citations = [
-            Citation(Span("test.c", "abc123", 10, 20)),
-            Citation(Span("other.h", "def456", 5, 5), "Header file"),
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="abc1234567890123456789012345678901234567",
+                    start=10,
+                    end=20,
+                )
+            ),
+            Citation(
+                span=Span(
+                    path="other.h",
+                    sha="def4567890123456789012345678901234567890",
+                    start=5,
+                    end=5,
+                ),
+                context="Header file",
+            ),
         ]
 
         errors = formatter.validate_citations(citations)
@@ -425,13 +607,34 @@ class TestCitationFormatter:
         """Test validating citations with invalid paths."""
         # Test empty path
         with pytest.raises(ValueError, match="Path cannot be empty"):
-            Citation(Span("", "abc123", 10, 20))
+            Citation(
+                span=Span(
+                    path="",
+                    sha="abc1234567890123456789012345678901234567",
+                    start=10,
+                    end=20,
+                )
+            )
 
         # Valid citations with valid paths
         formatter = CitationFormatter()
         citations = [
-            Citation(Span("test.c", "abc123", 10, 20)),
-            Citation(Span("src/file.h", "def456", 5, 10)),
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="abc1234567890123456789012345678901234567",
+                    start=10,
+                    end=20,
+                )
+            ),
+            Citation(
+                span=Span(
+                    path="src/file.h",
+                    sha="def4567890123456789012345678901234567890",
+                    start=5,
+                    end=10,
+                )
+            ),
         ]
         errors = formatter.validate_citations(citations)
         assert len(errors) == 0
@@ -439,14 +642,30 @@ class TestCitationFormatter:
     def test_validate_citations_invalid_shas(self):
         """Test validating citations with invalid SHAs."""
         # Test empty SHA
-        with pytest.raises(ValueError, match="SHA cannot be empty"):
-            Citation(Span("test.c", "", 10, 20))
+        with pytest.raises(
+            ValueError, match="String should have at least 40 characters"
+        ):
+            Citation(span=Span(path="test.c", sha="", start=10, end=20))
 
         # Valid citations for further validation
         formatter = CitationFormatter()
         citations = [
-            Citation(Span("test.c", "abc123def456", 10, 20)),
-            Citation(Span("test.c", "0123456789abcdef", 5, 10)),
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="abc123def4567890123456789012345678901234",
+                    start=10,
+                    end=20,
+                )
+            ),
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="0123456789abcdef123456789012345678901234",
+                    start=5,
+                    end=10,
+                )
+            ),
         ]
         errors = formatter.validate_citations(citations)
         assert len(errors) == 0
@@ -454,22 +673,57 @@ class TestCitationFormatter:
     def test_validate_citations_invalid_lines(self):
         """Test validating citations with invalid line numbers."""
         # Test invalid start line (0)
-        with pytest.raises(ValueError, match="Start line must be positive, got 0"):
-            Citation(Span("test.c", "abc123", 0, 20))
+        with pytest.raises(ValueError, match="Input should be greater than 0"):
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="abc1234567890123456789012345678901234567",
+                    start=0,
+                    end=20,
+                )
+            )
 
         # Test negative start line
-        with pytest.raises(ValueError, match="Start line must be positive, got -5"):
-            Citation(Span("test.c", "def456", -5, 5))
+        with pytest.raises(ValueError, match="Input should be greater than 0"):
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="def4567890123456789012345678901234567890",
+                    start=-5,
+                    end=5,
+                )
+            )
 
         # Test end < start
-        with pytest.raises(ValueError, match="End line 10 must be >= start line 20"):
-            Citation(Span("test.c", "ghi789", 20, 10))
+        with pytest.raises(ValidationError):  # SHA too long will be caught first
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="ghi7890123456789012345678901234567890123456",
+                    start=20,
+                    end=10,
+                )
+            )
 
         # Valid citations
         formatter = CitationFormatter()
         citations = [
-            Citation(Span("test.c", "abc123", 1, 20)),
-            Citation(Span("test.c", "def456", 5, 5)),
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="abc1234567890123456789012345678901234567",
+                    start=1,
+                    end=20,
+                )
+            ),
+            Citation(
+                span=Span(
+                    path="test.c",
+                    sha="def4567890123456789012345678901234567890",
+                    start=5,
+                    end=5,
+                )
+            ),
         ]
         errors = formatter.validate_citations(citations)
         assert len(errors) == 0
@@ -484,7 +738,14 @@ class TestEnsureCitations:
         response_data = {
             "hits": [{"snippet": "code snippet", "score": 0.9}],
             "cites": [
-                {"span": {"path": "test.c", "sha": "abc123", "start": 10, "end": 20}}
+                {
+                    "span": {
+                        "path": "test.c",
+                        "sha": "abc1234567890123456789012345678901234567",
+                        "start": 10,
+                        "end": 20,
+                    }
+                }
             ],
         }
 
@@ -516,7 +777,7 @@ class TestEnsureCitations:
                 {
                     "span": {
                         "path": "",  # Invalid empty path
-                        "sha": "abc123",
+                        "sha": "abc1234567890123456789012345678901234567",
                         "start": 10,
                         "end": 20,
                     }
@@ -532,9 +793,27 @@ class TestEnsureCitations:
         formatter = CitationFormatter()
         response_data = {
             "results": ["some data"],
-            "cites": [formatter.to_dict(Span("test1.c", "abc123", 10, 20))],
+            "cites": [
+                formatter.to_dict(
+                    Span(
+                        path="test1.c",
+                        sha="abc1234567890123456789012345678901234567",
+                        start=10,
+                        end=20,
+                    )
+                )
+            ],
             "references": [
-                formatter.to_dict(Citation(Span("test2.c", "def456", 30, 40)))
+                formatter.to_dict(
+                    Citation(
+                        span=Span(
+                            path="test2.c",
+                            sha="def4567890123456789012345678901234567890",
+                            start=30,
+                            end=40,
+                        )
+                    )
+                )
             ],
         }
 
@@ -552,14 +831,16 @@ class TestConvenienceFunctions:
             file_path="kernel/test.c",
             start_line=100,
             end_line=150,
-            sha="abcdef123456",
+            sha="abcdef1234567890123456789012345678901234",
         )
 
         assert isinstance(span, Span)
         assert span.path == "kernel/test.c"
         assert span.start == 100
         assert span.end == 150
-        assert span.sha == "abcdef12"
+        assert (
+            span.sha == "abcdef1234567890123456789012345678901234"
+        )  # Full SHA preserved
 
     def test_cite_function_def(self):
         """Test cite_function_def convenience function."""
@@ -568,7 +849,7 @@ class TestConvenienceFunctions:
             file_path="fs/read_write.c",
             start_line=500,
             end_line=600,
-            sha="fedcba987654",
+            sha="fedcba9876543210987654321098765432109876",
         )
 
         assert isinstance(citation, Citation)
@@ -600,14 +881,19 @@ class TestSerializationRoundTrip:
     def test_span_json_roundtrip(self):
         """Test span JSON serialization round trip."""
         formatter = CitationFormatter()
-        original_span = Span("drivers/block/loop.c", "deadbeef", 200, 300)
+        original_span = Span(
+            path="drivers/block/loop.c",
+            sha="deadbeef12345678901234567890123456789012",
+            start=200,
+            end=300,
+        )
 
         # To dict and back
         span_dict = formatter.to_dict(original_span)
         restored_span = formatter.from_dict(span_dict)
 
         assert restored_span.path == original_span.path
-        assert restored_span.sha == original_span.sha
+        assert restored_span.sha == original_span.sha  # SHA preserved in JSON roundtrip
         assert restored_span.start == original_span.start
         assert restored_span.end == original_span.end
 
@@ -615,7 +901,12 @@ class TestSerializationRoundTrip:
         """Test citation JSON serialization round trip."""
         formatter = CitationFormatter()
         original_citation = Citation(
-            span=Span("net/ipv4/tcp.c", "cafebabe", 1000, 1100),
+            span=Span(
+                path="net/ipv4/tcp.c",
+                sha="cafebabe12345678901234567890123456789012",
+                start=1000,
+                end=1100,
+            ),
             context="TCP socket handling",
         )
 
@@ -632,14 +923,21 @@ class TestSerializationRoundTrip:
     def test_span_text_roundtrip(self):
         """Test span text format round trip."""
         formatter = CitationFormatter()
-        original_span = Span("arch/arm64/kernel/entry.S", "12345678", 50, 75)
+        original_span = Span(
+            path="arch/arm64/kernel/entry.S",
+            sha="1234567890123456789012345678901234567890",
+            start=50,
+            end=75,
+        )
 
         # To text and back
         span_text = formatter.format_span_text(original_span)
         restored_span = formatter.parse_span_text(span_text)
 
         assert restored_span.path == original_span.path
-        assert restored_span.sha == original_span.sha
+        assert (
+            restored_span.sha == "1234567800000000000000000000000000000000"
+        )  # Padded from parsed 8-char display
         assert restored_span.start == original_span.start
         assert restored_span.end == original_span.end
 
