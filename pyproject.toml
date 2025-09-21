@@ -145,7 +145,7 @@ disallow_untyped_decorators = false
 
 
 [[tool.mypy.overrides]]
-module = ["kcs_python_bridge", "asyncpg", "numpy"]
+module = ["kcs_python_bridge", "asyncpg", "numpy", "sentence_transformers"]
 ignore_missing_imports = true
 
 

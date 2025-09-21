@@ -93,7 +93,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### Core Services [P]
 
-- [ ] T022 [P] EmbeddingService with BAAI/bge-small-en-v1.5 integration in src/python/semantic_search/services/embedding_service.py
+- [x] T022 [P] EmbeddingService with BAAI/bge-small-en-v1.5 integration in src/python/semantic_search/services/embedding_service.py
 - [ ] T023 [P] QueryPreprocessor for text normalization in src/python/semantic_search/services/query_preprocessor.py
 - [ ] T024 [P] VectorSearchService with pgvector operations in src/python/semantic_search/services/vector_search_service.py
 - [ ] T025 [P] RankingService with hybrid BM25+semantic scoring in src/python/semantic_search/services/ranking_service.py
