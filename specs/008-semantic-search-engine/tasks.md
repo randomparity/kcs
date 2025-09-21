@@ -96,7 +96,7 @@ These tests MUST be written and MUST FAIL before ANY implementation
 - [x] T022 [P] EmbeddingService with BAAI/bge-small-en-v1.5 integration in src/python/semantic_search/services/embedding_service.py
 - [x] T023 [P] QueryPreprocessor for text normalization in src/python/semantic_search/services/query_preprocessor.py
 - [x] T024 [P] VectorSearchService with pgvector operations in src/python/semantic_search/services/vector_search_service.py
-- [ ] T025 [P] RankingService with hybrid BM25+semantic scoring in src/python/semantic_search/services/ranking_service.py
+- [x] T025 [P] RankingService with hybrid BM25+semantic scoring in src/python/semantic_search/services/ranking_service.py
 
 ### Database Layer
 
