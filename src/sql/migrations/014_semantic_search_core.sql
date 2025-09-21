@@ -300,15 +300,32 @@ COMMENT ON FUNCTION cleanup_old_search_results(integer) IS
 COMMENT ON FUNCTION reindex_content(text[], text[]) IS
 'Marks content for reindexing and cleans up existing embeddings';
 
--- Grant permissions (assuming standard KCS roles exist)
--- These should be adjusted based on actual KCS permission model
-GRANT SELECT, INSERT, UPDATE, DELETE ON indexed_content TO kcs_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON vector_embedding TO kcs_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON search_query TO kcs_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON search_result TO kcs_app;
-GRANT USAGE ON SEQUENCE indexed_content_id_seq TO kcs_app;
-GRANT USAGE ON SEQUENCE vector_embedding_id_seq TO kcs_app;
-GRANT USAGE ON SEQUENCE search_query_id_seq TO kcs_app;
-GRANT USAGE ON SEQUENCE search_result_id_seq TO kcs_app;
+-- Grant permissions to database user
+-- Note: These grants assume the 'kcs' user exists. For different database setups:
+-- 1. Comment out these grants if using a different user
+-- 2. Or run manually: GRANT SELECT, INSERT, UPDATE, DELETE ON <tables> TO <your_user>;
+-- 3. For production, handle permissions via your database management process
+
+-- Only grant if the 'kcs' role exists (compatible with default KCS setup)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kcs') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON indexed_content TO kcs;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON vector_embedding TO kcs;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON search_query TO kcs;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON search_result TO kcs;
+        GRANT USAGE ON SEQUENCE indexed_content_id_seq TO kcs;
+        GRANT USAGE ON SEQUENCE vector_embedding_id_seq TO kcs;
+        GRANT USAGE ON SEQUENCE search_query_id_seq TO kcs;
+        GRANT USAGE ON SEQUENCE search_result_id_seq TO kcs;
+        RAISE NOTICE 'Permissions granted to user: kcs';
+    ELSE
+        RAISE NOTICE 'User "kcs" does not exist - skipping permission grants';
+        RAISE NOTICE 'Please manually grant permissions to your database user:';
+        RAISE NOTICE 'GRANT SELECT, INSERT, UPDATE, DELETE ON indexed_content, vector_embedding, search_query, search_result TO <your_user>;';
+        RAISE NOTICE 'GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO <your_user>;';
+    END IF;
+END
+$$;
 
 COMMIT;
