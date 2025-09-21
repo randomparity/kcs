@@ -106,9 +106,9 @@ These tests MUST be written and MUST FAIL before ANY implementation
 
 ### CLI Interface [P]
 
-- [ ] T029 [P] CLI search command in src/python/semantic_search/cli/search_commands.py
-- [ ] T030 [P] CLI index command in src/python/semantic_search/cli/index_commands.py
-- [ ] T031 [P] CLI status command in src/python/semantic_search/cli/status_commands.py
+- [x] T029 [P] CLI search command in src/python/semantic_search/cli/search_commands.py
+- [x] T030 [P] CLI index command in src/python/semantic_search/cli/index_commands.py
+- [x] T031 [P] CLI status command in src/python/semantic_search/cli/status_commands.py
 
 ## Phase 3.4: Integration
 
