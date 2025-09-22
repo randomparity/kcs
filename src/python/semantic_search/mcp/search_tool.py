@@ -381,3 +381,46 @@ async def execute_semantic_search(request_data: dict[str, Any]) -> dict[str, Any
         Semantic search results following MCP contract
     """
     return await semantic_search_tool.execute(request_data)
+
+
+async def semantic_search(
+    query: str,
+    max_results: int = 10,
+    min_confidence: float = 0.5,
+    content_types: list[str] | None = None,
+    config_contexts: list[str] | None = None,
+    file_patterns: list[str] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """
+    Semantic search function for backward compatibility with tests.
+
+    This is a wrapper function that provides a direct function interface
+    for the SemanticSearchTool class, primarily used by unit tests.
+
+    Args:
+        query: Natural language search query
+        max_results: Maximum number of results to return (default: 10)
+        min_confidence: Minimum confidence threshold (0.0-1.0, default: 0.5)
+        content_types: Filter results by content types
+        config_contexts: Filter by kernel configuration contexts
+        file_patterns: Filter by file path patterns
+        **kwargs: Additional parameters (ignored for compatibility)
+
+    Returns:
+        Dictionary containing search results following MCP contract
+    """
+    request_data = {
+        "query": query,
+        "max_results": max_results,
+        "min_confidence": min_confidence,
+    }
+
+    if content_types is not None:
+        request_data["content_types"] = content_types
+    if config_contexts is not None:
+        request_data["config_contexts"] = config_contexts
+    if file_patterns is not None:
+        request_data["file_patterns"] = file_patterns
+
+    return await semantic_search_tool.execute(request_data)
