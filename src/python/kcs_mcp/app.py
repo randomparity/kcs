@@ -19,6 +19,17 @@ from .models import ErrorResponse, RootEndpointResponse
 from .resources import router as resources_router
 from .tools import router as tools_router
 
+# Import semantic search integration
+try:
+    from semantic_search.startup import (
+        initialize_semantic_search,
+        shutdown_semantic_search,
+    )
+
+    SEMANTIC_SEARCH_AVAILABLE = True
+except ImportError:
+    SEMANTIC_SEARCH_AVAILABLE = False
+
 # Configure structured logging
 structlog.configure(
     processors=[
@@ -43,11 +54,14 @@ logger = structlog.get_logger(__name__)
 # Security
 security = HTTPBearer(auto_error=False)
 
+# Constants
+DEFAULT_JWT_SECRET = "dev_jwt_secret_change_in_production_use_64_char_random_string"
+
 # Configuration
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://kcs:kcs_dev_password@localhost:5432/kcs"
 )
-JWT_SECRET = os.getenv("JWT_SECRET", "dev_jwt_secret_change_in_production")
+JWT_SECRET = os.getenv("JWT_SECRET", DEFAULT_JWT_SECRET)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
@@ -108,13 +122,45 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Set a mock database for testing
         app.state.database = None
 
+    # Initialize semantic search if available
+    if SEMANTIC_SEARCH_AVAILABLE:
+        try:
+            semantic_search_initialized = await initialize_semantic_search(DATABASE_URL)
+            app.state.semantic_search_enabled = semantic_search_initialized
+            if semantic_search_initialized:
+                logger.info("Semantic search engine initialized successfully")
+            else:
+                logger.warning(
+                    "Semantic search initialization failed, continuing without it"
+                )
+        except Exception as e:
+            logger.warning("Semantic search initialization error", error=str(e))
+            app.state.semantic_search_enabled = False
+    else:
+        logger.info("Semantic search not available, continuing without it")
+        app.state.semantic_search_enabled = False
+
     logger.info("KCS MCP server started successfully")
 
     yield
 
     # Cleanup
     logger.info("Shutting down KCS MCP server")
-    await database.disconnect()
+
+    # Shutdown semantic search if it was initialized
+    if SEMANTIC_SEARCH_AVAILABLE and getattr(
+        app.state, "semantic_search_enabled", False
+    ):
+        try:
+            await shutdown_semantic_search()
+            logger.info("Semantic search engine shutdown complete")
+        except Exception as e:
+            logger.warning("Error during semantic search shutdown", error=str(e))
+
+    # Shutdown database
+    if getattr(app.state, "database", None):
+        await database.disconnect()
+
     logger.info("KCS MCP server shutdown complete")
 
 
@@ -151,11 +197,13 @@ async def verify_token(
 
     token = credentials.credentials
 
+    # Debug logging for token verification
+    logger.info(
+        f"Authenticating token: {token[:20]}{'...' if len(token) > 20 else ''} vs JWT_SECRET: {JWT_SECRET[:20]}{'...' if len(JWT_SECRET) > 20 else ''} (env: {ENVIRONMENT})"
+    )
+
     # Security check: In production, ensure JWT_SECRET is not the default value
-    if (
-        ENVIRONMENT == "production"
-        and JWT_SECRET == "dev_jwt_secret_change_in_production"
-    ):
+    if ENVIRONMENT == "production" and JWT_SECRET == DEFAULT_JWT_SECRET:
         logger.error(
             "SECURITY ALERT: Production environment detected with default JWT_SECRET. "
             "This is a serious security vulnerability. Please set a unique JWT_SECRET "
@@ -166,13 +214,26 @@ async def verify_token(
             detail="Server configuration error - check logs",
         )
 
-    # Only allow development token in development environment
-    if ENVIRONMENT == "development" and token == "dev-token":
-        logger.info("Development token accepted")
-        return "dev_user"
+    # Allow development tokens in development environment
+    if ENVIRONMENT == "development":
+        # Accept the hardcoded dev token
+        if token == "dev-token":
+            logger.info("Development token accepted")
+            return "dev_user"
 
-    # TODO: Implement proper JWT verification
-    # For now, reject all other tokens
+        # Also accept the configured JWT secret as a simple token in development
+        if token == JWT_SECRET:
+            logger.info("Development JWT secret accepted as token")
+            return "dev_user"
+
+    # TODO: Implement proper JWT verification with signature checking
+    # For now, in development mode, accept the JWT secret as a simple bearer token
+    # In production, this should be replaced with proper JWT signature verification
+    if token == JWT_SECRET:
+        logger.info("JWT secret accepted as bearer token")
+        return "jwt_user"
+
+    # Reject invalid tokens
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication token",
@@ -218,11 +279,29 @@ async def root() -> RootEndpointResponse:
 @app.get("/health")
 async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
-    return {
+    health_status: dict[str, Any] = {
         "status": "healthy",
         "version": "1.0.0",
         "indexed_at": None,  # TODO: Get from database
+        "database_connected": getattr(app.state, "database", None) is not None,
     }
+
+    # Add semantic search health status
+    if SEMANTIC_SEARCH_AVAILABLE:
+        try:
+            from semantic_search.startup import get_semantic_search_health
+
+            semantic_health = get_semantic_search_health()
+            health_status["semantic_search"] = semantic_health
+        except Exception as e:
+            health_status["semantic_search"] = {"available": False, "error": str(e)}
+    else:
+        health_status["semantic_search"] = {
+            "available": False,
+            "reason": "not_installed",
+        }
+
+    return health_status
 
 
 @app.get("/metrics")

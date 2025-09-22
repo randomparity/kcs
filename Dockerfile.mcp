@@ -49,12 +49,24 @@ COPY --from=python-builder /app/dist/*.whl ./
 # Install the application
 RUN pip install --no-cache-dir *.whl
 
+# Download the embedding model during build
+# This ensures it's available in the container and avoids runtime download issues
+RUN python -c "from sentence_transformers import SentenceTransformer; \
+    model = SentenceTransformer('BAAI/bge-small-en-v1.5'); \
+    print('Model downloaded successfully')"
+
 # Copy configuration
 COPY tools/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Create cache directory for the kcs user
+RUN mkdir -p /home/kcs/.cache && chown -R kcs:kcs /home/kcs
+
 # Switch to non-root user
 USER kcs
+
+# Set HOME environment variable for the kcs user
+ENV HOME=/home/kcs
 
 EXPOSE 8080
 

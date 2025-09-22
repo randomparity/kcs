@@ -1,0 +1,320 @@
+{
+  "mcp_version": "2025-09-20",
+  "tool_definitions": {
+    "semantic_search": {
+      "name": "semantic_search",
+      "description": "Search kernel source code and documentation using natural language queries with semantic understanding",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language search query",
+            "minLength": 1,
+            "maxLength": 1000,
+            "examples": [
+              "memory allocation functions that can fail",
+              "buffer overflow vulnerabilities in network drivers",
+              "mutex locking patterns in filesystem code"
+            ]
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of results to return",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 10
+          },
+          "min_confidence": {
+            "type": "number",
+            "description": "Minimum confidence score for results (0.0-1.0)",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "default": 0.5
+          },
+          "content_types": {
+            "type": "array",
+            "description": "Filter by content types",
+            "items": {
+              "type": "string",
+              "enum": ["SOURCE_CODE", "DOCUMENTATION", "HEADER", "COMMENT"]
+            },
+            "default": ["SOURCE_CODE", "HEADER"]
+          },
+          "config_context": {
+            "type": "array",
+            "description": "Kernel configuration context for filtering",
+            "items": {
+              "type": "string",
+              "pattern": "^!?CONFIG_[A-Z0-9_]+$"
+            },
+            "examples": [["CONFIG_NET", "CONFIG_INET", "!CONFIG_EMBEDDED"]]
+          },
+          "file_patterns": {
+            "type": "array",
+            "description": "Filter results by file path patterns",
+            "items": {
+              "type": "string"
+            },
+            "examples": [["drivers/net/*", "fs/*", "kernel/sched/*"]]
+          }
+        },
+        "required": ["query"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "query_id": {
+            "type": "string",
+            "description": "Unique identifier for this search query"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "Absolute path to the source file"
+                },
+                "line_start": {
+                  "type": "integer",
+                  "description": "Starting line number of the match"
+                },
+                "line_end": {
+                  "type": "integer",
+                  "description": "Ending line number of the match"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "The matched content"
+                },
+                "context_lines": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Surrounding lines for context"
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 1.0,
+                  "description": "Confidence score for this result"
+                },
+                "similarity_score": {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 1.0,
+                  "description": "Semantic similarity score"
+                },
+                "explanation": {
+                  "type": "string",
+                  "description": "Why this result matches the query"
+                },
+                "content_type": {
+                  "type": "string",
+                  "enum": ["SOURCE_CODE", "DOCUMENTATION", "HEADER", "COMMENT"]
+                },
+                "metadata": {
+                  "type": "object",
+                  "description": "Additional context about the match",
+                  "properties": {
+                    "function_name": {"type": "string"},
+                    "symbols": {"type": "array", "items": {"type": "string"}},
+                    "config_guards": {"type": "array", "items": {"type": "string"}}
+                  }
+                }
+              },
+              "required": ["file_path", "line_start", "line_end", "content", "confidence", "similarity_score", "content_type"]
+            }
+          },
+          "search_stats": {
+            "type": "object",
+            "properties": {
+              "total_matches": {
+                "type": "integer",
+                "description": "Total number of potential matches found"
+              },
+              "filtered_matches": {
+                "type": "integer",
+                "description": "Number of matches after confidence filtering"
+              },
+              "search_time_ms": {
+                "type": "integer",
+                "description": "Time taken for search in milliseconds"
+              },
+              "embedding_time_ms": {
+                "type": "integer",
+                "description": "Time taken for query embedding generation"
+              }
+            },
+            "required": ["total_matches", "search_time_ms"]
+          }
+        },
+        "required": ["query_id", "results", "search_stats"]
+      }
+    },
+    "index_content": {
+      "name": "index_content",
+      "description": "Index new content for semantic search (admin operation)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file_paths": {
+            "type": "array",
+            "description": "List of file paths to index",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 1000
+          },
+          "force_reindex": {
+            "type": "boolean",
+            "description": "Force reindexing of already indexed files",
+            "default": false
+          },
+          "chunk_size": {
+            "type": "integer",
+            "description": "Size of text chunks for embedding",
+            "minimum": 100,
+            "maximum": 2000,
+            "default": 500
+          },
+          "chunk_overlap": {
+            "type": "integer",
+            "description": "Overlap between consecutive chunks",
+            "minimum": 0,
+            "maximum": 200,
+            "default": 50
+          }
+        },
+        "required": ["file_paths"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "Unique identifier for the indexing job"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["QUEUED", "PROCESSING", "COMPLETED", "FAILED"]
+          },
+          "files_processed": {
+            "type": "integer",
+            "description": "Number of files successfully processed"
+          },
+          "files_failed": {
+            "type": "integer",
+            "description": "Number of files that failed processing"
+          },
+          "chunks_created": {
+            "type": "integer",
+            "description": "Total number of embedding chunks created"
+          },
+          "processing_time_ms": {
+            "type": "integer",
+            "description": "Total processing time in milliseconds"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "file_path": {"type": "string"},
+                "error_message": {"type": "string"},
+                "line_number": {"type": "integer"}
+              },
+              "required": ["file_path", "error_message"]
+            }
+          }
+        },
+        "required": ["job_id", "status", "files_processed", "files_failed", "chunks_created"]
+      }
+    },
+    "get_index_status": {
+      "name": "get_index_status",
+      "description": "Check the status of content indexing",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file_pattern": {
+            "type": "string",
+            "description": "Optional file pattern to filter status check",
+            "examples": ["drivers/net/*", "fs/ext4/*"]
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "total_files": {
+            "type": "integer",
+            "description": "Total number of files in index"
+          },
+          "indexed_files": {
+            "type": "integer",
+            "description": "Number of successfully indexed files"
+          },
+          "pending_files": {
+            "type": "integer",
+            "description": "Number of files pending indexing"
+          },
+          "failed_files": {
+            "type": "integer",
+            "description": "Number of files that failed indexing"
+          },
+          "total_chunks": {
+            "type": "integer",
+            "description": "Total number of embedding chunks"
+          },
+          "index_size_mb": {
+            "type": "number",
+            "description": "Estimated index size in megabytes"
+          },
+          "last_update": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of last index update"
+          }
+        },
+        "required": ["total_files", "indexed_files", "pending_files", "failed_files", "total_chunks"]
+      }
+    }
+  },
+  "error_definitions": {
+    "QUERY_TOO_LONG": {
+      "code": "QUERY_TOO_LONG",
+      "message": "Query exceeds maximum length of 1000 characters",
+      "retryable": false
+    },
+    "EMBEDDING_FAILED": {
+      "code": "EMBEDDING_FAILED",
+      "message": "Failed to generate embedding for query",
+      "retryable": true
+    },
+    "SEARCH_TIMEOUT": {
+      "code": "SEARCH_TIMEOUT",
+      "message": "Search exceeded maximum time limit of 600ms",
+      "retryable": true
+    },
+    "INDEX_UNAVAILABLE": {
+      "code": "INDEX_UNAVAILABLE",
+      "message": "Vector index is currently unavailable",
+      "retryable": true
+    },
+    "INVALID_CONFIG_CONTEXT": {
+      "code": "INVALID_CONFIG_CONTEXT",
+      "message": "Invalid kernel configuration context provided",
+      "retryable": false
+    },
+    "INDEXING_IN_PROGRESS": {
+      "code": "INDEXING_IN_PROGRESS",
+      "message": "Content indexing is currently in progress",
+      "retryable": true
+    }
+  }
+}

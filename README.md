@@ -152,31 +152,36 @@ analysis with ground-truth accuracy.
    # Clone a Linux kernel (if you don't have one)
    git clone --depth 1 https://github.com/torvalds/linux.git ~/src/linux
 
-   # Set environment for indexing tools
-   export DATABASE_URL="postgresql://kcs:postgres_i_hardly_knew_ya@localhost:5432/kcs"
-   export PYTHONPATH=""
+   # Comprehensive indexing (both symbol + semantic search)
+   scripts/index_all.sh ~/src/linux
 
-   # Index the kernel (takes 10-30 minutes depending on system)
-   tools/index_kernel.sh ~/src/linux
+   # Or just symbol indexing (faster, exact symbol lookup only)
+   scripts/index_all.sh --skip-semantic ~/src/linux
 
-   # For faster indexing without semantic analysis:
-   tools/index_kernel.sh --no-clang ~/src/linux
+   # Or just semantic search indexing (natural language queries)
+   scripts/index_all.sh --skip-symbol ~/src/linux
+
+   # Limit semantic indexing for faster testing
+   scripts/index_all.sh --semantic-max-files 500 ~/src/linux
    ```
+
+   **What gets indexed:**
+   - **Symbol indexing**: Functions, entry points, call graphs (exact matching)
+   - **Semantic search**: Text chunks with vector embeddings (similarity matching)
 
 8. **Test the API**
 
    ```bash
-   # Search for memory management code
-   curl -X POST http://localhost:8080/mcp/tools/search_code \
+   # Semantic search (natural language queries)
+   curl -X POST http://localhost:8080/mcp/tools/semantic_search \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer dev_jwt_secret_change_in_production" \
-     -d '{"query": "memory allocation", "topK": 5}'
+     -H "Authorization: Bearer dev-token" \
+     -d '{"query": "memory allocation error handling", "limit": 5}'
 
-   # Get symbol information
+   # Symbol search (exact function/symbol lookup)
    curl -X POST http://localhost:8080/mcp/tools/get_symbol \
      -H "Content-Type: application/json" \
-     -H "Authorization: Bearer dev_jwt_secret_change_in_production" \
-     -d '{"symbol": "sys_read"}'
+     -d '{"arguments": {"symbol": "kmalloc"}}'
    ```
 
 ### Option 2: Local Development Setup
@@ -544,12 +549,38 @@ curl -X POST http://localhost:8080/mcp/tools/export_graph \
 
 ## Indexing Process
 
-### Full Kernel Index
+### Comprehensive Indexing (Recommended)
 
-Index a complete kernel repository:
+Use the unified indexing script for both symbol and semantic search:
 
 ```bash
-# Basic indexing with call graph extraction
+# Full indexing (symbol + semantic search)
+scripts/index_all.sh ~/src/linux
+
+# Symbol indexing only (faster, exact symbol lookup)
+scripts/index_all.sh --skip-semantic ~/src/linux
+
+# Semantic search only (natural language queries)
+scripts/index_all.sh --skip-symbol ~/src/linux
+
+# Limit semantic files for testing
+scripts/index_all.sh --semantic-max-files 500 ~/src/linux
+
+# Verbose output for debugging
+scripts/index_all.sh --verbose ~/src/linux
+```
+
+**Indexing Types:**
+
+- **Symbol Indexing**: Functions, symbols, entry points, call graphs (exact matching)
+- **Semantic Search**: Text chunks with vector embeddings (similarity matching)
+
+### Legacy Symbol-Only Indexing
+
+For compatibility, the original symbol indexing tool is still available:
+
+```bash
+# Basic symbol indexing only
 tools/index_kernel.sh ~/src/linux
 
 # With specific configuration
@@ -557,9 +588,6 @@ tools/index_kernel.sh --config arm64:defconfig ~/src/linux
 
 # Custom output directory and parallel jobs
 tools/index_kernel.sh --output /data/kcs-index --jobs 8 ~/src/linux
-
-# Incremental update (faster for git changes)
-tools/index_kernel.sh --incremental ~/src/linux
 
 # Use kcs-parser directly with call graph extraction
 kcs-parser --include-calls directory ~/src/linux/fs/

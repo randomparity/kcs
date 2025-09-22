@@ -69,7 +69,7 @@ install-hooks: venv ## Install pre-commit hooks
 build-rust: ## Build Rust components
 	@echo "$(BLUE)Building Rust components...$(NC)"
 	@if [ -d "src/rust" ]; then \
-		cd src/rust && cargo build --release --workspace; \
+		cd src/rust && PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo build --release --workspace; \
 		echo "$(GREEN)✅ Rust components built$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️  No Rust source found, skipping$(NC)"; \
@@ -301,6 +301,17 @@ docker-compose-down: ## Stop all services with docker compose (all profiles)
 	@echo "$(BLUE)Stopping all services with docker compose...$(NC)"
 	@docker compose --profile app --profile monitoring down
 	@echo "$(GREEN)✅ All services stopped$(NC)"
+
+docker-compose-rebuild: ## Force rebuild containers with latest code changes
+	@echo "$(BLUE)Stopping services and rebuilding containers...$(NC)"
+	@docker compose --profile app --profile monitoring down
+	@echo "$(BLUE)Building containers with latest code...$(NC)"
+	@docker compose build kcs-mcp
+	@echo "$(GREEN)✅ Containers rebuilt with latest code$(NC)"
+	@echo ""
+	@echo "$(BLUE)To start services, run one of:$(NC)"
+	@echo "  $(YELLOW)make docker-compose-up-app$(NC)        # Start app services only"
+	@echo "  $(YELLOW)make docker-compose-up-all$(NC)        # Start app + monitoring"
 
 # Database targets
 db-start: ## Start PostgreSQL database

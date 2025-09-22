@@ -32,9 +32,13 @@ dependencies = [
     "python-multipart>=0.0.6",
     "click>=8.1.0",
     "aiofiles>=23.2.1",
-    "pgvector>=0.2.4",
+    "pgvector==0.3.0",
     "pyyaml>=6.0",
     "tomli-w>=1.0.0",
+    "sentence-transformers>=2.7.0,<3.0.0",
+    "psycopg2-binary>=2.9.9",
+    "psutil>=5.9.0",
+    "watchdog>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -142,7 +146,7 @@ disallow_untyped_decorators = false
 
 
 [[tool.mypy.overrides]]
-module = ["kcs_python_bridge", "asyncpg"]
+module = ["kcs_python_bridge", "asyncpg", "numpy", "sentence_transformers", "watchdog.*"]
 ignore_missing_imports = true
 
 
@@ -156,6 +160,7 @@ markers = [
     "integration: marks tests as integration tests",
     "contract: marks tests as contract tests",
     "performance: marks tests as performance tests",
+    "compliance: marks tests as constitutional compliance validation",
 ]
 
 [tool.coverage.run]
