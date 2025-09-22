@@ -124,9 +124,10 @@ class TestVectorStore:
         embedding_id = await self.vector_store.store_embedding(
             content_id=123,
             embedding=embedding,
+            chunk_text="test chunk text",
+            chunk_index=0,
             model_name="BAAI/bge-small-en-v1.5",
             model_version="1.5",
-            chunk_index=0,
         )
 
         assert embedding_id == 789
@@ -142,7 +143,7 @@ class TestVectorStore:
         self.mock_db.fetch_val.return_value = 456  # Existing embedding ID
 
         embedding_id = await self.vector_store.store_embedding(
-            content_id=123, embedding=embedding
+            content_id=123, embedding=embedding, chunk_text="updated test chunk"
         )
 
         assert embedding_id == 456
@@ -156,18 +157,20 @@ class TestVectorStore:
         """Test embedding storage with invalid input."""
         # Empty embedding
         with pytest.raises(ValueError, match="Embedding cannot be empty"):
-            await self.vector_store.store_embedding(content_id=123, embedding=[])
+            await self.vector_store.store_embedding(
+                content_id=123, embedding=[], chunk_text="test"
+            )
 
         # Wrong dimensions
         with pytest.raises(ValueError, match="Expected 384 dimensions, got 128"):
             await self.vector_store.store_embedding(
-                content_id=123, embedding=[0.1] * 128
+                content_id=123, embedding=[0.1] * 128, chunk_text="test chunk"
             )
 
         # Too many dimensions
         with pytest.raises(ValueError, match="Expected 384 dimensions, got 512"):
             await self.vector_store.store_embedding(
-                content_id=123, embedding=[0.1] * 512
+                content_id=123, embedding=[0.1] * 512, chunk_text="test chunk"
             )
 
     @pytest.mark.asyncio
@@ -177,12 +180,14 @@ class TestVectorStore:
         self.mock_db.fetch_val.side_effect = Exception("Database error")
 
         with pytest.raises(RuntimeError, match="Failed to store embedding"):
-            await self.vector_store.store_embedding(content_id=123, embedding=embedding)
+            await self.vector_store.store_embedding(
+                content_id=123, embedding=embedding, chunk_text="test chunk"
+            )
 
         # Should mark content as failed
         assert self.mock_db.execute.call_count == 1
         execute_call = self.mock_db.execute.call_args_list[0]
-        assert "status = 'failed'" in execute_call[0][0]
+        assert "status = 'FAILED'" in execute_call[0][0]
 
     @pytest.mark.asyncio
     async def test_similarity_search_basic(self):
@@ -722,7 +727,9 @@ class TestVectorOperationsIntegration:
         ]  # No existing embedding, then new ID
 
         embedding_id = await self.vector_store.store_embedding(
-            content_id=content_id, embedding=embedding
+            content_id=content_id,
+            embedding=embedding,
+            chunk_text="void kmalloc() { /* memory allocation */ }",
         )
 
         assert embedding_id == 456
@@ -768,11 +775,13 @@ class TestVectorOperationsIntegration:
         self.mock_db.fetch_val.side_effect = [None, Exception("Embedding store failed")]
 
         with pytest.raises(RuntimeError):
-            await self.vector_store.store_embedding(content_id=123, embedding=embedding)
+            await self.vector_store.store_embedding(
+                content_id=123, embedding=embedding, chunk_text="test chunk"
+            )
 
         # Verify that content status was marked as failed
         execute_calls = self.mock_db.execute.call_args_list
-        assert any("status = 'failed'" in call[0][0] for call in execute_calls)
+        assert any("status = 'FAILED'" in call[0][0] for call in execute_calls)
 
     @pytest.mark.asyncio
     async def test_content_hash_consistency(self):

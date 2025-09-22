@@ -663,7 +663,7 @@ class VectorStore:
             Storage statistics dictionary
         """
         try:
-            stats = {}
+            stats: dict[str, Any] = {}
 
             # Content counts by type and status
             content_stats = await self._db.fetch_all(
@@ -695,18 +695,25 @@ class VectorStore:
             stats["total_content"] = total_content
             stats["total_embeddings"] = total_embeddings
 
-            # Embedding model distribution (using default model since columns don't exist)
-            total_embeddings = await self._db.fetch_val(
-                "SELECT COUNT(*) FROM vector_embedding"
+            # Embedding model distribution
+            model_stats = await self._db.fetch_all(
+                """
+                SELECT model_name, model_version, COUNT(*) as count
+                FROM vector_embedding
+                GROUP BY model_name, model_version
+                ORDER BY count DESC
+                """
             )
 
-            embedding_models = [
-                {
-                    "model": "BAAI/bge-small-en-v1.5:1.0",
-                    "count": total_embeddings,
-                }
-            ]
-            stats["embedding_models"] = embedding_models  # type: ignore
+            embedding_models = []
+            for row in model_stats:
+                embedding_models.append(
+                    {
+                        "model": f"{row['model_name']}:{row['model_version']}",
+                        "count": row["count"],
+                    }
+                )
+            stats["embedding_models"] = embedding_models
 
             return stats
 
