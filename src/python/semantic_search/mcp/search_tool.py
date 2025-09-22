@@ -251,10 +251,10 @@ class SemanticSearchTool:
     def _map_content_types(self, mcp_types: list[str]) -> list[str]:
         """Map MCP content types to internal content types."""
         type_mapping = {
-            "SOURCE_CODE": ["C_SOURCE"],
-            "HEADER": ["C_HEADER"],
-            "DOCUMENTATION": ["DOCUMENTATION"],
-            "COMMENT": ["C_SOURCE", "C_HEADER"],  # Comments in source files
+            "SOURCE_CODE": ["c_source"],
+            "HEADER": ["c_header"],
+            "DOCUMENTATION": ["documentation"],
+            "COMMENT": ["c_source", "c_header"],  # Comments in source files
         }
 
         internal_types = []
@@ -262,15 +262,15 @@ class SemanticSearchTool:
             if mcp_type in type_mapping:
                 internal_types.extend(type_mapping[mcp_type])
 
-        return list(set(internal_types)) if internal_types else ["C_SOURCE", "C_HEADER"]
+        return list(set(internal_types)) if internal_types else ["c_source", "c_header"]
 
     def _map_content_type_response(self, internal_type: str) -> str:
         """Map internal content type to MCP response type."""
         type_mapping = {
-            "C_SOURCE": "SOURCE_CODE",
-            "C_HEADER": "HEADER",
-            "DOCUMENTATION": "DOCUMENTATION",
-            "MAKEFILE": "SOURCE_CODE",
+            "c_source": "SOURCE_CODE",
+            "c_header": "HEADER",
+            "documentation": "DOCUMENTATION",
+            "makefile": "SOURCE_CODE",
         }
 
         return type_mapping.get(internal_type, "SOURCE_CODE")
@@ -328,7 +328,7 @@ class SemanticSearchTool:
                 }
 
             return {
-                "file_path": file_row["source_path"],
+                "file_path": file_row["file_path"],  # Already aliased in query
                 "content_type": file_row["content_type"],
                 "content": file_row["content"],
                 "metadata": file_row["metadata"] or {},

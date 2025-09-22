@@ -519,9 +519,12 @@ class IndexingWorker:
             if self.vector_store:
                 db_conn = get_database_connection()
                 async with db_conn.acquire() as conn:
+                    import json
+
+                    metadata_json = json.dumps(metadata)
                     await conn.execute(
                         "UPDATE indexed_content SET metadata = $1 WHERE id = $2",
-                        metadata,
+                        metadata_json,
                         content_id,
                     )
 

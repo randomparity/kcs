@@ -206,11 +206,26 @@ async def main():
     print(f"   Kernel path: {kernel_path}")
     print(f"   Max files: {max_files}")
 
+    import os
+    db_url = os.environ.get('DATABASE_URL', 'NOT_SET')
+    if 'postgresql://' in db_url:
+        # Mask the password for security
+        masked_url = db_url.split('@')[0].split(':')[:-1]
+        masked_url = ':'.join(masked_url) + ':***@' + db_url.split('@')[1]
+        print(f"   DEBUG: DATABASE_URL: {masked_url}")
+    else:
+        print(f"   DEBUG: DATABASE_URL: {db_url}")
+
     start_time = time.time()
 
     try:
         # Initialize database connection
-        db_config = DatabaseConfig.from_env()
+        import os
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            db_config = DatabaseConfig.from_url(database_url)
+        else:
+            db_config = DatabaseConfig.from_env()
         await init_database_connection(db_config)
 
         # Define file patterns for kernel source
@@ -250,19 +265,26 @@ async def main():
 
         # Print results
         print(f"\n📊 Semantic Indexing Results:")
-        print(f"   Status: {result.get('status', 'unknown')}")
-        print(f"   Files processed: {result.get('files_indexed', 0)}")
-        print(f"   Files failed: {result.get('files_failed', 0)}")
+        total_files = result.get('total_files', 0)
+        indexed_files = result.get('indexed', 0)
+        already_indexed = result.get('already_indexed', 0)
+        error_count = result.get('errors', 0)
+
+        print(f"   Total files: {total_files}")
+        print(f"   Successfully indexed: {indexed_files}")
+        print(f"   Already indexed: {already_indexed}")
+        print(f"   Errors: {error_count}")
         print(f"   Duration: {duration:.1f}s")
 
-        if result.get('status') == 'completed':
+        if error_count == 0 and indexed_files > 0:
             print(f"🎉 Semantic indexing completed successfully!")
+            return 0
+        elif indexed_files > 0:
+            print(f"⚠️  Semantic indexing completed with some issues")
+            return 0
         else:
-            print(f"⚠️  Semantic indexing completed with issues")
-            if verbose and 'errors' in result:
-                for error in result['errors'][:5]:  # Show first 5 errors
-                    print(f"     Error: {error}")
-            sys.exit(1)
+            print(f"❌ Semantic indexing failed")
+            return 1
 
     except Exception as e:
         print(f"❌ Semantic indexing failed: {e}")
@@ -295,7 +317,14 @@ run_semantic_indexing() {
 
     # Set environment variables
     export PYTHONPATH="$KCS_ROOT/src/python:${PYTHONPATH:-}"
-    export DATABASE_URL="postgresql://kcs:kcs_dev_password_change_in_production@localhost:5432/kcs"
+
+    # Use DATABASE_URL if already set in environment, otherwise use default
+    if [[ -z "${DATABASE_URL:-}" ]]; then
+        export DATABASE_URL="postgresql://kcs:kcs_dev_password_change_in_production@localhost:5432/kcs"
+        info "DEBUG: Using default DATABASE_URL"
+    else
+        info "DEBUG: Using provided DATABASE_URL: ${DATABASE_URL//:*@/:***@}"
+    fi
 
     # Run semantic indexing
     cd "$KCS_ROOT"

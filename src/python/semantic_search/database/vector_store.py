@@ -58,10 +58,10 @@ class DBVectorEmbedding:
         id: int,
         content_id: int,
         embedding: list[float],
-        model_name: str,
-        model_version: str,
         chunk_index: int,
         created_at: datetime,
+        model_name: str = "BAAI/bge-small-en-v1.5",
+        model_version: str = "1.0",
     ):
         self.id = id
         self.content_id = content_id
@@ -162,6 +162,9 @@ class VectorStore:
                 return int(existing_id)
 
             # Insert new content
+            import json
+
+            metadata_json = json.dumps(metadata or {})
             content_id = await self._db.fetch_val(
                 """
                 INSERT INTO indexed_content (
@@ -174,7 +177,7 @@ class VectorStore:
                 content_hash,
                 title,
                 content,
-                metadata or {},
+                metadata_json,
             )
 
             logger.info(f"Stored content with ID {content_id}")
@@ -188,9 +191,10 @@ class VectorStore:
         self,
         content_id: int,
         embedding: list[float],
+        chunk_text: str,
+        chunk_index: int = 0,
         model_name: str = "BAAI/bge-small-en-v1.5",
         model_version: str = "1.5",
-        chunk_index: int = 0,
     ) -> int:
         """
         Store vector embedding for content.
@@ -198,9 +202,10 @@ class VectorStore:
         Args:
             content_id: Referenced content ID
             embedding: Vector embedding
+            chunk_text: Text content of the chunk
+            chunk_index: Index of the chunk within content
             model_name: Model used for embedding
             model_version: Model version
-            chunk_index: Chunk index for split content
 
         Returns:
             Embedding ID
@@ -231,12 +236,11 @@ class VectorStore:
                 await self._db.execute(
                     """
                     UPDATE vector_embedding
-                    SET embedding = $1, model_name = $2, model_version = $3
-                    WHERE id = $4
+                    SET embedding = $1::vector, chunk_text = $2
+                    WHERE id = $3
                     """,
-                    embedding,
-                    model_name,
-                    model_version,
+                    str(embedding),
+                    chunk_text,
                     existing_id,
                 )
                 logger.info(f"Updated embedding with ID {existing_id}")
@@ -246,22 +250,21 @@ class VectorStore:
             embedding_id = await self._db.fetch_val(
                 """
                 INSERT INTO vector_embedding (
-                    content_id, embedding, model_name, model_version, chunk_index
-                ) VALUES ($1, $2, $3, $4, $5)
+                    content_id, embedding, chunk_index, chunk_text
+                ) VALUES ($1, $2::vector, $3, $4)
                 RETURNING id
                 """,
                 content_id,
-                embedding,
-                model_name,
-                model_version,
+                str(embedding),
                 chunk_index,
+                chunk_text,
             )
 
             # Update content status to completed
             await self._db.execute(
                 """
                 UPDATE indexed_content
-                SET status = 'completed', indexed_at = NOW(), updated_at = NOW()
+                SET status = 'COMPLETED', indexed_at = NOW(), updated_at = NOW()
                 WHERE id = $1
                 """,
                 content_id,
@@ -276,7 +279,7 @@ class VectorStore:
             await self._db.execute(
                 """
                 UPDATE indexed_content
-                SET status = 'failed', updated_at = NOW()
+                SET status = 'FAILED', updated_at = NOW()
                 WHERE id = $1
                 """,
                 content_id,
@@ -457,8 +460,8 @@ class VectorStore:
         try:
             row = await self._db.fetch_one(
                 """
-                SELECT id, content_id, embedding, model_name, model_version,
-                       chunk_index, created_at
+                SELECT id, content_id, embedding, chunk_index, chunk_text,
+                       line_start, line_end, metadata, created_at
                 FROM vector_embedding
                 WHERE content_id = $1 AND chunk_index = $2
                 """,
@@ -473,8 +476,6 @@ class VectorStore:
                 id=row["id"],
                 content_id=row["content_id"],
                 embedding=list(row["embedding"]) if row["embedding"] else [],
-                model_name=row["model_name"],
-                model_version=row["model_version"],
                 chunk_index=row["chunk_index"],
                 created_at=row["created_at"],
             )
@@ -694,22 +695,16 @@ class VectorStore:
             stats["total_content"] = total_content
             stats["total_embeddings"] = total_embeddings
 
-            # Embedding model distribution
-            model_stats = await self._db.fetch_all(
-                """
-                SELECT model_name, model_version, COUNT(*) as count
-                FROM vector_embedding
-                GROUP BY model_name, model_version
-                ORDER BY count DESC
-                """
+            # Embedding model distribution (using default model since columns don't exist)
+            total_embeddings = await self._db.fetch_val(
+                "SELECT COUNT(*) FROM vector_embedding"
             )
 
             embedding_models = [
                 {
-                    "model": f"{row['model_name']}:{row['model_version']}",
-                    "count": row["count"],
+                    "model": "BAAI/bge-small-en-v1.5:1.0",
+                    "count": total_embeddings,
                 }
-                for row in model_stats
             ]
             stats["embedding_models"] = embedding_models  # type: ignore
 

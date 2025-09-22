@@ -333,7 +333,7 @@ class RankingService:
             # Create SearchResult
             result = SearchResult(
                 query_id=f"query_{hash(query)}",  # Simple query ID generation
-                content_id=content_id,
+                content_id=str(content_id),  # Convert to string as required
                 similarity_score=similarity_score,
                 bm25_score=bm25_score,
                 combined_score=combined_score,

@@ -108,6 +108,8 @@ async def index_file(
         await vector_store.store_embedding(
             content_id=content_id,
             embedding=embedding,
+            chunk_text=content,
+            chunk_index=0,
             model_name="BAAI/bge-small-en-v1.5",
             model_version="1.0",
         )

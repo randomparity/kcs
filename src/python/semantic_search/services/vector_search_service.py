@@ -313,14 +313,14 @@ class VectorSearchService:
                         ic.title,
                         ic.content,
                         ic.metadata,
-                        1 - (ve.embedding <=> $1) as similarity_score
+                        1 - (ve.embedding <=> $1::vector) as similarity_score
                     FROM vector_embedding ve
                     JOIN indexed_content ic ON ve.content_id = ic.id
-                    WHERE ic.status = 'completed'
+                    WHERE ic.status = 'COMPLETED'
                 """
                 ]
 
-                params: list[Any] = [query_embedding]
+                params: list[Any] = [str(query_embedding)]
                 param_idx = 2
 
                 # Add content type filters
@@ -346,14 +346,16 @@ class VectorSearchService:
 
                 # Add similarity threshold
                 if filters.similarity_threshold > 0:
-                    sql_parts.append(f"AND (1 - (ve.embedding <=> $1)) >= ${param_idx}")
+                    sql_parts.append(
+                        f"AND (1 - (ve.embedding <=> $1::vector)) >= ${param_idx}"
+                    )
                     params.append(filters.similarity_threshold)
                     param_idx += 1
 
                 # Add ordering and limit
                 sql_parts.extend(
                     [
-                        "ORDER BY ve.embedding <=> $1",  # pgvector distance ordering
+                        "ORDER BY ve.embedding <=> $1::vector",  # pgvector distance ordering
                         f"LIMIT ${param_idx}",
                     ]
                 )
@@ -378,7 +380,7 @@ class VectorSearchService:
 
                     # Create SearchResult (BM25 will be handled by RankingService)
                     search_result = SearchResult(
-                        query_id="",  # Will be set by calling service
+                        query_id="temp-" + str(row["content_id"]),  # Placeholder ID
                         content_id=str(row["content_id"]),
                         similarity_score=float(row["similarity_score"]),
                         bm25_score=0.0,  # Will be calculated by RankingService
@@ -463,21 +465,21 @@ class VectorSearchService:
                 ic.source_path,
                 ic.title,
                 ic.content,
-                1 - (ve.embedding <=> $1) as similarity_score
+                1 - (ve.embedding <=> $1::vector) as similarity_score
             FROM vector_embedding ve
             JOIN indexed_content ic ON ve.content_id = ic.id
-            WHERE ic.status = 'completed'
-            ORDER BY ve.embedding <=> $1
+            WHERE ic.status = 'COMPLETED'
+            ORDER BY ve.embedding <=> $1::vector
             LIMIT $2
         """
 
         max_results = filters.max_results if filters else 20
-        results = await conn.fetch(sql, query_embedding, max_results)
+        results = await conn.fetch(sql, str(query_embedding), max_results)
 
         search_results = []
         for row in results:
             search_result = SearchResult(
-                query_id="",
+                query_id="temp-" + str(row["content_id"]),
                 content_id=str(row["content_id"]),
                 similarity_score=float(row["similarity_score"]),
                 bm25_score=0.0,
@@ -568,9 +570,9 @@ class VectorSearchService:
                         COUNT(DISTINCT ve.content_id) as unique_content,
                         COUNT(DISTINCT ic.content_type) as content_types,
                         AVG(ic.updated_at) as avg_update_time,
-                        COUNT(*) FILTER (WHERE ic.status = 'completed') as completed_count,
-                        COUNT(*) FILTER (WHERE ic.status = 'pending') as pending_count,
-                        COUNT(*) FILTER (WHERE ic.status = 'failed') as failed_count
+                        COUNT(*) FILTER (WHERE ic.status = 'COMPLETED') as completed_count,
+                        COUNT(*) FILTER (WHERE ic.status = 'PENDING') as pending_count,
+                        COUNT(*) FILTER (WHERE ic.status = 'FAILED') as failed_count
                     FROM vector_embedding ve
                     JOIN indexed_content ic ON ve.content_id = ic.id
                     """

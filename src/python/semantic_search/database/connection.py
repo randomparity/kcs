@@ -111,7 +111,7 @@ class DatabaseConnection:
                 )
 
                 # Test connection and verify schema
-                async with self.acquire() as conn:
+                async with self.pool.acquire() as conn:
                     # Verify basic connectivity
                     await conn.fetchval("SELECT 1")
 
