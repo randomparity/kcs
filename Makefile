@@ -302,6 +302,17 @@ docker-compose-down: ## Stop all services with docker compose (all profiles)
 	@docker compose --profile app --profile monitoring down
 	@echo "$(GREEN)✅ All services stopped$(NC)"
 
+docker-compose-rebuild: ## Force rebuild containers with latest code changes
+	@echo "$(BLUE)Stopping services and rebuilding containers...$(NC)"
+	@docker compose --profile app --profile monitoring down
+	@echo "$(BLUE)Building containers with latest code...$(NC)"
+	@docker compose build kcs-mcp
+	@echo "$(GREEN)✅ Containers rebuilt with latest code$(NC)"
+	@echo ""
+	@echo "$(BLUE)To start services, run one of:$(NC)"
+	@echo "  $(YELLOW)make docker-compose-up-app$(NC)        # Start app services only"
+	@echo "  $(YELLOW)make docker-compose-up-all$(NC)        # Start app + monitoring"
+
 # Database targets
 db-start: ## Start PostgreSQL database
 	@echo "$(BLUE)Starting PostgreSQL database...$(NC)"
