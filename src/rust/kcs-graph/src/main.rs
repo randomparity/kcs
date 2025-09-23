@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use kcs_graph::builder::GraphBuilder;
 use kcs_graph::config::ConfigParser;
@@ -172,14 +172,16 @@ fn main() -> Result<()> {
         },
 
         Commands::Query {
-            graph: _,
+            graph,
             query_type,
             config,
         } => {
-            // For now, create a simple test graph since we don't have serialization yet
-            let test_graph = create_test_graph();
+            // Strict behavior: require a valid graph file and fail otherwise.
+            let loaded_graph: KernelGraph = detect_and_load_graph(&graph)
+                .with_context(|| format!("failed to load graph from {}", graph.display()))?;
+            println!("Loaded graph from: {}", graph.display());
 
-            let mut query_engine = QueryEngine::new(&test_graph);
+            let mut query_engine = QueryEngine::new(&loaded_graph);
 
             // Load config if provided
             if let Some(config_path) = config {
@@ -227,65 +229,124 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn create_test_graph() -> KernelGraph {
+#[derive(serde::Deserialize)]
+struct JsonGraph {
+    nodes: Vec<JsonNode>,
+    edges: Vec<JsonEdge>,
+}
+
+#[derive(serde::Deserialize)]
+struct JsonNode {
+    id: String,
+    label: String,
+    #[allow(dead_code)]
+    attributes: Option<serde_json::Value>,
+}
+
+#[derive(serde::Deserialize)]
+struct JsonEdge {
+    source: String,
+    target: String,
+    label: Option<String>,
+    attributes: Option<serde_json::Value>,
+}
+
+fn detect_and_load_graph(path: &std::path::Path) -> anyhow::Result<KernelGraph> {
     use kcs_graph::{CallEdge, CallType, Symbol, SymbolType};
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    if ext != "json" {
+        anyhow::bail!(
+            "unsupported graph format: {:?}. Only JSON Graph (.json) is supported in kcs-graph CLI",
+            ext
+        );
+    }
 
+    let data = std::fs::read_to_string(path)?;
+    let parsed: JsonGraph = serde_json::from_str(&data)?;
+
+    // Build KernelGraph from JSON Graph
     let mut graph = KernelGraph::new();
+    use std::collections::HashMap;
+    let mut id_to_name: HashMap<String, String> = HashMap::new();
 
-    // Add some test symbols
-    let symbols = vec![
-        Symbol {
-            name: "vfs_read".to_string(),
-            file_path: "fs/read_write.c".to_string(),
-            line_number: 450,
-            symbol_type: SymbolType::Function,
-            signature: Some(
-                "ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)"
-                    .to_string(),
-            ),
-            config_dependencies: vec!["CONFIG_VFS".to_string()],
-        },
-        Symbol {
-            name: "sys_read".to_string(),
-            file_path: "fs/read_write.c".to_string(),
-            line_number: 600,
-            symbol_type: SymbolType::Function,
-            signature: Some(
-                "SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)"
-                    .to_string(),
-            ),
-            config_dependencies: vec![],
-        },
-        Symbol {
-            name: "generic_file_read_iter".to_string(),
-            file_path: "mm/filemap.c".to_string(),
-            line_number: 2500,
+    // Nodes
+    for node in parsed.nodes {
+        let mut symbol = Symbol {
+            name: node.label.clone(),
+            file_path: String::new(),
+            line_number: 0,
             symbol_type: SymbolType::Function,
             signature: None,
             config_dependencies: vec![],
-        },
-    ];
+        };
 
-    for symbol in symbols {
+        if let Some(attrs) = &node.attributes {
+            if let Some(fp) = attrs.get("file_path").and_then(|v| v.as_str()) {
+                symbol.file_path = fp.to_string();
+            }
+            if let Some(ln) = attrs.get("line_number").and_then(|v| v.as_u64()) {
+                symbol.line_number = ln as u32;
+            }
+            if let Some(sig) = attrs.get("signature").and_then(|v| v.as_str()) {
+                symbol.signature = Some(sig.to_string());
+            }
+            if let Some(st) = attrs.get("symbol_type").and_then(|v| v.as_str()) {
+                symbol.symbol_type = match st {
+                    "Variable" => SymbolType::Variable,
+                    "Macro" => SymbolType::Macro,
+                    "Type" => SymbolType::Type,
+                    "Constant" => SymbolType::Constant,
+                    _ => SymbolType::Function,
+                };
+            }
+            if let Some(deps) = attrs.get("config_dependencies").and_then(|v| v.as_array()) {
+                symbol.config_dependencies =
+                    deps.iter().filter_map(|d| d.as_str().map(|s| s.to_string())).collect();
+            }
+        }
+
         graph.add_symbol(symbol);
+        id_to_name.insert(node.id, node.label);
     }
 
-    // Add call relationships
-    let edge1 = CallEdge {
-        call_type: CallType::Direct,
-        call_site_line: 605,
-        conditional: false,
-        config_guard: None,
-    };
-    graph.add_call("sys_read", "vfs_read", edge1).unwrap();
+    // Edges
+    for edge in parsed.edges {
+        let Some(source_name) = id_to_name.get(&edge.source) else {
+            continue;
+        };
+        let Some(target_name) = id_to_name.get(&edge.target) else {
+            continue;
+        };
 
-    let edge2 = CallEdge {
-        call_type: CallType::Indirect,
-        call_site_line: 455,
-        conditional: true,
-        config_guard: Some("CONFIG_VFS".to_string()),
-    };
-    graph.add_call("vfs_read", "generic_file_read_iter", edge2).unwrap();
+        let mut call_edge = CallEdge {
+            call_type: CallType::Direct,
+            call_site_line: 0,
+            conditional: false,
+            config_guard: None,
+        };
+        if let Some(label) = &edge.label {
+            call_edge.call_type = match label.as_str() {
+                "Indirect" => CallType::Indirect,
+                "FunctionPointer" => CallType::FunctionPointer,
+                "Macro" => CallType::Macro,
+                _ => CallType::Direct,
+            };
+        }
+        if let Some(attrs) = &edge.attributes {
+            if let Some(ln) = attrs.get("call_site_line").and_then(|v| v.as_u64()) {
+                call_edge.call_site_line = ln as u32;
+            }
+            if let Some(cond) = attrs.get("conditional").and_then(|v| v.as_bool()) {
+                call_edge.conditional = cond;
+            }
+            if let Some(guard) = attrs.get("config_guard").and_then(|v| v.as_str()) {
+                call_edge.config_guard = Some(guard.to_string());
+            }
+        }
 
-    graph
+        // Ignore errors for missing symbols (already filtered by id_to_name)
+        let _ = graph.add_call(source_name, target_name, call_edge);
+    }
+
+    Ok(graph)
 }
