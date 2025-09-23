@@ -266,18 +266,20 @@ All tools respect these environment variables:
 
 ### Full Kernel Indexing
 
-Complete kernel analysis with call graphs:
+Complete kernel analysis with call graphs (chunked output):
 
 ```bash
-# 1. Parse all source files with call graphs
-kcs-parser directory --include-calls --format=ndjson ~/src/linux/ > parsed.ndjson
+# 1. Parse all source files with call graphs (chunked)
+kcs-parser parse --include-calls --repo ~/src/linux --output-dir ./out_kernel --chunk-size 50MB
 
 # 2. Extract entry points
 kcs-extractor ~/src/linux/ > entrypoints.json
 
-# 3. Load into database
+# 3. Load chunks into database
 export DATABASE_URL="postgresql://kcs:password@localhost/kcs"
-python -m kcs_mcp.database_loader parsed.ndjson entrypoints.json
+for f in ./out_kernel/kernel_data_*.json; do \
+  python -m kcs_mcp.database_loader "$f"; \
+done
 
 # 4. Start MCP server
 kcs-mcp --host=0.0.0.0 --port=8080
