@@ -20,10 +20,6 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Output format
-    #[arg(long, default_value = "json")]
-    format: OutputFormat,
-
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
@@ -74,37 +70,11 @@ enum Commands {
         include_calls: bool,
     },
 
-    /// Parse a single file
-    File {
-        /// Path to source file
-        file: PathBuf,
-
-        /// Configuration context
-        #[arg(short, long, default_value = "x86_64:defconfig")]
-        config: String,
-
-        /// Output file (required)
-        #[arg(short, long)]
-        output: PathBuf,
-
-        /// Include function call graphs in output
-        #[arg(long)]
-        include_calls: bool,
-    },
-
     /// List available configurations
     ListConfigs {
         /// Path to kernel repository
         repo: PathBuf,
     },
-}
-
-#[derive(Clone, clap::ValueEnum)]
-enum OutputFormat {
-    Json,
-    JsonPretty,
-    Ndjson,
-    Csv,
 }
 
 #[tokio::main]
@@ -147,16 +117,9 @@ async fn main() -> Result<()> {
                 include,
                 define,
                 include_calls,
-                cli.format,
             )
             .await
         },
-        Commands::File {
-            file,
-            config,
-            output,
-            include_calls,
-        } => parse_single_file(file, config, output, include_calls, cli.format).await,
         Commands::ListConfigs { repo } => list_configs(repo).await,
     }
 }
@@ -172,7 +135,6 @@ async fn parse_repository(
     include_paths: Vec<PathBuf>,
     defines: Vec<String>,
     include_calls: bool,
-    format: OutputFormat,
 ) -> Result<()> {
     tracing::info!("Parsing repository: {}", repo.display());
     tracing::info!("Configuration: {}", config);
@@ -221,42 +183,7 @@ async fn parse_repository(
     tracing::info!("Parsed {} files", parsed_files.len());
 
     // Always output as chunks
-    output_chunked_results(&parsed_files, chunk_size, output_dir, format).await?;
-
-    Ok(())
-}
-
-async fn parse_single_file(
-    file: PathBuf,
-    config: String,
-    output: PathBuf,
-    include_calls: bool,
-    format: OutputFormat,
-) -> Result<()> {
-    tracing::debug!("Parsing file: {}", file.display());
-
-    let (arch, config_name) = parse_config_string(&config)?;
-
-    let parser_config = ExtendedParserConfig {
-        arch: arch.to_string(),
-        config_name: config_name.to_string(),
-        include_call_graphs: include_calls,
-        ..Default::default()
-    };
-
-    let mut parser = Parser::new(parser_config)?;
-    let parsed_file = parser.parse_file(&file)?;
-
-    // For single file, just write JSON directly
-    let json_output = match format {
-        OutputFormat::Json => serde_json::to_string(&parsed_file)?,
-        OutputFormat::JsonPretty => serde_json::to_string_pretty(&parsed_file)?,
-        _ => serde_json::to_string_pretty(&parsed_file)?,
-    };
-
-    std::fs::write(&output, json_output)
-        .with_context(|| format!("Failed to write output to {}", output.display()))?;
-    tracing::info!("Output written to: {}", output.display());
+    output_chunked_results(&parsed_files, chunk_size, output_dir).await?;
 
     Ok(())
 }
@@ -312,7 +239,6 @@ async fn output_chunked_results(
     parsed_files: &[ParsedFile],
     chunk_size_str: String,
     output_dir: PathBuf,
-    _format: OutputFormat,
 ) -> Result<()> {
     // Parse chunk size string (e.g., "50MB", "100KB")
     let chunk_size_bytes = parse_chunk_size(&chunk_size_str)?;
