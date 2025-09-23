@@ -19,6 +19,10 @@ impl AdvancedAnalyzer {
         }
     }
 
+    pub fn graph(&self) -> &KernelGraph {
+        &self.graph
+    }
+
     pub fn with_config_context(mut self, config: HashMap<String, bool>) -> Self {
         self.config_context = config;
         self
