@@ -222,11 +222,22 @@ pub(crate) fn parse_config_value(value_str: &str) -> Result<(ConfigValue, Config
             ConfigValue::String(val.trim_matches('"').to_string()),
             ConfigType::String,
         )),
-        val if val.starts_with("0x") => {
-            let stripped = val.strip_prefix("0x").unwrap_or("");
-            let hex_val = i64::from_str_radix(stripped, 16)
-                .map_err(|e| anyhow!("Invalid hex value {}: {}", val, e))?;
-            Ok((ConfigValue::Number(hex_val), ConfigType::Hex))
+        val if val.starts_with("0x") || val.starts_with("0X") => {
+            let stripped = val.trim_start_matches(|c: char| c == '0' || c == 'x' || c == 'X')
+                .trim_start_matches('x');
+
+            // If it's a valid hex string but doesn't fit in i64, keep it as a string to avoid failure
+            match i64::from_str_radix(stripped, 16) {
+                Ok(hex_val) => Ok((ConfigValue::Number(hex_val), ConfigType::Hex)),
+                Err(_) => {
+                    // Validate hex characters; if valid, preserve as string
+                    if stripped.chars().all(|c| c.is_ascii_hexdigit()) {
+                        Ok((ConfigValue::String(val.to_string()), ConfigType::Hex))
+                    } else {
+                        Err(anyhow!("Invalid hex value {}: contains non-hex characters", val))
+                    }
+                }
+            }
         }
         val => {
             if let Ok(num) = val.parse::<i64>() {
@@ -361,6 +372,14 @@ config HZ
             parse_config_value("0x100").unwrap(),
             (ConfigValue::Number(256), ConfigType::Hex)
         );
+    }
+
+    #[test]
+    fn test_parse_large_hex_as_string() {
+        // Larger than i64::MAX; should be preserved as a hex string
+        let val = "0xdead000000000000";
+        let parsed = parse_config_value(val).unwrap();
+        assert_eq!(parsed, (ConfigValue::String(val.to_string()), ConfigType::Hex));
     }
 
     #[test]
