@@ -7,7 +7,10 @@ pub mod embeddings;
 pub mod query;
 pub mod vector_db;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use std::fs;
+use std::path::PathBuf;
+use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,35 +47,121 @@ impl Default for EmbeddingModel {
 }
 
 /// Main search engine that coordinates embedding generation and vector search
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexEntry {
+    pub symbol_id: i64,
+    pub name: String,
+    pub file_path: String,
+    pub line_number: i32,
+    pub text: String,
+}
+
 pub struct SearchEngine {
     _model: EmbeddingModel,
+    index_path: Option<PathBuf>,
 }
 
 impl SearchEngine {
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            _model: EmbeddingModel::default(),
-        })
+        Ok(Self { _model: EmbeddingModel::default(), index_path: None })
     }
 
     pub fn with_model(model: EmbeddingModel) -> Result<Self> {
-        Ok(Self { _model: model })
+        Ok(Self { _model: model, index_path: None })
     }
 
-    pub async fn search(&self, _query: SearchQuery) -> Result<Vec<SearchResult>> {
-        // TODO: Implement search logic
-        // 1. Generate embedding for query
-        // 2. Query pgvector database
-        // 3. Return ranked results
+    pub fn with_index_file(mut self, path: PathBuf) -> Self {
+        self.index_path = Some(path);
+        self
+    }
+
+    fn load_index(&self) -> Result<Vec<IndexEntry>> {
+        if let Some(path) = &self.index_path {
+            if path.exists() {
+                let data = fs::read_to_string(path)
+                    .with_context(|| format!("failed to read index file {}", path.display()))?;
+                let entries: Vec<IndexEntry> = serde_json::from_str(&data)
+                    .with_context(|| format!("failed to parse index file {}", path.display()))?;
+                Ok(entries)
+            } else {
+                Ok(Vec::new())
+            }
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    fn save_index(&self, entries: &[IndexEntry]) -> Result<()> {
+        if let Some(path) = &self.index_path {
+            let json = serde_json::to_string_pretty(entries)?;
+            fs::write(path, json)
+                .with_context(|| format!("failed to write index file {}", path.display()))?;
+        }
+        Ok(())
+    }
+
+    pub async fn search(&self, query: SearchQuery) -> Result<Vec<SearchResult>> {
+        // If index file is configured, perform a simple token-overlap search
+        if self.index_path.is_some() {
+            let entries = self.load_index()?;
+            let q_tokens = tokenize(&query.text);
+
+            let mut scored: Vec<SearchResult> = entries
+                .into_iter()
+                .map(|e| {
+                    let score = jaccard_similarity(&q_tokens, &tokenize(&e.text));
+                    SearchResult {
+                        symbol_id: e.symbol_id,
+                        name: e.name,
+                        file_path: e.file_path,
+                        line_number: e.line_number,
+                        score,
+                        snippet: String::new(),
+                    }
+                })
+                .collect();
+
+            if let Some(th) = query.threshold {
+                scored.retain(|r| r.score >= th);
+            }
+            scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            scored.truncate(query.top_k);
+            return Ok(scored);
+        }
+
+        // Default placeholder behavior
         Ok(Vec::new())
     }
 
-    pub async fn index_symbol(&self, _symbol_id: i64, _text: &str) -> Result<()> {
-        // TODO: Implement indexing logic
-        // 1. Generate embedding for text
-        // 2. Store in pgvector database
+    pub async fn index_symbol(&self, symbol_id: i64, text: &str) -> Result<()> {
+        if self.index_path.is_some() {
+            let mut entries = self.load_index()?;
+            entries.push(IndexEntry {
+                symbol_id,
+                name: format!("symbol_{}", symbol_id),
+                file_path: String::new(),
+                line_number: 0,
+                text: text.to_string(),
+            });
+            self.save_index(&entries)?;
+        }
         Ok(())
     }
+}
+
+fn tokenize(text: &str) -> HashSet<String> {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
+fn jaccard_similarity(a: &HashSet<String>, b: &HashSet<String>) -> f32 {
+    if a.is_empty() && b.is_empty() { return 0.0; }
+    let inter = a.intersection(b).count() as f32;
+    let uni = a.union(b).count() as f32;
+    if uni == 0.0 { 0.0 } else { inter / uni }
 }
 
 impl Default for SearchEngine {

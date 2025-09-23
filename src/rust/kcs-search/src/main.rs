@@ -17,6 +17,10 @@ struct Cli {
     #[arg(long)]
     database_url: Option<String>,
 
+    /// Path to local JSON index file for offline search
+    #[arg(long)]
+    index_file: Option<String>,
+
     /// Output format
     #[arg(long, default_value = "json")]
     format: String,
@@ -95,7 +99,8 @@ async fn main() -> Result<()> {
                 config,
             };
 
-            let engine = SearchEngine::new()?;
+            let mut engine = SearchEngine::new()?;
+            if let Some(path) = cli.index_file.clone() { engine = engine.with_index_file(path.into()); }
             let results = engine.search(search_query).await?;
 
             // Output results
@@ -116,16 +121,31 @@ async fn main() -> Result<()> {
             symbol_id,
             text,
         } => {
-            let engine = SearchEngine::new()?;
+            let mut engine = SearchEngine::new()?;
+            if let Some(path) = cli.index_file.clone() { engine = engine.with_index_file(path.into()); }
 
             if stdin {
                 info!("Reading symbols from stdin");
                 let stdin = io::stdin();
+                use serde_json::Value;
+                let mut entries: Vec<kcs_search::IndexEntry> = Vec::new();
                 for line in stdin.lock().lines() {
                     let line = line?;
-                    // TODO: Parse JSON and index
-                    info!("Processing: {}", line);
+                    let v: Value = serde_json::from_str(&line)?;
+                    let entry = kcs_search::IndexEntry {
+                        symbol_id: v.get("symbol_id").and_then(|x| x.as_i64()).unwrap_or(0),
+                        name: v.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+                        file_path: v.get("file_path").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+                        line_number: v.get("line_number").and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+                        text: v.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+                    };
+                    entries.push(entry);
                 }
+                // Persist entries
+                for e in entries {
+                    engine.index_symbol(e.symbol_id, &e.text).await?;
+                }
+                println!("Indexed entries to local file");
             } else if let (Some(id), Some(text)) = (symbol_id, text) {
                 info!("Indexing symbol {}", id);
                 engine.index_symbol(id, &text).await?;
