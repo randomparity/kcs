@@ -1120,8 +1120,12 @@ docker compose --env-file .env.test config
 # Check Rust tools are built
 make build-rust
 
-# Test with single file
-./target/debug/kcs-parser file ~/src/linux/kernel/fork.c
+# Parse a subset of the kernel with chunked output
+./target/debug/kcs-parser parse \
+  --repo ~/src/linux/kernel \
+  --config x86_64:defconfig \
+  --output-dir /tmp/kcs_chunks \
+  --chunk-size 32MB
 
 # Enable verbose logging
 tools/index_kernel.sh --verbose ~/src/linux
@@ -1203,8 +1207,12 @@ docker compose --env-file .env.test config
 # Check Rust tools are built
 make build-rust
 
-# Test with single file
-./target/debug/kcs-parser file ~/src/linux/kernel/fork.c
+# Parse a subset of the kernel with chunked output
+./target/debug/kcs-parser parse \
+  --repo ~/src/linux/kernel \
+  --config x86_64:defconfig \
+  --output-dir /tmp/kcs_chunks \
+  --chunk-size 32MB
 
 # Enable verbose logging
 tools/index_kernel.sh --verbose ~/src/linux

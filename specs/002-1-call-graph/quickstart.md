@@ -12,7 +12,7 @@ This guide validates the call graph extraction functionality through practical u
 
 **Goal**: Verify that the parser can extract simple function call relationships.
 
-### Setup Test File
+### Setup Test File (Scenario 1)
 
 Create `tests/fixtures/simple_calls.c`:
 
@@ -28,18 +28,18 @@ int main_function(int a, int b) {
 }
 ```
 
-### Run Parser
+### Run Parser (Scenario 1)
 
 ```bash
-# Parse the test file with call graph extraction
-kcs-parser parse tests/fixtures/simple_calls.c --format=json --include-calls
+# Parse the fixtures directory with call graph extraction (chunked output)
+kcs-parser parse --repo tests/fixtures --include-calls --output-dir ./out_simple --chunk-size 1MB
 
-# Expected output should include call edges:
+# Expected chunks should include call edges for simple_calls.c:
 # - main_function calls helper_function (line 6)
 # - main_function calls helper_function (line 7)
 ```
 
-### Validation Criteria
+### Validation Criteria (Scenario 1)
 
 - ✅ Parser returns 2 call edges
 - ✅ Both calls have caller="main_function", callee="helper_function"
@@ -50,7 +50,7 @@ kcs-parser parse tests/fixtures/simple_calls.c --format=json --include-calls
 
 **Goal**: Verify indirect call detection through function pointers.
 
-### Setup Test File
+### Setup Test File (Scenario 2)
 
 Create `tests/fixtures/function_pointers.c`:
 
@@ -69,13 +69,13 @@ int main(void) {
 }
 ```
 
-### Run Parser
+### Run Parser (Scenario 2)
 
 ```bash
-kcs-parser parse tests/fixtures/function_pointers.c --format=json --include-calls
+kcs-parser parse --repo tests/fixtures --include-calls --output-dir ./out_fp --chunk-size 1MB
 ```
 
-### Validation Criteria
+### Validation Criteria (Scenario 2)
 
 - ✅ Parser detects indirect call in execute_operation (line 5)
 - ✅ Call type is "Indirect"
@@ -85,7 +85,7 @@ kcs-parser parse tests/fixtures/function_pointers.c --format=json --include-call
 
 **Goal**: Verify that MCP endpoints can use call graph data.
 
-### Start MCP Server
+### Start MCP Server (Scenario 3)
 
 ```bash
 # Ensure database is running
@@ -95,14 +95,14 @@ make docker-compose-up-app
 kcs-mcp --host localhost --port 8080
 ```
 
-### Index Test Files
+### Index Test Files (Scenario 3)
 
 ```bash
 # Index our test files
 tools/index_kernel.sh tests/fixtures/
 ```
 
-### Query Call Relationships
+### Query Call Relationships (Scenario 3)
 
 ```bash
 # Test who_calls endpoint
@@ -120,7 +120,7 @@ curl -X POST http://localhost:8080/mcp/list_dependencies \
 # Expected: Returns helper_function as dependency
 ```
 
-### Validation Criteria
+### Validation Criteria (Scenario 3)
 
 - ✅ who_calls returns correct caller functions
 - ✅ list_dependencies returns correct callee functions
@@ -131,7 +131,7 @@ curl -X POST http://localhost:8080/mcp/list_dependencies \
 
 **Goal**: Verify parser meets performance targets.
 
-### Setup Large Test File
+### Setup Large Test File (Scenario 4)
 
 ```bash
 # Generate test file with many functions and calls
@@ -139,17 +139,17 @@ python3 tools/generate_test_kernel.py --functions 1000 --calls-per-function 5 \
   > tests/fixtures/large_kernel.c
 ```
 
-### Run Performance Test
+### Run Performance Test (Scenario 4)
 
 ```bash
-# Time the parsing operation
-time kcs-parser parse tests/fixtures/large_kernel.c --format=json --include-calls
+# Time the parsing operation (chunked)
+time kcs-parser parse --repo tests/fixtures --include-calls --output-dir ./out_large --chunk-size 1MB
 
 # Expected: Parse completes in <1 second for 1000 functions
 # Expected: Memory usage <50MB during parsing
 ```
 
-### Validation Criteria
+### Validation Criteria (Scenario 4)
 
 - ✅ Parsing completes in <1 second
 - ✅ Memory usage remains under 50MB
@@ -160,7 +160,7 @@ time kcs-parser parse tests/fixtures/large_kernel.c --format=json --include-call
 
 **Goal**: Verify graceful handling of problematic C code.
 
-### Setup Problematic Test File
+### Setup Problematic Test File (Scenario 5)
 
 Create `tests/fixtures/problematic.c`:
 
@@ -182,13 +182,13 @@ int another_broken() {
 }
 ```
 
-### Run Parser
+### Run Parser (Scenario 5)
 
 ```bash
-kcs-parser parse tests/fixtures/problematic.c --format=json --include-calls
+kcs-parser parse --repo tests/fixtures --include-calls --output-dir ./out_problem --chunk-size 1MB
 ```
 
-### Validation Criteria
+### Validation Criteria (Scenario 5)
 
 - ✅ Parser doesn't crash on syntax errors
 - ✅ Macro call is detected with call_type="Macro"
@@ -214,4 +214,5 @@ After completing this quickstart:
 3. Integration with real kernel code: `tools/index_kernel.sh ~/linux`
 4. Validate all MCP endpoints work with call graph data
 
-This quickstart validates that call graph extraction meets all functional requirements and integrates properly with the existing KCS architecture.
+This quickstart validates that call graph extraction meets all functional
+requirements and integrates properly with the existing KCS architecture.

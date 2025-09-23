@@ -65,7 +65,7 @@ Implement call graph extraction in the KCS parser to identify function call rela
 
 - EVERY feature as library? Yes, kcs-parser provides lib + CLI - PASS
 - Libraries listed: kcs-parser (call graph extraction from C source)
-- CLI per library: kcs-parser --help/--version/--format=json - PASS
+- CLI per library: kcs-parser parse --help/--version - PASS
 - Library docs: Will update existing llms.txt format - PASS
 
 **Testing (NON-NEGOTIABLE)**:

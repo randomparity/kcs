@@ -9,16 +9,13 @@ chunk processing, and system administration.
 
 #### `index_kernel.sh` - Main Kernel Indexing Tool
 
-The primary tool for indexing Linux kernel source code. Supports both legacy
-single-file output and modern chunked processing.
+The primary tool for indexing Linux kernel source code. Produces chunked
+JSON output (legacy single-file mode has been removed).
 
 **Basic Usage:**
 
 ```bash
-# Index entire kernel (legacy single file)
-./tools/index_kernel.sh ~/src/linux
-
-# Index with chunked output (recommended for large kernels)
+# Index entire kernel (chunked output)
 ./tools/index_kernel.sh \
   --chunk-size 50MB \
   --parallel-chunks 4 \

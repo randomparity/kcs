@@ -81,7 +81,7 @@ each
   - kcs-impact: Rust library for impact analysis
   - kcs-drift: Rust library for drift detection
 - CLI per library:
-  - kcs-parser --parse <repo> --config <config> --format json
+  - kcs-parser parse --repo <repo> --config <config> --output-dir <dir> [--chunk-size <size>]
   - kcs-extractor --extract <type> --input <index> --format json
   - kcs-graph --query <operation> --symbol <name> --format json
   - kcs-mcp --serve --port 8080 --auth-token <token>

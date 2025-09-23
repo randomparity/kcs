@@ -23,46 +23,26 @@ kcs-parser [OPTIONS] <COMMAND> [ARGS...]
 
 ### Commands
 
-#### `file` - Parse a single file
+#### `parse` - Parse a repository (chunked output)
 
-Parse a single C source file and output analysis results.
+Parse a kernel source tree and write chunked JSON files plus a manifest.
 
 ```bash
-kcs-parser file [OPTIONS] <FILE_PATH>
+kcs-parser parse --repo <PATH> --config <ARCH:CONFIG> --output-dir <OUT> [--chunk-size <SIZE>] [--include-calls]
 
 # Examples
-kcs-parser file kernel/sched/core.c
-kcs-parser file --include-calls fs/read_write.c
-kcs-parser file --format=json --include-calls mm/mmap.c
+kcs-parser parse --repo ~/src/linux --config x86_64:defconfig --output-dir ./out --chunk-size 32MB
+kcs-parser parse --repo ~/src/linux/fs --config x86_64:defconfig --output-dir ./out_fs --include-calls
 ```
 
 **Options:**
 
+- `--repo PATH`: Path to kernel repository or subdirectory
+- `--config ARCH:CONFIG`: Kernel configuration context (e.g., `x86_64:defconfig`)
+- `--output-dir DIR`: Directory to write chunk files and `manifest.json`
+- `--chunk-size SIZE`: Target chunk size (e.g., `32MB`, `10MB`)
 - `--include-calls`: Enable call graph extraction
-- `--format=json|ndjson`: Output format (default: json)
-- `--output=FILE`: Write output to file instead of stdout
-- `--config=CONFIG`: Kernel configuration context
-
-#### `directory` - Parse multiple files
-
-Parse all C files in a directory tree.
-
-```bash
-kcs-parser directory [OPTIONS] <DIRECTORY_PATH>
-
-# Examples
-kcs-parser directory ~/src/linux/fs/
-kcs-parser directory --include-calls --workers=8 ~/src/linux/kernel/
-kcs-parser directory --format=ndjson --output=results.ndjson ~/src/linux/mm/
-```
-
-**Options:**
-
-- `--include-calls`: Enable call graph extraction for all files
-- `--workers=N`: Number of parallel workers (default: 4)
-- `--format=json|ndjson`: Output format (default: ndjson for directories)
-- `--output=FILE`: Write output to file
-- `--filter=GLOB`: Only parse files matching glob pattern
+- `--workers=N`: Number of parallel workers
 
 ### Global Options
 
@@ -107,17 +87,11 @@ kcs-parser directory --format=ndjson --output=results.ndjson ~/src/linux/mm/
 }
 ```
 
-#### `--format=FORMAT`
+Chunked output format
 
-**Options**:
-
-- `json`: Pretty-printed JSON (default for single files)
-- `ndjson`: Newline-delimited JSON (default for directories)
-
-**When to use**:
-
-- `json`: Human-readable output, small files
-- `ndjson`: Streaming processing, large datasets
+- Files are written as `kernel_data_###.json` in `--output-dir`.
+- A `manifest.json` summarizes chunks, sizes, and checksums.
+- Choose `--chunk-size` to balance file size and count; a constitutional limit of 100MB applies.
 
 #### `--config=CONFIG`
 
@@ -128,7 +102,13 @@ kcs-parser directory --format=ndjson --output=results.ndjson ~/src/linux/mm/
 **Example**:
 
 ```bash
-kcs-parser file --config=x86_64:defconfig --include-calls kernel/sched/core.c
+# Parse a subdirectory with a specific config (chunked output)
+kcs-parser parse \
+  --repo ~/src/linux/kernel/sched \
+  --config x86_64:defconfig \
+  --include-calls \
+  --output-dir ./out_sched \
+  --chunk-size 10MB
 ```
 
 ### Performance Considerations
@@ -158,14 +138,14 @@ Impact of `--include-calls` on parsing time:
 Performance with different directory sizes:
 
 ```bash
-# Small directories (< 100 files)
-kcs-parser directory --include-calls fs/ext4/
+# Small trees (< 100 files)
+kcs-parser parse --include-calls --repo fs/ext4 --output-dir ./out_ext4 --chunk-size 10MB
 
-# Medium directories (100-1000 files)
-kcs-parser directory --include-calls --workers=4 fs/
+# Medium trees (100–1000 files)
+kcs-parser parse --include-calls --workers=4 --repo fs --output-dir ./out_fs --chunk-size 32MB
 
-# Large directories (1000+ files)
-kcs-parser directory --include-calls --workers=8 --format=ndjson ~/src/linux/
+# Large trees (1000+ files)
+kcs-parser parse --include-calls --workers=8 --repo ~/src/linux --output-dir ./out --chunk-size 50MB
 ```
 
 ### Integration Examples
@@ -175,13 +155,13 @@ kcs-parser directory --include-calls --workers=8 --format=ndjson ~/src/linux/
 Parse and populate database:
 
 ```bash
-# Parse with call graphs and pipe to database loader
-kcs-parser directory --include-calls --format=ndjson ~/src/linux/fs/ | \
-  python -m kcs_mcp.database_loader --config=x86_64:defconfig
+# Parse with call graphs and load chunked results
+kcs-parser parse --include-calls --repo ~/src/linux/fs --output-dir ./out_fs --chunk-size 32MB
 
-# Direct database integration
-export DATABASE_URL="postgresql://user:pass@localhost/kcs"
-kcs-parser directory --include-calls --database ~/src/linux/fs/
+# Example: iterate chunks and load
+for f in ./out_fs/kernel_data_*.json; do \
+  python -m kcs_mcp.database_loader "$f"; \
+done
 ```
 
 #### CI/CD Integration
@@ -189,12 +169,11 @@ kcs-parser directory --include-calls --database ~/src/linux/fs/
 Continuous parsing in build pipelines:
 
 ```bash
-# Parse changed files only
-git diff --name-only HEAD~1 | grep '\.c$' | \
-  xargs kcs-parser file --include-calls --format=ndjson
+# Parse a narrowed subtree (approximate incremental)
+kcs-parser parse --include-calls --repo ~/src/linux/kernel --output-dir ./out_delta --chunk-size 10MB
 
 # Performance regression testing
-kcs-parser directory --include-calls --benchmark ~/src/linux/kernel/ > perf.json
+kcs-parser parse --include-calls --repo ~/src/linux/kernel --output-dir ./perf_out --chunk-size 32MB
 python tools/compare_performance.py baseline.json perf.json
 ```
 
@@ -203,13 +182,9 @@ python tools/compare_performance.py baseline.json perf.json
 Update only changed files:
 
 ```bash
-# Find files modified in last day
-find ~/src/linux -name "*.c" -mtime -1 | \
-  xargs kcs-parser file --include-calls --format=ndjson
-
-# Git-based incremental parsing
-git diff --name-only origin/master | grep '\.c$' | \
-  xargs kcs-parser file --include-calls
+# Approximate incremental parsing by subtree
+# (file-level CLI removed; choose smallest common subtrees)
+kcs-parser parse --repo ~/src/linux/fs --output-dir ./out_inc --chunk-size 10MB
 ```
 
 ## kcs-extractor
@@ -291,18 +266,20 @@ All tools respect these environment variables:
 
 ### Full Kernel Indexing
 
-Complete kernel analysis with call graphs:
+Complete kernel analysis with call graphs (chunked output):
 
 ```bash
-# 1. Parse all source files with call graphs
-kcs-parser directory --include-calls --format=ndjson ~/src/linux/ > parsed.ndjson
+# 1. Parse all source files with call graphs (chunked)
+kcs-parser parse --include-calls --repo ~/src/linux --output-dir ./out_kernel --chunk-size 50MB
 
 # 2. Extract entry points
 kcs-extractor ~/src/linux/ > entrypoints.json
 
-# 3. Load into database
+# 3. Load chunks into database
 export DATABASE_URL="postgresql://kcs:password@localhost/kcs"
-python -m kcs_mcp.database_loader parsed.ndjson entrypoints.json
+for f in ./out_kernel/kernel_data_*.json; do \
+  python -m kcs_mcp.database_loader "$f"; \
+done
 
 # 4. Start MCP server
 kcs-mcp --host=0.0.0.0 --port=8080
