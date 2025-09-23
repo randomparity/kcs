@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use kcs_graph::KernelGraph;
 use kcs_impact::analyzer::AdvancedAnalyzer;
@@ -123,9 +123,11 @@ fn main() -> Result<()> {
         } => {
             println!("Analyzing patch: {}", patch.display());
 
-            if let Some(_graph_path) = graph {
-                // Load graph and perform full analysis
-                let graph = load_test_graph(); // TODO: Load from file
+            if let Some(graph_path) = graph {
+                // Load graph from file and perform full analysis
+                let graph = detect_and_load_graph(&graph_path).with_context(|| {
+                    format!("failed to load graph from {}", graph_path.display())
+                })?;
                 let analyzer = ImpactAnalyzer::new(graph);
 
                 let analysis = analyzer.analyze_patch(&patch)?;
@@ -237,13 +239,14 @@ fn main() -> Result<()> {
         Commands::Symbol {
             symbol,
             change_type,
-            graph: _,
+            graph,
             depth: _depth,
         } => {
             println!("Analyzing symbol change: {} ({:?})", symbol, change_type);
 
-            // Load graph
-            let graph = load_test_graph(); // TODO: Load from file
+            // Load graph strictly from provided file
+            let graph = detect_and_load_graph(&graph)
+                .with_context(|| format!("failed to load graph from {}", graph.display()))?;
             let analyzer = AdvancedAnalyzer::new(graph);
 
             let affected = match change_type {
@@ -253,9 +256,8 @@ fn main() -> Result<()> {
                 ChangeTypeArg::StructChanged => analyzer.analyze_struct_change(&symbol, &[])?,
                 ChangeTypeArg::MacroChanged => analyzer.analyze_macro_change(&symbol)?,
                 _ => {
-                    // Create a new graph for the basic analyzer (simplified for now)
-                    let test_graph = load_test_graph();
-                    let basic_analyzer = ImpactAnalyzer::new(test_graph);
+                    // Use the same loaded graph for the basic analyzer
+                    let basic_analyzer = ImpactAnalyzer::new(analyzer.graph().clone());
                     basic_analyzer.analyze_symbol_change(&symbol, change_type.into())?
                 }
             };
@@ -281,12 +283,13 @@ fn main() -> Result<()> {
 
         Commands::BlastRadius {
             symbol,
-            graph: _,
+            graph,
             depth,
         } => {
             println!("Analyzing blast radius for: {} (depth: {})", symbol, depth);
 
-            let graph = load_test_graph(); // TODO: Load from file
+            let graph = detect_and_load_graph(&graph)
+                .with_context(|| format!("failed to load graph from {}", graph.display()))?;
             let analyzer = AdvancedAnalyzer::new(graph);
 
             let blast_radius = analyzer.analyze_blast_radius(&symbol, depth)?;
@@ -306,68 +309,26 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn load_test_graph() -> KernelGraph {
-    // Create a simple test graph for demonstration
-    // In practice, this would load from a serialized graph file
-    use kcs_graph::{CallEdge, CallType, Symbol, SymbolType};
-
-    let mut graph = KernelGraph::new();
-
-    let symbols = vec![
-        Symbol {
-            name: "vfs_read".to_string(),
-            file_path: "fs/read_write.c".to_string(),
-            line_number: 450,
-            symbol_type: SymbolType::Function,
-            signature: Some(
-                "ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)"
-                    .to_string(),
-            ),
-            config_dependencies: vec!["CONFIG_VFS".to_string()],
-        },
-        Symbol {
-            name: "sys_read".to_string(),
-            file_path: "fs/read_write.c".to_string(),
-            line_number: 600,
-            symbol_type: SymbolType::Function,
-            signature: Some(
-                "SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)"
-                    .to_string(),
-            ),
-            config_dependencies: vec![],
-        },
-        Symbol {
-            name: "generic_file_read_iter".to_string(),
-            file_path: "mm/filemap.c".to_string(),
-            line_number: 2500,
-            symbol_type: SymbolType::Function,
-            signature: None,
-            config_dependencies: vec![],
-        },
-    ];
-
-    for symbol in symbols {
-        graph.add_symbol(symbol);
+fn detect_and_load_graph(path: &std::path::Path) -> anyhow::Result<KernelGraph> {
+    use kcs_serializer::{GraphImporter, GraphMLExporter, JsonGraphExporter};
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if ext == "json" {
+        let importer = JsonGraphExporter::new();
+        importer.import_from_file(&path.to_string_lossy())
+    } else if ext == "graphml" || ext == "xml" {
+        let importer = GraphMLExporter::new();
+        importer.import_from_file(&path.to_string_lossy())
+    } else {
+        // Try JSON first, then GraphML
+        let importer_json = JsonGraphExporter::new();
+        if let Ok(g) = importer_json.import_from_file(&path.to_string_lossy()) {
+            return Ok(g);
+        }
+        let importer_graphml = GraphMLExporter::new();
+        importer_graphml.import_from_file(&path.to_string_lossy())
     }
-
-    // Add call relationships
-    let edge1 = CallEdge {
-        call_type: CallType::Direct,
-        call_site_line: 605,
-        conditional: false,
-        config_guard: None,
-    };
-    graph.add_call("sys_read", "vfs_read", edge1).unwrap();
-
-    let edge2 = CallEdge {
-        call_type: CallType::Indirect,
-        call_site_line: 455,
-        conditional: true,
-        config_guard: Some("CONFIG_VFS".to_string()),
-    };
-    graph
-        .add_call("vfs_read", "generic_file_read_iter", edge2)
-        .unwrap();
-
-    graph
 }

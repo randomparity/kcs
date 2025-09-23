@@ -1156,6 +1156,7 @@ dependencies = [
  "clap",
  "git2",
  "kcs-graph",
+ "kcs-serializer",
  "regex",
  "serde",
  "serde_json",
