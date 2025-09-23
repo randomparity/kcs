@@ -102,7 +102,13 @@ Chunked output format
 **Example**:
 
 ```bash
-kcs-parser file --config=x86_64:defconfig --include-calls kernel/sched/core.c
+# Parse a subdirectory with a specific config (chunked output)
+kcs-parser parse \
+  --repo ~/src/linux/kernel/sched \
+  --config x86_64:defconfig \
+  --include-calls \
+  --output-dir ./out_sched \
+  --chunk-size 10MB
 ```
 
 ### Performance Considerations
@@ -132,14 +138,14 @@ Impact of `--include-calls` on parsing time:
 Performance with different directory sizes:
 
 ```bash
-# Small directories (< 100 files)
-kcs-parser directory --include-calls fs/ext4/
+# Small trees (< 100 files)
+kcs-parser parse --include-calls --repo fs/ext4 --output-dir ./out_ext4 --chunk-size 10MB
 
-# Medium directories (100-1000 files)
-kcs-parser directory --include-calls --workers=4 fs/
+# Medium trees (100–1000 files)
+kcs-parser parse --include-calls --workers=4 --repo fs --output-dir ./out_fs --chunk-size 32MB
 
-# Large directories (1000+ files)
-kcs-parser directory --include-calls --workers=8 --format=ndjson ~/src/linux/
+# Large trees (1000+ files)
+kcs-parser parse --include-calls --workers=8 --repo ~/src/linux --output-dir ./out --chunk-size 50MB
 ```
 
 ### Integration Examples
@@ -149,13 +155,13 @@ kcs-parser directory --include-calls --workers=8 --format=ndjson ~/src/linux/
 Parse and populate database:
 
 ```bash
-# Parse with call graphs and pipe to database loader
-kcs-parser directory --include-calls --format=ndjson ~/src/linux/fs/ | \
-  python -m kcs_mcp.database_loader --config=x86_64:defconfig
+# Parse with call graphs and load chunked results
+kcs-parser parse --include-calls --repo ~/src/linux/fs --output-dir ./out_fs --chunk-size 32MB
 
-# Direct database integration
-export DATABASE_URL="postgresql://user:pass@localhost/kcs"
-kcs-parser directory --include-calls --database ~/src/linux/fs/
+# Example: iterate chunks and load
+for f in ./out_fs/kernel_data_*.json; do \
+  python -m kcs_mcp.database_loader "$f"; \
+done
 ```
 
 #### CI/CD Integration
@@ -163,12 +169,11 @@ kcs-parser directory --include-calls --database ~/src/linux/fs/
 Continuous parsing in build pipelines:
 
 ```bash
-# Parse changed files only
-git diff --name-only HEAD~1 | grep '\.c$' | \
-  xargs kcs-parser file --include-calls --format=ndjson
+# Parse a narrowed subtree (approximate incremental)
+kcs-parser parse --include-calls --repo ~/src/linux/kernel --output-dir ./out_delta --chunk-size 10MB
 
 # Performance regression testing
-kcs-parser directory --include-calls --benchmark ~/src/linux/kernel/ > perf.json
+kcs-parser parse --include-calls --repo ~/src/linux/kernel --output-dir ./perf_out --chunk-size 32MB
 python tools/compare_performance.py baseline.json perf.json
 ```
 
@@ -177,13 +182,9 @@ python tools/compare_performance.py baseline.json perf.json
 Update only changed files:
 
 ```bash
-# Find files modified in last day
-find ~/src/linux -name "*.c" -mtime -1 | \
-  xargs kcs-parser file --include-calls --format=ndjson
-
-# Git-based incremental parsing
-git diff --name-only origin/master | grep '\.c$' | \
-  xargs kcs-parser file --include-calls
+# Approximate incremental parsing by subtree
+# (file-level CLI removed; choose smallest common subtrees)
+kcs-parser parse --repo ~/src/linux/fs --output-dir ./out_inc --chunk-size 10MB
 ```
 
 ## kcs-extractor
