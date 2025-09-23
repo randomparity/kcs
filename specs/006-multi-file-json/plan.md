@@ -27,7 +27,10 @@
 
 ## Summary
 
-Implement multi-file JSON output strategy to replace the current single 2.8GB JSON file with multiple 50MB chunks organized by kernel subsystem. This enables parallel processing, resumable operations, and memory-efficient database population while maintaining the existing Rust parser → Python MCP server → PostgreSQL pipeline.
+Implement multi-file JSON output to replace a single 2.8GB JSON file with
+multiple ~50MB chunks, organized by kernel subsystem. This enables parallel
+processing, resumable operations, and memory‑efficient database population,
+while maintaining the Rust parser → Python MCP server → PostgreSQL pipeline.
 
 ## Technical Context
 
@@ -95,7 +98,7 @@ Implement multi-file JSON output strategy to replace the current single 2.8GB JS
 
 - Version number assigned? Using existing KCS versioning
 - BUILD increments on every change? Yes
-- Breaking changes handled? Backward compatible - single file mode retained
+- Breaking changes handled? Yes — single-file mode removed in favor of chunked output
 
 ## Project Structure
 
@@ -168,7 +171,7 @@ tools/
 
 ## Phase 1: Design & Contracts
 
-*Prerequisites: research.md complete*
+Prerequisites: research.md complete
 
 1. **Extract entities from feature spec** → `data-model.md`:
    - ChunkManifest: metadata about all chunks
@@ -202,7 +205,7 @@ tools/
 
 ## Phase 2: Task Planning Approach
 
-*This section describes what the /tasks command will do - DO NOT execute during /plan*
+This section describes what the /tasks command will do - DO NOT execute during /plan.
 
 **Task Generation Strategy**:
 
@@ -227,7 +230,7 @@ tools/
 
 ## Phase 3+: Future Implementation
 
-*These phases are beyond the scope of the /plan command*
+These phases are beyond the scope of the /plan command.
 
 **Phase 3**: Task execution (/tasks command creates tasks.md)
 **Phase 4**: Implementation (execute tasks.md following TDD)
@@ -235,11 +238,11 @@ tools/
 
 ## Complexity Tracking
 
-*No violations - using existing patterns and architecture*
+No violations - using existing patterns and architecture.
 
 ## Progress Tracking
 
-*This checklist is updated during execution flow*
+This checklist is updated during execution flow.
 
 **Phase Status**:
 

@@ -23,46 +23,26 @@ kcs-parser [OPTIONS] <COMMAND> [ARGS...]
 
 ### Commands
 
-#### `file` - Parse a single file
+#### `parse` - Parse a repository (chunked output)
 
-Parse a single C source file and output analysis results.
+Parse a kernel source tree and write chunked JSON files plus a manifest.
 
 ```bash
-kcs-parser file [OPTIONS] <FILE_PATH>
+kcs-parser parse --repo <PATH> --config <ARCH:CONFIG> --output-dir <OUT> [--chunk-size <SIZE>] [--include-calls]
 
 # Examples
-kcs-parser file kernel/sched/core.c
-kcs-parser file --include-calls fs/read_write.c
-kcs-parser file --format=json --include-calls mm/mmap.c
+kcs-parser parse --repo ~/src/linux --config x86_64:defconfig --output-dir ./out --chunk-size 32MB
+kcs-parser parse --repo ~/src/linux/fs --config x86_64:defconfig --output-dir ./out_fs --include-calls
 ```
 
 **Options:**
 
+- `--repo PATH`: Path to kernel repository or subdirectory
+- `--config ARCH:CONFIG`: Kernel configuration context (e.g., `x86_64:defconfig`)
+- `--output-dir DIR`: Directory to write chunk files and `manifest.json`
+- `--chunk-size SIZE`: Target chunk size (e.g., `32MB`, `10MB`)
 - `--include-calls`: Enable call graph extraction
-- `--format=json|ndjson`: Output format (default: json)
-- `--output=FILE`: Write output to file instead of stdout
-- `--config=CONFIG`: Kernel configuration context
-
-#### `directory` - Parse multiple files
-
-Parse all C files in a directory tree.
-
-```bash
-kcs-parser directory [OPTIONS] <DIRECTORY_PATH>
-
-# Examples
-kcs-parser directory ~/src/linux/fs/
-kcs-parser directory --include-calls --workers=8 ~/src/linux/kernel/
-kcs-parser directory --format=ndjson --output=results.ndjson ~/src/linux/mm/
-```
-
-**Options:**
-
-- `--include-calls`: Enable call graph extraction for all files
-- `--workers=N`: Number of parallel workers (default: 4)
-- `--format=json|ndjson`: Output format (default: ndjson for directories)
-- `--output=FILE`: Write output to file
-- `--filter=GLOB`: Only parse files matching glob pattern
+- `--workers=N`: Number of parallel workers
 
 ### Global Options
 
@@ -107,17 +87,11 @@ kcs-parser directory --format=ndjson --output=results.ndjson ~/src/linux/mm/
 }
 ```
 
-#### `--format=FORMAT`
+Chunked output format
 
-**Options**:
-
-- `json`: Pretty-printed JSON (default for single files)
-- `ndjson`: Newline-delimited JSON (default for directories)
-
-**When to use**:
-
-- `json`: Human-readable output, small files
-- `ndjson`: Streaming processing, large datasets
+- Files are written as `kernel_data_###.json` in `--output-dir`.
+- A `manifest.json` summarizes chunks, sizes, and checksums.
+- Choose `--chunk-size` to balance file size and count; a constitutional limit of 100MB applies.
 
 #### `--config=CONFIG`
 
