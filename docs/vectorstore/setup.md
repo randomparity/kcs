@@ -612,6 +612,7 @@ Error: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connec
 ```
 
 **Solution:**
+
 1. Verify PostgreSQL is running: `docker compose ps postgres`
 2. Check port binding: `netstat -tlnp | grep 5432`
 3. Verify environment variables in `.env`
@@ -623,6 +624,7 @@ WARNING: pgvector extension not found - vector operations will fail
 ```
 
 **Solution:**
+
 ```sql
 -- Connect to database and run:
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -635,6 +637,7 @@ Error: pool is exhausted, please retry later
 ```
 
 **Solution:**
+
 1. Increase `max_pool_size` in configuration
 2. Investigate long-running queries
 3. Add connection monitoring
@@ -653,6 +656,7 @@ ERROR: Required table 'indexed_content' not found
 ```
 
 **Solution:**
+
 1. Run database migrations: `alembic upgrade head`
 2. Verify migration files in `/src/sql/migrations/`
 3. Check database initialization logs
@@ -664,6 +668,7 @@ Error: out of memory for query result
 ```
 
 **Solution:**
+
 1. Use pagination for large result sets
 2. Increase PostgreSQL memory settings
 3. Use streaming queries for large datasets
