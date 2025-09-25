@@ -36,10 +36,13 @@ Successfully completed verification and documentation of the VectorStore API and
 - **T014**: Created database column reference
 - **T015**: Documented all discrepancies between design and implementation
 
-### ✅ Phase 3.4: Validation & Mapping (Partial)
+### ✅ Phase 3.4: Validation & Mapping (Complete)
 
 - **T016**: Mapped Python DBIndexedContent fields to database columns
 - **T017**: Mapped Python DBVectorEmbedding fields to database columns
+- **T018**: Validated OpenAPI spec against actual VectorStore implementation
+- **T019**: Cross-referenced constraints between code validation and database constraints
+- **T020**: Tested similarity_search with 384-dimensional vectors
 
 ## Verification Results
 
@@ -94,11 +97,7 @@ Successfully completed verification and documentation of the VectorStore API and
 
 ## Remaining Tasks
 
-### Phase 3.4: Validation & Mapping
-
-- [ ] T018: Validate OpenAPI spec against actual VectorStore implementation
-- [ ] T019: Cross-reference constraints between code and database
-- [ ] T020: Test similarity_search with 384-dimensional vectors
+### Phase 3.4: Validation & Mapping (✅ COMPLETE)
 
 ### Phase 3.5: Integration Documentation
 

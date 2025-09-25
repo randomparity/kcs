@@ -13,7 +13,11 @@ from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 import asyncpg
+from dotenv import load_dotenv  # type: ignore[import-not-found]
 from pydantic import BaseModel, Field
+
+# Load environment variables from .env file
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

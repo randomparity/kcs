@@ -322,10 +322,10 @@ class VectorStore:
         try:
             # Build dynamic query with filters
             where_conditions = ["ve.embedding IS NOT NULL"]
-            params = [query_embedding, filters.max_results]
+            params = [str(query_embedding), filters.max_results]
 
             if filters.similarity_threshold > 0:
-                where_conditions.append("(1 - (ve.embedding <=> $1)) >= $3")
+                where_conditions.append("(1 - (ve.embedding <=> $1::vector)) >= $3")
                 params.append(filters.similarity_threshold)
 
             if filters.content_types:
@@ -359,7 +359,7 @@ class VectorStore:
                 "ic.metadata",
                 "ve.id as embedding_id",
                 "ve.chunk_index",
-                "(1 - (ve.embedding <=> $1)) as similarity_score",
+                "(1 - (ve.embedding <=> $1::vector)) as similarity_score",
             ]
 
             if filters.include_content:
@@ -370,7 +370,7 @@ class VectorStore:
             FROM vector_embedding ve
             JOIN indexed_content ic ON ve.content_id = ic.id
             WHERE {" AND ".join(where_conditions)}
-            ORDER BY ve.embedding <=> $1
+            ORDER BY ve.embedding <=> $1::vector
             LIMIT $2
             """
 
@@ -384,7 +384,7 @@ class VectorStore:
                     "content_type": row["content_type"],
                     "source_path": row["source_path"],
                     "title": row["title"],
-                    "metadata": dict(row["metadata"]) if row["metadata"] else {},
+                    "metadata": row["metadata"] if row["metadata"] else {},
                     "embedding_id": row["embedding_id"],
                     "chunk_index": row["chunk_index"],
                     "similarity_score": float(row["similarity_score"]),

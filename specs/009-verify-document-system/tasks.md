@@ -70,9 +70,9 @@
 
 - [X] T016 Map Python DBIndexedContent fields to database columns in docs/vectorstore/field-mapping.md
 - [X] T017 Map Python DBVectorEmbedding fields to database columns in docs/vectorstore/embedding-mapping.md
-- [ ] T018 Validate OpenAPI spec against actual VectorStore implementation
-- [ ] T019 Cross-reference constraints between code validation and database constraints
-- [ ] T020 Test similarity_search with 384-dimensional vectors
+- [X] T018 Validate OpenAPI spec against actual VectorStore implementation
+- [X] T019 Cross-reference constraints between code validation and database constraints
+- [X] T020 Test similarity_search with 384-dimensional vectors
 
 ## Phase 3.5: Integration Documentation
 
