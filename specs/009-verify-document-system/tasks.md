@@ -61,15 +61,15 @@
 ## Phase 3.3: Documentation Generation
 
 - [X] T011 [P] Generate OpenAPI documentation from contracts/vectorstore-api.yaml to docs/vectorstore/api.html
-- [ ] T012 [P] Create ERD diagram from data-model.md to docs/vectorstore/schema.png
+- [X] T012 [P] Create ERD diagram from data-model.md to docs/vectorstore/schema.svg
 - [X] T013 [P] Generate method signatures documentation in docs/vectorstore/methods.md
 - [X] T014 [P] Create database column reference in docs/vectorstore/columns.md
 - [X] T015 Document all discrepancies (API and schema) between intended design and actual implementation in docs/vectorstore/discrepancies.md
 
 ## Phase 3.4: Validation & Mapping
 
-- [ ] T016 Map Python DBIndexedContent fields to database columns in docs/vectorstore/field-mapping.md
-- [ ] T017 Map Python DBVectorEmbedding fields to database columns in docs/vectorstore/embedding-mapping.md
+- [X] T016 Map Python DBIndexedContent fields to database columns in docs/vectorstore/field-mapping.md
+- [X] T017 Map Python DBVectorEmbedding fields to database columns in docs/vectorstore/embedding-mapping.md
 - [ ] T018 Validate OpenAPI spec against actual VectorStore implementation
 - [ ] T019 Cross-reference constraints between code validation and database constraints
 - [ ] T020 Test similarity_search with 384-dimensional vectors
