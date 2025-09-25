@@ -1,0 +1,558 @@
+openapi: 3.0.3
+info:
+  title: VectorStore API
+  description: API documentation for VectorStore semantic search operations
+  version: 1.0.0
+  contact:
+    name: KCS Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /vectorstore/content:
+    post:
+      summary: Store content for indexing
+      operationId: storeContent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreContentRequest'
+            examples:
+              sourceFile:
+                value:
+                  content_type: "source_file"
+                  source_path: "/src/main.py"
+                  content: "def hello_world():\n    return 'Hello'"
+                  title: "Main Module"
+                  metadata:
+                    language: "python"
+                    size: 42
+      responses:
+        '200':
+          description: Content stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentIdResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                emptyContent:
+                  value:
+                    error: "Content cannot be empty"
+                emptyPath:
+                  value:
+                    error: "Source path cannot be empty"
+        '500':
+          description: Storage failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: List content with filters
+      operationId: listContent
+      parameters:
+        - name: content_types
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by content types
+        - name: file_paths
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by specific file paths
+        - name: path_patterns
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: Path patterns for LIKE matching
+        - name: status_filter
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+          description: Filter by indexing status
+        - name: max_results
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          description: Maximum results to return
+      responses:
+        '200':
+          description: Content list retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IndexedContent'
+        '500':
+          description: List operation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /vectorstore/content/{content_id}:
+    get:
+      summary: Get content by ID
+      operationId: getContentById
+      parameters:
+        - name: content_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Content ID
+      responses:
+        '200':
+          description: Content retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndexedContent'
+        '404':
+          description: Content not found
+        '500':
+          description: Retrieval failed
+
+    delete:
+      summary: Delete content and associated embeddings
+      operationId: deleteContent
+      parameters:
+        - name: content_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Content ID to delete
+      responses:
+        '200':
+          description: Content deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Content not found
+        '500':
+          description: Deletion failed
+
+  /vectorstore/content/{content_id}/status:
+    put:
+      summary: Update content indexing status
+      operationId: updateContentStatus
+      parameters:
+        - name: content_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Content ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStatusRequest'
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Content not found
+        '500':
+          description: Update failed
+
+  /vectorstore/embeddings:
+    post:
+      summary: Store vector embedding for content
+      operationId: storeEmbedding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreEmbeddingRequest'
+            examples:
+              firstChunk:
+                value:
+                  content_id: 123
+                  embedding: [0.1, 0.2, ...] # 384 dimensions
+                  chunk_text: "This is the chunk text"
+                  chunk_index: 0
+                  model_name: "BAAI/bge-small-en-v1.5"
+                  model_version: "1.5"
+      responses:
+        '200':
+          description: Embedding stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbeddingIdResponse'
+        '400':
+          description: Invalid embedding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                emptyEmbedding:
+                  value:
+                    error: "Embedding cannot be empty"
+                wrongDimensions:
+                  value:
+                    error: "Expected 384 dimensions, got 768"
+        '500':
+          description: Storage failed
+
+  /vectorstore/embeddings/content/{content_id}:
+    get:
+      summary: Get embedding by content ID and chunk index
+      operationId: getEmbeddingByContentId
+      parameters:
+        - name: content_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Content ID
+        - name: chunk_index
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Chunk index
+      responses:
+        '200':
+          description: Embedding retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VectorEmbedding'
+        '404':
+          description: Embedding not found
+        '500':
+          description: Retrieval failed
+
+  /vectorstore/search:
+    post:
+      summary: Perform similarity search
+      operationId: similaritySearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimilaritySearchRequest'
+            examples:
+              basicSearch:
+                value:
+                  query_embedding: [0.1, 0.2, ...] # 384 dimensions
+                  filters:
+                    similarity_threshold: 0.7
+                    max_results: 20
+                    include_content: true
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResult'
+        '400':
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Search failed
+
+  /vectorstore/stats:
+    get:
+      summary: Get vector storage statistics
+      operationId: getStorageStats
+      responses:
+        '200':
+          description: Statistics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageStats'
+        '500':
+          description: Failed to get statistics
+
+components:
+  schemas:
+    StoreContentRequest:
+      type: object
+      required:
+        - content_type
+        - source_path
+        - content
+      properties:
+        content_type:
+          type: string
+          description: Type of content (source_file, documentation, etc.)
+        source_path:
+          type: string
+          description: Path to source file
+        content:
+          type: string
+          description: Content text
+        title:
+          type: string
+          nullable: true
+          description: Optional title
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    ContentIdResponse:
+      type: object
+      properties:
+        content_id:
+          type: integer
+          description: ID of stored content
+
+    StoreEmbeddingRequest:
+      type: object
+      required:
+        - content_id
+        - embedding
+        - chunk_text
+      properties:
+        content_id:
+          type: integer
+          description: Referenced content ID
+        embedding:
+          type: array
+          items:
+            type: number
+          minItems: 384
+          maxItems: 384
+          description: 384-dimensional vector embedding
+        chunk_text:
+          type: string
+          description: Text content of the chunk
+        chunk_index:
+          type: integer
+          default: 0
+          description: Index of the chunk within content
+        model_name:
+          type: string
+          default: "BAAI/bge-small-en-v1.5"
+          description: Model used for embedding
+        model_version:
+          type: string
+          default: "1.5"
+          description: Model version
+
+    EmbeddingIdResponse:
+      type: object
+      properties:
+        embedding_id:
+          type: integer
+          description: ID of stored embedding
+
+    UpdateStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+          description: New status
+        indexed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional indexing timestamp
+
+    SimilaritySearchRequest:
+      type: object
+      required:
+        - query_embedding
+      properties:
+        query_embedding:
+          type: array
+          items:
+            type: number
+          minItems: 384
+          maxItems: 384
+          description: Query vector embedding
+        filters:
+          $ref: '#/components/schemas/SimilaritySearchFilter'
+
+    SimilaritySearchFilter:
+      type: object
+      properties:
+        similarity_threshold:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          default: 0.0
+          description: Minimum similarity score
+        max_results:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum results
+        content_types:
+          type: array
+          items:
+            type: string
+          description: Filter by content types
+        file_paths:
+          type: array
+          items:
+            type: string
+          description: Filter by file paths
+        include_content:
+          type: boolean
+          default: true
+          description: Include full content in results
+
+    IndexedContent:
+      type: object
+      properties:
+        id:
+          type: integer
+        content_type:
+          type: string
+        source_path:
+          type: string
+        content_hash:
+          type: string
+        title:
+          type: string
+          nullable: true
+        content:
+          type: string
+        metadata:
+          type: object
+        status:
+          type: string
+        indexed_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    VectorEmbedding:
+      type: object
+      properties:
+        id:
+          type: integer
+        content_id:
+          type: integer
+        embedding:
+          type: array
+          items:
+            type: number
+        chunk_index:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    SearchResult:
+      type: object
+      properties:
+        content_id:
+          type: integer
+        content_type:
+          type: string
+        source_path:
+          type: string
+        title:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+        embedding_id:
+          type: integer
+        chunk_index:
+          type: integer
+        similarity_score:
+          type: number
+        content:
+          type: string
+          description: Only included if include_content=true
+
+    StorageStats:
+      type: object
+      properties:
+        content_by_type_status:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: integer
+        total_content:
+          type: integer
+        total_embeddings:
+          type: integer
+        embedding_models:
+          type: array
+          items:
+            type: object
+            properties:
+              model:
+                type: string
+              count:
+                type: integer
+        error:
+          type: string
+          description: Error message if stats retrieval failed
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
