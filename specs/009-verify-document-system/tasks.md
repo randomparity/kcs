@@ -86,8 +86,8 @@
 - [X] T025 [P] Create migration guide for schema discrepancies in docs/vectorstore/migration.md
 - [X] T026 [P] Add performance notes for IVFFlat vs HNSW indexes in docs/vectorstore/performance.md
 - [X] T027 Validate all documentation links and cross-references
-- [ ] T028 Run final verification script to ensure nothing broke
-- [ ] T029 Create summary report of verification results in docs/vectorstore/summary.md
+- [X] T028 Run final verification script to ensure nothing broke
+- [X] T029 Create summary report of verification results in docs/vectorstore/summary.md
 
 ## Dependencies
 
