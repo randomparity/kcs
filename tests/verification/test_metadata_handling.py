@@ -12,6 +12,8 @@ import os
 import sys
 from typing import Any
 
+import pytest
+
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
@@ -28,6 +30,11 @@ from src.python.semantic_search.database.vector_store import (
 )
 
 
+@pytest.mark.skipif(
+    not all([os.getenv("POSTGRES_USER"), os.getenv("POSTGRES_PASSWORD")]),
+    reason="Database credentials not available in CI environment",
+)
+@pytest.mark.asyncio
 async def test_metadata_dict_handling():
     """Test that metadata is consistently handled as Python dicts."""
     print("=" * 80)
@@ -252,6 +259,11 @@ async def test_metadata_dict_handling():
         exit(1)
 
 
+@pytest.mark.skipif(
+    not all([os.getenv("POSTGRES_USER"), os.getenv("POSTGRES_PASSWORD")]),
+    reason="Database credentials not available in CI environment",
+)
+@pytest.mark.asyncio
 async def test_metadata_type_verification():
     """Verify the specific type handling for different scenarios."""
     print("\n" + "=" * 80)

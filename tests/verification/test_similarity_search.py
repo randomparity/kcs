@@ -7,9 +7,12 @@ works correctly with 384-dimensional vectors from BAAI/bge-small-en-v1.5.
 """
 
 import asyncio
+import os
 import random
 import sys
 from typing import Any
+
+import pytest
 
 # Add project root to path
 sys.path.insert(0, "/home/dave/src/kcs/src/python")
@@ -55,8 +58,21 @@ def calculate_cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     return dot_product / (mag1 * mag2) if mag1 and mag2 else 0.0
 
 
+@pytest.mark.skipif(
+    not all([os.getenv("POSTGRES_USER"), os.getenv("POSTGRES_PASSWORD")]),
+    reason="Database credentials not available in CI environment",
+)
+@pytest.mark.asyncio
 async def test_similarity_search():
     """Test similarity search with 384-dimensional vectors."""
+    # Initialize database connection
+    from semantic_search.database.connection import (
+        DatabaseConfig,
+        init_database_connection,
+    )
+
+    config = DatabaseConfig.from_env()
+    await init_database_connection(config)
 
     store = VectorStore()
 
