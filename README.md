@@ -700,12 +700,14 @@ cp .env.example .env
 
 #### Database Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRES_DB` | Database name | `kcs` |
-| `POSTGRES_USER` | Database user | `kcs` |
-| `POSTGRES_PASSWORD` | Database password | `kcs_dev_password` |
-| `DATABASE_URL` | Full connection string | Auto-generated |
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `POSTGRES_USER` | Database user | `kcs` | **Yes** |
+| `POSTGRES_PASSWORD` | Database password | `kcs_dev_password` | **Yes** |
+| `POSTGRES_DB` | Database name | `kcs` | No |
+| `POSTGRES_HOST` | Database host | `localhost` | No |
+| `POSTGRES_PORT` | Database port | `5432` | No |
+| `DATABASE_URL` | Full connection string | Auto-generated | No |
 
 #### Server Configuration
 

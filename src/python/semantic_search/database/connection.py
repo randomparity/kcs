@@ -6,6 +6,7 @@ semantic search operations. Follows KCS database patterns.
 """
 
 import asyncio
+import json
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -13,9 +14,63 @@ from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 import asyncpg
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+# Required environment variables for database connection
+REQUIRED_ENV_VARS = {
+    "POSTGRES_USER": "Database username is required",
+    "POSTGRES_PASSWORD": "Database password is required",
+}
+
+# Optional environment variables with defaults
+OPTIONAL_ENV_VARS = {
+    "POSTGRES_HOST": "localhost",
+    "POSTGRES_PORT": "5432",
+    "POSTGRES_DB": "kcs",
+}
+
+
+def verify_environment(load_env_file: bool = True) -> None:
+    """
+    Verify required environment variables are set.
+
+    Args:
+        load_env_file: Whether to load .env file before verification
+
+    Raises:
+        OSError: If required variables are missing
+    """
+    if load_env_file:
+        # Load environment variables from .env file
+        load_dotenv()
+
+    missing_vars = []
+    for var_name, error_msg in REQUIRED_ENV_VARS.items():
+        value = os.getenv(var_name)
+        if not value:
+            missing_vars.append(f"  - {var_name}: {error_msg}")
+
+    if missing_vars:
+        logger.error("Missing required environment variables")
+        raise OSError(
+            "Missing required environment variables:\n"
+            + "\n".join(missing_vars)
+            + "\n\nPlease ensure these are set in your .env file or environment."
+        )
+
+    # Log optional variables for debugging
+    logger.debug("Database environment configuration:")
+    logger.debug(f"  POSTGRES_USER: {os.getenv('POSTGRES_USER')}")
+    logger.debug(
+        f"  POSTGRES_PASSWORD: {'***' if os.getenv('POSTGRES_PASSWORD') else 'NOT SET'}"
+    )
+    for var_name, default in OPTIONAL_ENV_VARS.items():
+        value = os.getenv(var_name, default)
+        logger.debug(f"  {var_name}: {value}")
+
 
 # Global connection instance
 _connection_instance: Optional["DatabaseConnection"] = None
@@ -36,15 +91,39 @@ class DatabaseConfig(BaseModel):
     )
 
     @classmethod
-    def from_env(cls) -> "DatabaseConfig":
-        """Create config from environment variables."""
-        return cls(
-            host=os.getenv("POSTGRES_HOST", "localhost"),
-            port=int(os.getenv("POSTGRES_PORT", "5432")),
-            database=os.getenv("POSTGRES_DB", "kcs"),
-            username=os.getenv("POSTGRES_USER", "kcs"),
-            password=os.getenv("POSTGRES_PASSWORD", ""),
-        )
+    def from_env(cls, verify: bool = True) -> "DatabaseConfig":
+        """
+        Create config from environment variables.
+
+        Args:
+            verify: Whether to verify environment variables first
+
+        Returns:
+            DatabaseConfig instance
+
+        Raises:
+            OSError: If required variables are missing
+            ValueError: If environment variables are invalid
+        """
+        if verify:
+            # Verify and load environment
+            verify_environment(load_env_file=True)
+
+        try:
+            return cls(
+                host=os.getenv("POSTGRES_HOST", OPTIONAL_ENV_VARS["POSTGRES_HOST"]),
+                port=int(
+                    os.getenv("POSTGRES_PORT", OPTIONAL_ENV_VARS["POSTGRES_PORT"])
+                ),
+                database=os.getenv("POSTGRES_DB", OPTIONAL_ENV_VARS["POSTGRES_DB"]),
+                username=os.getenv("POSTGRES_USER", ""),  # Required, verified above
+                password=os.getenv("POSTGRES_PASSWORD", ""),  # Required, verified above
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid environment variable format: {e}")
+            raise ValueError(
+                f"Failed to create database config from environment: {e}"
+            ) from e
 
     @classmethod
     def from_url(cls, url: str) -> "DatabaseConfig":
@@ -92,11 +171,37 @@ class DatabaseConnection:
         self._lock = asyncio.Lock()
 
     async def connect(self) -> None:
-        """Establish database connection pool."""
+        """
+        Establish database connection pool with JSON codec support.
+
+        Configures automatic conversion between PostgreSQL JSONB and Python dicts
+        for intuitive metadata handling throughout the application.
+        """
         async with self._lock:
             if self._connected:
                 logger.info("Database already connected")
                 return
+
+            async def init_connection(conn: asyncpg.Connection) -> None:
+                """
+                Initialize each connection with JSON/JSONB codec.
+
+                This ensures all JSONB columns are automatically converted to/from
+                Python dicts, providing a consistent and intuitive interface.
+                """
+                logger.info("Initializing connection with JSON/JSONB codec")
+
+                # Configure JSON type codec
+                await conn.set_type_codec(
+                    "json", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
+                )
+
+                # Configure JSONB type codec
+                await conn.set_type_codec(
+                    "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
+                )
+
+                logger.info("Successfully configured JSON/JSONB codec for connection")
 
             try:
                 logger.info(
@@ -104,10 +209,15 @@ class DatabaseConnection:
                 )
 
                 self.pool = await asyncpg.create_pool(
-                    self.config.to_url(),
+                    host=self.config.host,
+                    port=self.config.port,
+                    database=self.config.database,
+                    user=self.config.username,
+                    password=self.config.password,
                     min_size=self.config.min_pool_size,
                     max_size=self.config.max_pool_size,
                     command_timeout=self.config.command_timeout,
+                    init=init_connection,  # Apply codec to all connections
                 )
 
                 # Test connection and verify schema

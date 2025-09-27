@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .table { fill: #f8f9fa; stroke: #343a40; stroke-width: 2; }
+      .table-header { fill: #343a40; }
+      .table-title { fill: white; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; }
+      .field { fill: #212529; font-family: Arial, sans-serif; font-size: 12px; }
+      .pk { fill: #dc3545; font-weight: bold; }
+      .fk { fill: #007bff; }
+      .relationship { stroke: #6c757d; stroke-width: 2; fill: none; }
+      .relationship-label { fill: #6c757d; font-family: Arial, sans-serif; font-size: 10px; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="600" y="30" text-anchor="middle" style="font-family: Arial, sans-serif; font-size: 20px; font-weight: bold;">
+    VectorStore Database Schema (ERD)
+  </text>
+  <text x="600" y="50" text-anchor="middle" style="font-family: Arial, sans-serif; font-size: 14px; fill: #6c757d;">
+    PostgreSQL with pgvector - Production Migration 014_semantic_search_core.sql
+  </text>
+
+  <!-- indexed_content table -->
+  <g id="indexed_content">
+    <rect x="50" y="100" width="280" height="320" class="table" rx="5"/>
+    <rect x="50" y="100" width="280" height="30" class="table-header" rx="5"/>
+    <text x="190" y="120" text-anchor="middle" class="table-title">indexed_content</text>
+
+    <text x="60" y="150" class="field pk">🔑 id: SERIAL</text>
+    <text x="60" y="170" class="field">content_type: VARCHAR(50)</text>
+    <text x="60" y="190" class="field">source_path: TEXT (UNIQUE)</text>
+    <text x="60" y="210" class="field">content_hash: VARCHAR(64)</text>
+    <text x="60" y="230" class="field">title: TEXT</text>
+    <text x="60" y="250" class="field">content: TEXT</text>
+    <text x="60" y="270" class="field">metadata: JSONB</text>
+    <text x="60" y="290" class="field">status: VARCHAR(20)</text>
+    <text x="60" y="310" class="field">chunk_count: INTEGER</text>
+    <text x="60" y="330" class="field">indexed_at: TIMESTAMP</text>
+    <text x="60" y="350" class="field">created_at: TIMESTAMP</text>
+    <text x="60" y="370" class="field">updated_at: TIMESTAMP</text>
+
+    <text x="60" y="400" style="font-family: Arial, sans-serif; font-size: 10px; fill: #6c757d;">
+      Indexes: 8 (source_path, content_type, status, hash, dates, metadata, FTS)
+    </text>
+  </g>
+
+  <!-- vector_embedding table -->
+  <g id="vector_embedding">
+    <rect x="420" y="100" width="280" height="260" class="table" rx="5"/>
+    <rect x="420" y="100" width="280" height="30" class="table-header" rx="5"/>
+    <text x="560" y="120" text-anchor="middle" class="table-title">vector_embedding</text>
+
+    <text x="430" y="150" class="field pk">🔑 id: SERIAL</text>
+    <text x="430" y="170" class="field fk">🔗 content_id: INTEGER</text>
+    <text x="430" y="190" class="field">embedding: VECTOR(384)</text>
+    <text x="430" y="210" class="field">chunk_index: INTEGER</text>
+    <text x="430" y="230" class="field">chunk_text: TEXT</text>
+    <text x="430" y="250" class="field">line_start: INTEGER</text>
+    <text x="430" y="270" class="field">line_end: INTEGER</text>
+    <text x="430" y="290" class="field">metadata: JSONB</text>
+    <text x="430" y="310" class="field">created_at: TIMESTAMP</text>
+
+    <text x="430" y="340" style="font-family: Arial, sans-serif; font-size: 10px; fill: #6c757d;">
+      Unique: (content_id, chunk_index)
+    </text>
+    <text x="430" y="355" style="font-family: Arial, sans-serif; font-size: 10px; fill: #6c757d;">
+      Indexes: IVFFlat similarity, content_id, chunk_index, lines
+    </text>
+  </g>
+
+  <!-- search_query table -->
+  <g id="search_query">
+    <rect x="50" y="480" width="280" height="220" class="table" rx="5"/>
+    <rect x="50" y="480" width="280" height="30" class="table-header" rx="5"/>
+    <text x="190" y="500" text-anchor="middle" class="table-title">search_query</text>
+
+    <text x="60" y="530" class="field pk">🔑 id: SERIAL</text>
+    <text x="60" y="550" class="field">query_text: TEXT</text>
+    <text x="60" y="570" class="field">query_embedding: VECTOR(384)</text>
+    <text x="60" y="590" class="field">preprocessing_config: JSONB</text>
+    <text x="60" y="610" class="field">created_at: TIMESTAMP</text>
+    <text x="60" y="630" class="field">processed_at: TIMESTAMP</text>
+    <text x="60" y="650" class="field">processing_time_ms: INTEGER</text>
+    <text x="60" y="670" class="field">status: VARCHAR(20)</text>
+
+    <text x="60" y="690" style="font-family: Arial, sans-serif; font-size: 10px; fill: #6c757d;">
+      Indexes: text, status, dates, FTS, IVFFlat
+    </text>
+  </g>
+
+  <!-- search_result table -->
+  <g id="search_result">
+    <rect x="420" y="420" width="280" height="340" class="table" rx="5"/>
+    <rect x="420" y="420" width="280" height="30" class="table-header" rx="5"/>
+    <text x="560" y="440" text-anchor="middle" class="table-title">search_result</text>
+
+    <text x="430" y="470" class="field pk">🔑 id: SERIAL</text>
+    <text x="430" y="490" class="field fk">🔗 query_id: INTEGER</text>
+    <text x="430" y="510" class="field fk">🔗 content_id: INTEGER</text>
+    <text x="430" y="530" class="field fk">🔗 embedding_id: INTEGER</text>
+    <text x="430" y="550" class="field">similarity_score: FLOAT</text>
+    <text x="430" y="570" class="field">bm25_score: FLOAT</text>
+    <text x="430" y="590" class="field">combined_score: FLOAT</text>
+    <text x="430" y="610" class="field">result_rank: INTEGER</text>
+    <text x="430" y="630" class="field">context_lines: TEXT[]</text>
+    <text x="430" y="650" class="field">explanation: TEXT</text>
+    <text x="430" y="670" class="field">metadata: JSONB</text>
+    <text x="430" y="690" class="field">created_at: TIMESTAMP</text>
+
+    <text x="430" y="720" style="font-family: Arial, sans-serif; font-size: 10px; fill: #6c757d;">
+      Unique: (query_id, result_rank)</text>
+    <text x="430" y="735" style="font-family: Arial, sans-serif; font-size: 10px; fill: #6c757d;">
+      Indexes: query_id, content_id, embedding_id,</text>
+    <text x="430" y="750" style="font-family: Arial, sans-serif; font-size: 10px; fill: #6c757d;">
+      scores, rank, created_at</text>
+  </g>
+
+  <!-- Relationships -->
+  <!-- indexed_content to vector_embedding (1:N) -->
+  <line x1="330" y1="260" x2="420" y2="170" class="relationship"/>
+  <text x="375" y="210" class="relationship-label">1:N</text>
+  <text x="360" y="225" class="relationship-label">has embeddings</text>
+
+  <!-- search_query to search_result (1:N) -->
+  <line x1="330" y1="590" x2="420" y2="490" class="relationship"/>
+  <text x="375" y="540" class="relationship-label">1:N</text>
+  <text x="350" y="555" class="relationship-label">produces results</text>
+
+  <!-- indexed_content to search_result (1:N) -->
+  <path d="M 330 350 Q 380 380 420 510" class="relationship"/>
+  <text x="365" y="380" class="relationship-label">referenced in</text>
+
+  <!-- vector_embedding to search_result (1:N) -->
+  <line x1="560" y1="360" x2="560" y2="420" class="relationship"/>
+  <text x="570" y="390" class="relationship-label">1:N</text>
+  <text x="570" y="405" class="relationship-label">matched by</text>
+
+  <!-- Legend -->
+  <g id="legend" transform="translate(800, 100)">
+    <rect x="0" y="0" width="350" height="200" style="fill: #f8f9fa; stroke: #dee2e6; stroke-width: 1;" rx="5"/>
+    <text x="175" y="20" text-anchor="middle" style="font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;">Legend</text>
+
+    <text x="10" y="45" style="font-family: Arial, sans-serif; font-size: 12px;">🔑 Primary Key (PK)</text>
+    <text x="10" y="65" style="font-family: Arial, sans-serif; font-size: 12px;">🔗 Foreign Key (FK)</text>
+    <text x="10" y="85" style="font-family: Arial, sans-serif; font-size: 12px;">━━ One-to-Many Relationship</text>
+
+    <text x="10" y="115" style="font-family: Arial, sans-serif; font-size: 12px; font-weight: bold;">Key Features:</text>
+    <text x="10" y="135" style="font-family: Arial, sans-serif; font-size: 11px;">• 384-dimensional vectors (BAAI/bge-small-en-v1.5)</text>
+    <text x="10" y="150" style="font-family: Arial, sans-serif; font-size: 11px;">• IVFFlat indexing for similarity search</text>
+    <text x="10" y="165" style="font-family: Arial, sans-serif; font-size: 11px;">• Multiple chunks per content (via chunk_index)</text>
+    <text x="10" y="180" style="font-family: Arial, sans-serif; font-size: 11px;">• Cascade deletion via foreign keys</text>
+    <text x="10" y="195" style="font-family: Arial, sans-serif; font-size: 11px;">• JSONB metadata fields for flexibility</text>
+  </g>
+
+  <!-- Statistics Box -->
+  <g id="stats" transform="translate(800, 320)">
+    <rect x="0" y="0" width="350" height="120" style="fill: #e7f3ff; stroke: #0066cc; stroke-width: 1;" rx="5"/>
+    <text x="175" y="20" text-anchor="middle" style="font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;">Database Statistics</text>
+
+    <text x="10" y="45" style="font-family: Arial, sans-serif; font-size: 12px;">Tables: 4</text>
+    <text x="10" y="65" style="font-family: Arial, sans-serif; font-size: 12px;">Total Indexes: 27+</text>
+    <text x="10" y="85" style="font-family: Arial, sans-serif; font-size: 12px;">Vector Dimensions: 384</text>
+    <text x="10" y="105" style="font-family: Arial, sans-serif; font-size: 12px;">Index Type: IVFFlat (lists=100)</text>
+  </g>
+</svg>

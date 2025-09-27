@@ -253,7 +253,9 @@ class TestVectorStore:
 
         # Verify query construction with filters
         query_call = self.mock_db.fetch_all.call_args[0][0]
-        assert "(1 - (ve.embedding <=> $1)) >= $3" in query_call  # Similarity threshold
+        assert (
+            "(1 - (ve.embedding <=> $1::vector)) >= $3" in query_call
+        )  # Similarity threshold
         assert (
             "ic.content_type::text = ANY(ARRAY[$4])" in query_call
         )  # Content type filter
@@ -268,7 +270,7 @@ class TestVectorStore:
 
         # Verify parameters
         params = self.mock_db.fetch_all.call_args[0][1:]
-        assert params[0] == query_embedding  # Query vector
+        assert params[0] == str(query_embedding)  # Query vector (converted to string)
         assert params[1] == 5  # Max results
         assert params[2] == 0.7  # Similarity threshold
         # The content_types and file_paths are extended as individual items

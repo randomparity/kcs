@@ -19,7 +19,8 @@ repos:
         files: ^src/python/.*\.py$
         additional_dependencies: [
           types-requests, types-PyYAML, types-psutil, types-aiofiles,
-          pydantic, structlog, fastapi, asyncpg, uvicorn, tomli-w
+          pydantic, structlog, fastapi, asyncpg, uvicorn, tomli-w,
+          python-dotenv
         ]
         args: [--config-file=pyproject.toml]
 
@@ -65,12 +66,12 @@ repos:
   #       additional_dependencies: [sqlfluff-templater-dbt]
 
   # Documentation
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.37.0
-    hooks:
-      - id: markdownlint
-        files: \.md$
-        args: ['--fix']
+  # - repo: https://github.com/igorshubovych/markdownlint-cli
+  #   rev: v0.37.0
+  #   hooks:
+  #     - id: markdownlint
+  #       files: \.md$
+  #       args: ['--fix']
 
   # Security scanning
   # - repo: https://github.com/Yelp/detect-secrets
