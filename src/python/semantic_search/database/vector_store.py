@@ -162,9 +162,7 @@ class VectorStore:
                 return int(existing_id)
 
             # Insert new content
-            import json
-
-            metadata_json = json.dumps(metadata or {})
+            # With JSON codec, pass dict directly (not JSON string)
             content_id = await self._db.fetch_val(
                 """
                 INSERT INTO indexed_content (
@@ -177,7 +175,7 @@ class VectorStore:
                 content_hash,
                 title,
                 content,
-                metadata_json,
+                metadata or {},  # Pass dict directly, codec handles conversion
             )
 
             logger.info(f"Stored content with ID {content_id}")
@@ -433,7 +431,7 @@ class VectorStore:
                 content_hash=row["content_hash"],
                 title=row["title"],
                 content=row["content"],
-                metadata=dict(row["metadata"]) if row["metadata"] else {},
+                metadata=row["metadata"] if row["metadata"] else {},
                 status=row["status"],
                 indexed_at=row["indexed_at"],
                 updated_at=row["updated_at"],
@@ -569,7 +567,7 @@ class VectorStore:
                     content_hash=row["content_hash"],
                     title=row["title"],
                     content=row["content"],
-                    metadata=dict(row["metadata"]) if row["metadata"] else {},
+                    metadata=row["metadata"] if row["metadata"] else {},
                     status=row["status"],
                     indexed_at=row["indexed_at"],
                     updated_at=row["updated_at"],
