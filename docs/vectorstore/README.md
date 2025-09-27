@@ -12,6 +12,7 @@ The VectorStore provides high-performance vector storage and similarity search o
 
 | Documentation | Description |
 |--------------|-------------|
+| [Environment Setup](./ENVIRONMENT.md) | **Required environment variables and configuration** |
 | [Setup Guide](./setup.md) | Installation, configuration, and deployment |
 | [API Examples](./examples.md) | Usage examples for all 9 API methods |
 | [Error Handling](./errors.md) | Error types, recovery patterns, debugging |
@@ -19,6 +20,32 @@ The VectorStore provides high-performance vector storage and similarity search o
 | [Database Schema](./schema.svg) | Entity relationship diagram |
 | [Method Reference](./methods.md) | Detailed method signatures |
 | [Column Reference](./columns.md) | Database column specifications |
+
+## Quick Start
+
+### Prerequisites
+
+1. **Set Required Environment Variables**:
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+
+   # Edit .env and set required variables:
+   # POSTGRES_USER=your_username       (REQUIRED)
+   # POSTGRES_PASSWORD=your_password   (REQUIRED)
+   ```
+
+2. **Start PostgreSQL with pgvector**:
+   ```bash
+   docker-compose up -d postgres
+   ```
+
+3. **Run Migrations**:
+   ```bash
+   python -m semantic_search.cli.migrate
+   ```
+
+See [Environment Setup](./ENVIRONMENT.md) for detailed configuration options.
 
 ## System Architecture
 
